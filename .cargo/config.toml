@@ -1,0 +1,17 @@
+[alias]
+b = "build"
+br = "build --release"
+c = "check"
+t = "test"
+r = "run" #FIXME This will be modified to run on hexapod
+rr = "run --release" #FIXME This will be modified to run on hexapod
+
+[build]
+target = "aarch64-unknown-linux-gnu"
+
+[target.aarch64-unknown-linux-gnu]
+linker = "aarch64-unknown-linux-gnu-gcc"
+#runner = "ssh pi@raspberrypi.local"  # FIXME This will be modified to run on hexapod
+rustflags = [
+    "-C", "target-feature=+crt-static"
+]
