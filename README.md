@@ -43,6 +43,10 @@ cargo install cross
 
 # Install cargo-make for task runner
 cargo install cargo-make
+
+# For remote code running on the hexapod
+# [ONLY USE WHEN HEXAPOD WITH YOU]
+cargo install --git https://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@github.com/Adam-Grman/cargo-hexapod-devkit.git
 ```
 
 ### Building
@@ -106,6 +110,7 @@ cargo make pcrun
 ```
 
 **Remote deployment and run:**
+** [ONLY USE WHEN HEXAPOD WITH YOU] **
 ```bash
 cargo make pirunremote
 ```
