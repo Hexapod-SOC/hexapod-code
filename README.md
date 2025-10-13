@@ -36,6 +36,8 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 rustup target add aarch64-unknown-linux-gnu
 
 # Install cross-compilation tool
+# Only required for cross compiling to PI
+# Local dummy run on amd64 platform doesnt use it 
 cargo install cross
 
 # Install cargo-make for task runner
@@ -48,20 +50,20 @@ cargo install --git https://github_pat_11AVEDP6I0OvcP61VyaWTk_aDn3v6C5TDUiHJTRyn
 
 ### Building
 
-**For PC (dummy mode):**
+**For PC (dummy mode aka fake sensors):**
 ```bash
 cargo make pcbuild
 ```
 
-**For Raspberry Pi (cross-compile):**
+**For Raspberry Pi (cross-compile with real sensors):**
 ```bash
 cargo make pibuild
 ```
 
 **Release builds:**
 ```bash
-cargo make pcbuildrelease  # PC
-cargo make pibuildrelease  # Pi
+cargo make pcbuildrelease  # PC dummy sensors
+cargo make pibuildrelease  # Pi real sensors
 ```
 
 ## Configuration
@@ -101,7 +103,7 @@ Set environment variables or use defaults:
 
 ### Running the Demo
 
-**On PC (simulation):**
+**On PC (fake sensors):**
 ```bash
 cargo make pcrun
 ```
