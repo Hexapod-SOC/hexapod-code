@@ -1,0 +1,16 @@
+[package]
+name = "audio"
+version.workspace = true
+description.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow = "1.0.100"
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[features]
+dummy = []  # just list the features this crate can handle
+real = []

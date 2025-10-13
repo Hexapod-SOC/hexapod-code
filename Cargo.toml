@@ -15,23 +15,17 @@ authors = ["Adam", "Michael"]
 edition = "2024"
 
 [features]
-dummy = ["devices/dummy"] # enables the devices dummy feature
-real  = ["devices/real"]  # enables the devices real feature
-
-[workspace.features]
-default = ["dummy"]       # default workspace feature
-dummy = ["devices/dummy"] # enables the devices dummy feature
-real  = ["devices/real"]  # enables the devices real feature
+dummy = ["devices/dummy", "audio/dummy"] # enables the devices dummy feature
+real  = ["devices/real", "audio/real"]  # enables the devices real feature
 
 [dependencies]
-# Real dependencies
-tokio = { version = "1.45.1", features = ["full", "macros", "rt-multi-thread"] }
-glam = "0.30.8"
 # Workspace crates
 devices = { path = "crates/devices" }
 movement = { path = "crates/movement" }
-#audio = { path = "crates/audio" }
-#tokio.workspace = true
+audio = { path = "crates/audio" }
+# External dependencies
+tokio = { version = "1.45.1", features = ["full", "macros", "rt-multi-thread"] }
+glam = "0.30.8"
 
 [workspace.dependencies]
 once_cell = "1.21.3"
@@ -44,6 +38,3 @@ glam = "0.30.8"
 pwm-pca9685 = "1.0.0"
 linux-embedded-hal = "0.4.0"
 
-[target.aarch64-unknown-linux-gnu]
-linker = "aarch64-unknown-linux-gnu-gcc"
-rustflags = [ "-C", "target-feature=+crt-static" ]

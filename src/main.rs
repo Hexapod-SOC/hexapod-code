@@ -2,41 +2,45 @@
 #![allow(unused_imports)]
 #![allow(unused_variables)]
 
+pub mod config;
 pub mod macros;
-//pub mod audio; //FIXME move the its crate/
-
-//FIXME properly move to its crate/
-pub mod movementA;
 
 // External crates
 use glam::Vec3;
 
 // Workspace imports
-use movement::legs::{LegAngles, Leg};
+use config::{TTS_URL, TTS_TMP_DIR, CONSTRAINTS, SERVO_PINS};
+use movement::{ik, legs::{LegAngles, Leg}};
 use devices::servo::{ServoPins, ServoController};
-
-
-const SERVO_PINS: ServoPins = ServoPins {
-    left_front: (0, 1, 2),
-    left_middle: (4, 5, 6),
-    left_back: (8, 9, 10),
-    right_front: (0, 1, 2),
-    right_middle: (4, 5, 6),
-    right_back: (8, 9, 10),
-};
-
 
 #[tokio::main]
 async fn main() {
-    println!("Hello, world from Hexapod EY!");
+    println!("Hello world from Hexapod EY!");
 
-    let ik = movementA::ik::SimpleIK::new();
-    let mut servos_controller = ServoController::new(SERVO_PINS);
-    //servos_controller.set_all_legs_to_angles(90.0, 50.0, 50.0);
+    audio::tts::init(TTS_URL, TTS_TMP_DIR);
+    audio::tts::sayen("Hello, I am a hexapod robot!").unwrap();
+    audio::tts::saysk("Ahoj, som pavuk robot!").unwrap();
 
-    let mut movement_controller = movementA::movement::Movement::new(servos_controller, ik);
+    let ik = ik::SimpleIK::new(CONSTRAINTS);
+    let servos_controller = ServoController::new(SERVO_PINS);
+    let movement_controller = MoveTmpStruct::new(servos_controller, ik);
 
-    
     println!("Demo finished. Press Ctrl+C to exit.");
-    tokio::time::sleep(std::time::Duration::from_secs(9999)).await;
+    tokio::time::sleep(std::time::Duration::from_secs(9999)).await; // Keep the program running
+}
+
+//FIXME temp struct to hold movement logic until we add it to movement crate
+pub struct MoveTmpStruct {
+    servo_controller: ServoController,
+    ik: ik::SimpleIK,
+}
+
+impl MoveTmpStruct {
+    pub fn new(servo_controller: ServoController, ik: ik::SimpleIK) -> Self {
+        MoveTmpStruct { servo_controller, ik }
+    }
+    pub fn move_leg_to_position(&mut self, leg: Leg, position: glam::Vec3) {
+        let angles = self.ik.calculate_leg_angles(leg, position);
+        self.servo_controller.set_leg_angles(leg, angles);
+    }
 }

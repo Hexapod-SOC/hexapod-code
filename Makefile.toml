@@ -1,16 +1,12 @@
-[tasks.pibuild]
-command = "cross"
-args = ["build", "--target", "aarch64-unknown-linux-gnu", "--features", "real"]
+# PC BUILDS
+[tasks.pccheck]
+command = "cargo"
+args = ["check", "--features", "dummy"]
 workspace = false
 
 [tasks.pcbuild]
 command = "cargo"
 args = ["build", "--features", "dummy"]
-workspace = false
-
-[tasks.pibuildrelease]
-command = "cross"
-args = ["build", "--target", "aarch64-unknown-linux-gnu", "--features", "real", "--release"]
 workspace = false
 
 [tasks.pcbuildrelease]
@@ -26,6 +22,17 @@ workspace = false
 [tasks.pcrunrelease]
 command = "cargo"
 args = ["run", "--features", "dummy", "--release"]
+workspace = false
+
+# RASPBERRY PI BUILDS
+[tasks.pibuild]
+command = "cross"
+args = ["build", "--target", "aarch64-unknown-linux-gnu", "--features", "real"]
+workspace = false
+
+[tasks.pibuildrelease]
+command = "cross"
+args = ["build", "--target", "aarch64-unknown-linux-gnu", "--features", "real", "--release"]
 workspace = false
 
 [tasks.pirunremote]

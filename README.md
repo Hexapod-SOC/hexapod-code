@@ -7,8 +7,9 @@ A Rust-based control system for a hexapod robot with 18 servos (3 per leg), feat
 - **Inverse Kinematics**: Calculate joint angles for desired leg positions using [`SimpleIK`](src/movement/ik.rs)
 - **[WIP] Tripod Gait Walking**: Efficient 6-legged walking pattern implementation
 - **Servo Control**: Dual PCA9685 PWM controllers for precise servo management via [`ServoController`](src/devices/servos.rs)
-- **[WIP] Text-to-Speech**: Piper TTS integration with caching and multi-language support (English/Slovak)
-- **[MODIFY] Audio Playback**: WAV and MP3 file playback capabilities
+- **Text-to-Speech**: Piper TTS integration with caching and multi-language support (English/Slovak)
+- **TTS Cache**: Tmp TTS Cache for repeated sayings
+- **Audio Playback**: WAV and ~~MP3~~ file playback capabilities
 - **Async Runtime**: Built on Tokio for efficient concurrent operations
 
 ## Project Structure
