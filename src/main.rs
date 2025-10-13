@@ -5,11 +5,13 @@
 pub mod macros;
 pub mod audio;
 pub mod movement;
+pub mod devices;
 
 use tokio::time::Sleep;
 use glam::Vec3;
 
-use crate::movement::{servos, LegAngles, ServoPins, Leg};
+use crate::movement::{LegAngles, ServoPins, Leg};
+use crate::devices::servos; 
 
 #[tokio::main]
 async fn main() {

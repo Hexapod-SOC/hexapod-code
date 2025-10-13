@@ -1,5 +1,4 @@
 pub mod ik;
-pub mod servos;
 pub mod movement;
 
 #[derive(Debug, Clone, Copy)]
