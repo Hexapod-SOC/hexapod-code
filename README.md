@@ -11,6 +11,7 @@ A Rust-based control system for a hexapod robot with 18 servos (3 per leg), feat
 - **TTS Cache**: Tmp TTS Cache for repeated sayings
 - **Audio Playback**: WAV and ~~MP3~~ file playback capabilities
 - **Async Runtime**: Built on Tokio for efficient concurrent operations
+- **[WIP] Config.toml**: Move from hardcoded config.rs to Config.toml
 
 ## Project Structure
 

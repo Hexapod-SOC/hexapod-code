@@ -9,17 +9,18 @@ pub mod macros;
 use glam::Vec3;
 
 // Workspace imports
-use config::{TTS_URL, TTS_TMP_DIR, CONSTRAINTS, SERVO_PINS};
+use config::{TTS_URL, TTS_TMP_DIR, CONSTRAINTS, SERVO_PINS}; //FIXME eventually convert to config files not hardcoded constants
 use movement::{ik, legs::{LegAngles, Leg}};
 use devices::servo::{ServoPins, ServoController};
+use audio::tts;
 
 #[tokio::main]
 async fn main() {
     println!("Hello world from Hexapod EY!");
 
-    audio::tts::init(TTS_URL, TTS_TMP_DIR);
-    audio::tts::sayen("Hello, I am a hexapod robot!").unwrap();
-    audio::tts::saysk("Ahoj, som pavuk robot!").unwrap();
+    tts::init(TTS_URL, TTS_TMP_DIR);
+    tts::sayen("Hello, I am a hexapod robot!").unwrap();
+    tts::saysk("Ahoj, som pavuk robot!").unwrap();
 
     let ik = ik::SimpleIK::new(CONSTRAINTS);
     let servos_controller = ServoController::new(SERVO_PINS);
