@@ -202,7 +202,7 @@ The project uses [cross](https://github.com/cross-rs/cross) for ARM64 cross-comp
 
 ## Authors
 - Adam
-- Micheal
+- Michael
 
 ## Acknowledgments
 
