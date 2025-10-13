@@ -3,7 +3,9 @@
 #![allow(unused_variables)]
 
 pub mod macros;
-//pub mod audio;
+//pub mod audio; //FIXME move the its crate/
+
+//FIXME properly move to its crate/
 pub mod movementA;
 
 // External crates
