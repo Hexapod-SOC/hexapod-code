@@ -1,0 +1,15 @@
+[package]
+name = "devices"
+version.workspace = true
+description.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+[dependencies]
+movement = { path = "../movement" }
+linux-embedded-hal.workspace = true
+pwm-pca9685.workspace = true
+
+[features]
+dummy = []  # just list the features this crate can handle
+real = []

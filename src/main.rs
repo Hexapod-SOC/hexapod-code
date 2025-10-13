@@ -3,33 +3,35 @@
 #![allow(unused_variables)]
 
 pub mod macros;
-pub mod audio;
-pub mod movement;
-pub mod devices;
+//pub mod audio;
+pub mod movementA;
 
-use tokio::time::Sleep;
+// External crates
 use glam::Vec3;
 
-use crate::movement::{LegAngles, ServoPins, Leg};
-use crate::devices::servos; 
+// Workspace imports
+use movement::legs::{LegAngles, Leg};
+use devices::servo::{ServoPins, ServoController};
+
+
+const SERVO_PINS: ServoPins = ServoPins {
+    left_front: (0, 1, 2),
+    left_middle: (4, 5, 6),
+    left_back: (8, 9, 10),
+    right_front: (0, 1, 2),
+    right_middle: (4, 5, 6),
+    right_back: (8, 9, 10),
+};
+
 
 #[tokio::main]
 async fn main() {
     println!("Hello, world from Hexapod EY!");
 
-    let servo_pins = ServoPins {
-        left_front: (0, 1, 2),
-        left_middle: (4, 5, 6),
-        left_back: (8, 9, 10),
-        right_front: (0, 1, 2),
-        right_middle: (4, 5, 6),
-        right_back: (8, 9, 10),
-    };
+    let ik = movementA::ik::SimpleIK::new();
+    let servos_controller = ServoController::new(SERVO_PINS);
 
-    let ik = movement::ik::SimpleIK::new();
-    let servos_controller = servos::ServoController::new(servo_pins);
-
-    let mut movement_controller = movement::movement::Movement::new(servos_controller, ik);
+    let mut movement_controller = movementA::movement::Movement::new(servos_controller, ik);
 
     println!("Starting tripod gait walking demo...");
     

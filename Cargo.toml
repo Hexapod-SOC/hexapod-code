@@ -1,9 +1,39 @@
 [package]
 name = "hexapod-code"
-version = "0.1.0"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description.workspace = true
+
+[workspace]
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.0.0"
+description = "Code for controlling a hexapod robot"
+authors = ["Adam", "Michael"]
 edition = "2024"
 
+[features]
+dummy = ["devices/dummy"] # enables the devices dummy feature
+real  = ["devices/real"]  # enables the devices real feature
+
+[workspace.features]
+default = ["dummy"]       # default workspace feature
+dummy = ["devices/dummy"] # enables the devices dummy feature
+real  = ["devices/real"]  # enables the devices real feature
+
 [dependencies]
+# Real dependencies
+tokio = { version = "1.45.1", features = ["full", "macros", "rt-multi-thread"] }
+glam = "0.30.8"
+# Workspace crates
+devices = { path = "crates/devices" }
+movement = { path = "crates/movement" }
+#audio = { path = "crates/audio" }
+#tokio.workspace = true
+
+[workspace.dependencies]
 once_cell = "1.21.3"
 reqwest = { version = "0.12.23", features = ["blocking", "json"] }
 serde = "1.0.228"
@@ -13,3 +43,7 @@ tokio = { version = "1.45.1", features = ["full", "macros", "rt-multi-thread"] }
 glam = "0.30.8"
 pwm-pca9685 = "1.0.0"
 linux-embedded-hal = "0.4.0"
+
+[target.aarch64-unknown-linux-gnu]
+linker = "aarch64-unknown-linux-gnu-gcc"
+rustflags = [ "-C", "target-feature=+crt-static" ]

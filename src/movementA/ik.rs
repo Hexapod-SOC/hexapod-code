@@ -1,4 +1,4 @@
-use crate::movement::{Leg, LegAngles};
+use movement::legs::{Leg, LegAngles};
 use glam;
 
 const COXA_LENGTH:  f32 = 43.0;  // Length of the coxa segment in mm

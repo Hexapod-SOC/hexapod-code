@@ -1,12 +1,14 @@
-use crate::movement::{ik, servos, Leg};
+use crate::movementA::ik;
+use movement::legs::{Leg};
+use devices::servo::ServoController;
 
 pub struct Movement {
-    servo_controller: servos::ServoController,
+    servo_controller: ServoController,
     ik: ik::SimpleIK,
 }
 
 impl Movement {
-    pub fn new(servo_controller: servos::ServoController, ik: ik::SimpleIK) -> Self {
+    pub fn new(servo_controller: ServoController, ik: ik::SimpleIK) -> Self {
         Movement { servo_controller, ik }
     }
     pub fn move_leg_to_position(&mut self, leg: Leg, position: glam::Vec3) {

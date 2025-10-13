@@ -1,0 +1,34 @@
+[tasks.pibuild]
+command = "cross"
+args = ["build", "--target", "aarch64-unknown-linux-gnu", "--features", "real"]
+workspace = false
+
+[tasks.pcbuild]
+command = "cargo"
+args = ["build", "--features", "dummy"]
+workspace = false
+
+[tasks.pibuildrelease]
+command = "cross"
+args = ["build", "--target", "aarch64-unknown-linux-gnu", "--features", "real", "--release"]
+workspace = false
+
+[tasks.pcbuildrelease]
+command = "cargo"
+args = ["build", "--features", "dummy", "--release"]
+workspace = false
+
+[tasks.pcrun]
+command = "cargo"
+args = ["run", "--release", "--features", "dummy"]
+workspace = false
+
+[tasks.pcrunrelease]
+command = "cargo"
+args = ["run", "--features", "dummy", "--release"]
+workspace = false
+
+[tasks.pirunremote]
+command = "cargo"
+args = ["hexapod-devkit", "remoterun", "--local"]
+workspace = false

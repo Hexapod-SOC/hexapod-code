@@ -1,0 +1,47 @@
+use movement::legs::{Leg, LegAngles, LegPart};
+
+/// (Coxa, Femur, Tibia) pin configuration for each leg
+pub struct ServoPins {
+    pub left_front: (u8, u8, u8), // (Coxa, Femur, Tibia)
+    pub left_middle: (u8, u8, u8),
+    pub left_back: (u8, u8, u8),
+    pub right_front: (u8, u8, u8),
+    pub right_middle: (u8, u8, u8),
+    pub right_back: (u8, u8, u8),
+}
+
+pub struct ServoController {}
+
+impl ServoController {
+    pub fn new(_servo_pins: ServoPins) -> Self {
+        let mut servos_controller = ServoController {};
+        servos_controller.init_servos();
+        servos_controller.set_all_legs_to_angles(90.0, 50.0, 50.0); // Default position
+        servos_controller
+    }
+
+    pub fn init_servos(&mut self) {
+        println!("(Dummy) Initializing servos...");
+    }
+
+    /// Set a single servo to a specific angle (0-180 degrees)
+    pub fn set_servo_angle(&mut self, leg: Leg, part: LegPart, angle: f32) {
+        println!("(Dummy) Setting {:?} {:?} to angle {:.2}", leg, part, angle);
+    }
+
+    /// Set all three servos for a leg
+    pub fn set_leg_angles(&mut self, leg: Leg, angles: LegAngles) {
+        println!(
+            "(Dummy) Setting {:?} to angles: Coxa {:.2}, Femur {:.2}, Tibia {:.2}",
+            leg, angles.coxa, angles.femur, angles.tibia
+        );
+    }
+
+    /// Set all legs to the same angles (coxa, femur, tibia)
+    pub fn set_all_legs_to_angles(&mut self, coxa: f32, femur: f32, tibia: f32) {
+        println!(
+            "(Dummy) Setting all legs to angles: Coxa {:.2}, Femur {:.2}, Tibia {:.2}",
+            coxa, femur, tibia
+        );
+    }
+}
