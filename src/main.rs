@@ -20,7 +20,6 @@ async fn main() {
 
     tts::init(TTS_URL, TTS_TMP_DIR);
     tts::sayen("Hello, I am a hexapod robot!").unwrap();
-    tts::saysk("Ahoj, som pavuk robot!").unwrap();
 
     let ik = ik::SimpleIK::new(CONSTRAINTS);
     let servos_controller = ServoController::new(SERVO_PINS);
