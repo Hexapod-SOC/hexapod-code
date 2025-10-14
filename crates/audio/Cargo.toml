@@ -10,6 +10,8 @@ anyhow = "1.0.100"
 reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
+toml.workspace = true
 
 [features]
 dummy = []  # just list the features this crate can handle

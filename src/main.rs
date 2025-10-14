@@ -9,7 +9,7 @@ pub mod macros;
 use glam::Vec3;
 
 // Workspace imports
-use config::{TTS_URL, TTS_TMP_DIR, CONSTRAINTS, SERVO_PINS}; //FIXME eventually convert to config files not hardcoded constants
+use config::{TTS_URL, TMP_DIR, CONSTRAINTS, SERVO_PINS}; //FIXME eventually convert to config files not hardcoded constants
 use movement::{ik, legs::{LegAngles, Leg}};
 use devices::servo::{ServoPins, ServoController};
 use audio::tts;
@@ -18,7 +18,9 @@ use audio::tts;
 async fn main() {
     println!("Hello world from Hexapod EY!");
 
-    tts::init(TTS_URL, TTS_TMP_DIR);
+    tts::init(TTS_URL, TMP_DIR);
+    tts::cleanup_cache(7).unwrap();
+    
     tts::sayen("Hello, I am a hexapod robot!").unwrap();
 
     let ik = ik::SimpleIK::new(CONSTRAINTS);
@@ -39,8 +41,14 @@ impl MoveTmpStruct {
     pub fn new(servo_controller: ServoController, ik: ik::SimpleIK) -> Self {
         MoveTmpStruct { servo_controller, ik }
     }
-    pub fn move_leg_to_position(&mut self, leg: Leg, position: glam::Vec3) {
+    pub fn move_leg_to_pos(&mut self, leg: Leg, position: glam::Vec3) {
         let angles = self.ik.calculate_leg_angles(leg, position);
         self.servo_controller.set_leg_angles(leg, angles);
+    }
+
+
+
+    pub fn move_legs_to_ang(&mut self, angles: LegAngles) {
+        self.servo_controller.set_all_legs_to_angles(angles.coxa, angles.femur, angles.tibia);
     }
 }

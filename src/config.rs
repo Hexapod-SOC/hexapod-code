@@ -2,8 +2,8 @@
 use devices::servo::ServoPins;
 use movement::ik;
 
+pub const TMP_DIR: &str = "/tmp/hexapod/";
 pub const TTS_URL: &str = "http://127.0.0.1:5000";
-pub const TTS_TMP_DIR: &str = "/tmp/hexapod/tts_cache";
 
 pub const SERVO_PINS: ServoPins = ServoPins {
     left_front: (0, 1, 2),
