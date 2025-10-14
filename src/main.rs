@@ -42,7 +42,7 @@ impl MoveTmpStruct {
         MoveTmpStruct { servo_controller, ik }
     }
     pub fn move_leg_to_pos(&mut self, leg: Leg, position: glam::Vec3) {
-        let angles = self.ik.calculate_leg_angles(leg, position);
+        let angles = self.ik.calc_pos_leg_angles(leg, position);
         self.servo_controller.set_leg_angles(leg, angles);
     }
 

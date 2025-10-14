@@ -19,7 +19,7 @@ impl SimpleIK {
         SimpleIK { c: constraints }
     }
 
-    pub fn calculate_leg_angles(&self, leg: Leg, pos: glam::Vec3) -> LegAngles {
+    pub fn calc_pos_leg_angles(&self, leg: Leg, pos: glam::Vec3) -> LegAngles {
         let mut coxa_angle = (pos.x / pos.z).atan().to_degrees();
         let horizontal_dist = (pos.x.powi(2) + pos.z.powi(2)).sqrt() + self.c.coxa_length; // - self.constraints.coxa_length;
         let vertical_diag = (horizontal_dist.powi(2) + pos.y.powi(2)).sqrt();
