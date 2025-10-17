@@ -19,8 +19,7 @@ A Rust-based control system for a hexapod robot with 18 servos (3 per leg), feat
 ├── src/
 │   ├── main.rs              # Main application entry point
 │   ├── macros.rs            # TTS convenience macros
-│   ├── ------.rs            # FIXME
-│   └── movementA/           # Old files from moving to crate/movement
+│   ├── config.rs            # Hardcoded confugration in the future move to Config.toml
 ├── crates/
 │   ├── devices/             # Controller ServoPCA / BME680 / LIDAR / ...
 │   └── movement/            # Inverse Kinematics, gaits, etc...
