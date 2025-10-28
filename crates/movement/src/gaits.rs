@@ -28,10 +28,10 @@ const GAIT_TRI: GaitTemplate = GaitTemplate {
         right_middle: 0.0,
         right_back: 0.5,
     },
-    push_fraction: 3.1 / 6.0,
+    push_fraction: 3.75 / 6.0,
     speed_multiplier: 1.0,
-    step_length_multiplier: 1.2,
-    lift_height_multiplier: 1.1,
+    step_length_multiplier: 0.75,
+    lift_height_multiplier: 1.0,
     max_step_length: 240.0,
     max_speed: 200.0,
 };

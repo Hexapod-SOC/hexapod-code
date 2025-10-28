@@ -120,7 +120,7 @@ pub fn say(text: &str, voice: Option<&str>) -> Result<(),Error> {
                 drop(cache); // Release lock before playing
                 
                 let bytes = std::fs::read(&cache_file_path)?;
-                //play::play_wav_bytes(&bytes)?;
+                play::play_wav_bytes(&bytes)?;
                 
                 // Save updated cache
                 save_cache_to_file(tts)?;
@@ -177,7 +177,7 @@ pub fn say(text: &str, voice: Option<&str>) -> Result<(),Error> {
         save_cache_to_file(tts)?;
         
         println!("Playing generated TTS audio.");
-        //play::play_wav_bytes(&bytes)?;
+        play::play_wav_bytes(&bytes)?;
         Ok(())
     } else {
         eprintln!("TTS request failed with status: {}", response.status());

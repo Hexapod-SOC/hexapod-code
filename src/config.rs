@@ -19,7 +19,7 @@ pub const CONSTRAINTS: ik::Constraints = ik::Constraints {
     femur_length: 60.0,  // Length of the femur segment in mm
     tibia_length: 104.0, // Length of the tibia segment in mm
 
-    coxa_soffset:  -90.0, // Offset to align coxa angle to 0 degrees forward
-    femur_soffset: -83.0, // Offset to align femur angle to horizontal
-    tibia_soffset:  35.0, // Offset to align tibia angle to straight down
+    coxa_soffset:  90.0, // Offset to align coxa angle to 0 degrees forward
+    femur_soffset: 83.0, // Offset to align femur angle to horizontal
+    tibia_soffset: 35.0, // Offset to align tibia angle to straight down
 };

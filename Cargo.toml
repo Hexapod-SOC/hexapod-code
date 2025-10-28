@@ -27,6 +27,9 @@ audio = { path = "crates/audio" }
 tokio = { version = "1.45.1", features = ["full", "macros", "rt-multi-thread"] }
 glam = "0.30.8"
 
+[dev-dependencies]
+bevy = "0.17.2"
+
 [workspace.dependencies]
 tokio = { version = "1.45.1", features = ["full", "macros", "rt-multi-thread"] }
 reqwest = { version = "0.12.23", features = ["blocking", "json"] }
