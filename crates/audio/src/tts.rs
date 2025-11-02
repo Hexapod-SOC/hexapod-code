@@ -100,7 +100,7 @@ fn save_cache_to_file(tts: &TTS) -> Result<()> {
 compile_error!("You must enable either `dummy` or `real` feature for tts!");
 
 #[cfg(feature = "real")]
-pub fn say(text: &str, voice: Option<&str>) -> Result<(),Error> {
+fn say_impl(text: &str, voice: Option<&str>, blocking: bool) -> Result<(), Error> {
     let tts = TTS_INSTANCE.get().expect("TTS not initialized");
     let voice = voice.unwrap_or("en_US-ryan-medium");
     let cache_key = generate_cache_key(text, voice);
@@ -120,7 +120,11 @@ pub fn say(text: &str, voice: Option<&str>) -> Result<(),Error> {
                 drop(cache); // Release lock before playing
                 
                 let bytes = std::fs::read(&cache_file_path)?;
-                play::play_wav_bytes(&bytes)?;
+                if blocking {
+                    play::play_wav_bytes(&bytes)?;
+                } else {
+                    play::play_wav_bytes_detached(&bytes)?;
+                }
                 
                 // Save updated cache
                 save_cache_to_file(tts)?;
@@ -177,12 +181,26 @@ pub fn say(text: &str, voice: Option<&str>) -> Result<(),Error> {
         save_cache_to_file(tts)?;
         
         println!("Playing generated TTS audio.");
-        play::play_wav_bytes(&bytes)?;
+        if blocking {
+            play::play_wav_bytes(&bytes)?;
+        } else {
+            play::play_wav_bytes_detached(&bytes)?;
+        }
         Ok(())
     } else {
         eprintln!("TTS request failed with status: {}", response.status());
         Err(anyhow::anyhow!("TTS request failed"))
     }
+}
+
+#[cfg(feature = "real")]
+pub fn say(text: &str, voice: Option<&str>) -> Result<(), Error> {
+    say_impl(text, voice, false)
+}
+
+#[cfg(feature = "real")]
+pub fn say_blocking(text: &str, voice: Option<&str>) -> Result<(), Error> {
+    say_impl(text, voice, true)
 }
 
 #[cfg(feature = "dummy")]
@@ -196,6 +214,32 @@ pub fn sayen(text: &str) -> Result<(),Error> {
 }
 pub fn saysk(text: &str) -> Result<(),Error> {
     say(text, Some("sk_SK-lili-medium"))
+}
+
+#[cfg(feature = "real")]
+pub fn sayen_blocking(text: &str) -> Result<(), Error> {
+    say_blocking(text, Some("en_US-ryan-medium"))
+}
+
+#[cfg(feature = "real")]
+pub fn saysk_blocking(text: &str) -> Result<(), Error> {
+    say_blocking(text, Some("sk_SK-lili-medium"))
+}
+
+#[cfg(feature = "dummy")]
+pub fn say_blocking(text: &str, voice: Option<&str>) -> Result<(), Error> {
+    println!("(Dummy TTS - blocking) Would say: '{}' with voice: {:?}", text, voice);
+    Ok(())
+}
+
+#[cfg(feature = "dummy")]
+pub fn sayen_blocking(text: &str) -> Result<(), Error> {
+    say_blocking(text, Some("en_US-ryan-medium"))
+}
+
+#[cfg(feature = "dummy")]
+pub fn saysk_blocking(text: &str) -> Result<(), Error> {
+    say_blocking(text, Some("sk_SK-lili-medium"))
 }
 
 /// Remove cache entries that were used only once and haven't been accessed in the specified number of days

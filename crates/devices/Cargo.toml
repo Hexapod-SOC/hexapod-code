@@ -7,9 +7,9 @@ edition.workspace = true
 
 [dependencies]
 movement = { path = "../movement" }
-linux-embedded-hal.workspace = true
-pwm-pca9685.workspace = true
+linux-embedded-hal = { workspace = true, optional = true }
+pwm-pca9685 = { workspace = true, optional = true }
 
 [features]
-dummy = []  # just list the features this crate can handle
-real = []
+dummy = []  # PC/testing mode without hardware
+real = ["dep:linux-embedded-hal", "dep:pwm-pca9685"]

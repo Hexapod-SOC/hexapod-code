@@ -1,3 +1,7 @@
+# ############################################## #
+# This is only for running BEVY in NIXOS shells
+# ############################################## #
+
 { pkgs ? import <nixpkgs> { } }:
 
 with pkgs;

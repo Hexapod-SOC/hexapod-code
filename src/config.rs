@@ -4,6 +4,7 @@ use movement::ik;
 
 pub const TMP_DIR: &str = "/tmp/hexapod/";
 pub const TTS_URL: &str = "http://127.0.0.1:5000";
+//pub const VOICE_ID: &str = "en_us_001";
 
 pub const SERVO_PINS: ServoPins = ServoPins {
     left_front: (0, 1, 2),
