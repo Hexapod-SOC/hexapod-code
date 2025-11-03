@@ -88,8 +88,35 @@ async fn main() {
         
         // Check for critical battery state
         if hexapod.is_battery_critical() {
-            println!("\n⚠️  CRITICAL BATTERY STATE - Shutting down!");
-            tts::sayen("Critical battery. Shutting down.").unwrap();
+            println!("\n⚠️  CRITICAL BATTERY STATE DETECTED!");
+            println!("Initiating emergency system shutdown...");
+            
+            tts::sayen("Critical battery detected. Emergency shutdown initiated.").unwrap();
+            
+            // Wait a moment for TTS to complete
+            tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+            
+            // Move to safe shutdown position to prevent servo strain
+            // MG996R servos can draw up to 8A (all 18 = 144A!) if holding awkward angles
+            println!("Moving to safe shutdown position...");
+            hexapod.safe_shutdown_position();
+            tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+            
+            // Execute system shutdown
+            match hexapod.emergency_shutdown() {
+                Ok(_) => {
+                    println!("System shutdown command sent successfully.");
+                    println!("System will power off shortly...");
+                    println!("Servos will maintain safe position until power loss.");
+                }
+                Err(e) => {
+                    eprintln!("Failed to execute shutdown command: {}", e);
+                    eprintln!("Please shutdown manually to prevent battery damage!");
+                }
+            }
+            
+            // Wait for shutdown to complete
+            tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
             break;
         }
         
@@ -105,6 +132,11 @@ async fn main() {
                     devices::picoubec::PowerState::Normal => print!("Status: NORMAL ✓  "),
                     devices::picoubec::PowerState::LowBatteryWarning { timeout_seconds } => {
                         print!("Status: LOW BATTERY ⚠ ({}s) ", timeout_seconds);
+                        
+                        // Warn user when battery is low
+                        if timeout_seconds <= 20 && timeout_seconds % 10 == 0 {
+                            println!("\n⚠️  WARNING: Low battery! System will auto-shutdown in {}s", timeout_seconds);
+                        }
                     }
                     devices::picoubec::PowerState::Critical => print!("Status: CRITICAL ❌"),
                     devices::picoubec::PowerState::ShuttingDown { remaining_seconds } => {

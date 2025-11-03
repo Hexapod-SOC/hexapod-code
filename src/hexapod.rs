@@ -73,6 +73,28 @@ impl Hexapod {
     pub fn is_battery_critical(&self) -> bool {
         self.ubec_controller.is_critical()
     }
+    
+    /// Emergency shutdown - executes system shutdown command
+    /// 
+    /// This should be called when battery is critically low to safely
+    /// shut down the Raspberry Pi before power loss.
+    pub fn emergency_shutdown(&self) -> std::io::Result<()> {
+        use std::process::Command;
+        
+        println!("⚠️  EMERGENCY SHUTDOWN INITIATED");
+        println!("Executing system shutdown...");
+        
+        // Execute shutdown command (requires proper permissions)
+        // The system will shutdown in 1 minute by default, or use 'now' for immediate
+        Command::new("sudo")
+            .arg("shutdown")
+            .arg("-h")
+            .arg("now")
+            .arg("Critical battery - emergency shutdown")
+            .spawn()?;
+        
+        Ok(())
+    }
 
     /// Set the body pose (orientation and translation)
     pub fn set_body_pose(&mut self, pose: BodyPose) {
@@ -162,6 +184,26 @@ impl Hexapod {
     pub fn reset_to_default_stance(&mut self) {
         self.gait_controller.set_body_pose(BodyPose::default());
         self.apply_static_pose();
+    }
+    
+    /// Put hexapod in safe shutdown position
+    /// 
+    /// Pulls legs up so the body rests on its belly with servos in a
+    /// comfortable holding position. This prevents MG996R servos from
+    /// drawing excessive current (up to 8A!) when holding awkward angles.
+    /// 
+    /// Position: Coxa neutral (90°), Femur up (135°), Tibia folded (135°)
+    pub fn safe_shutdown_position(&mut self) {
+        println!("Moving to safe shutdown position...");
+        
+        // Set all legs to a safe "folded up" position
+        // Coxa: 90° (neutral, pointing straight out)
+        // Femur: 135° (lifted up)
+        // Tibia: 135° (folded back toward body)
+        // This lets the body rest on its belly with minimal servo strain
+        self.servo_controller.set_all_legs_to_angles(90.0, 135.0, 135.0);
+        
+        println!("Servos in safe holding position - body resting on belly");
     }
 }
 

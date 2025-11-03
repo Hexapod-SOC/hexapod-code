@@ -5,6 +5,7 @@ use pwm_pca9685::{Address, Channel, Pca9685};
 // Servo pulse width constants for 60Hz (prescale 100)
 // MG996R servos: 1000µs (1ms) = 0°, 1500µs (1.5ms) = 90°, 2000µs (2ms) = 180°
 const SERVO_MIN: u16 = 246; // 0 degrees (1000µs)
+#[allow(dead_code)]
 const SERVO_CENTER: u16 = 369; // 90 degrees (1500µs) 
 const SERVO_MAX: u16 = 492; // 180 degrees (2000µs)
 
