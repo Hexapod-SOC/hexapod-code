@@ -12,6 +12,7 @@ use movement::{
     legs::{Leg, LegAngles},
 };
 use devices::servo::{ServoController, ServoPins};
+use devices::picoubec::{PicoUbecController, BatteryStatus, PowerState};
 
 /// Main hexapod robot controller
 /// 
@@ -20,6 +21,7 @@ use devices::servo::{ServoController, ServoPins};
 pub struct Hexapod {
     servo_controller: ServoController,
     gait_controller: GaitController,
+    ubec_controller: PicoUbecController,
 }
 
 impl Hexapod {
@@ -40,15 +42,36 @@ impl Hexapod {
             gait_controller.gait.set_default_stance(stance);
         }
         
+        // Initialize battery monitor (will gracefully handle if not available)
+        let ubec_controller = PicoUbecController::new("/dev/serial0");
+        
         Self {
             servo_controller,
             gait_controller,
+            ubec_controller,
         }
     }
 
     /// Update the gait cycle by a time delta (in seconds)
+    /// Also updates battery monitoring
     pub fn update(&mut self, dt: f32) {
         self.gait_controller.update(dt);
+        self.ubec_controller.update();
+    }
+    
+    /// Get current battery status
+    pub fn get_battery_status(&self) -> BatteryStatus {
+        self.ubec_controller.get_battery_status()
+    }
+    
+    /// Get current power state
+    pub fn get_power_state(&self) -> PowerState {
+        self.ubec_controller.get_power_state()
+    }
+    
+    /// Check if battery is in critical state
+    pub fn is_battery_critical(&self) -> bool {
+        self.ubec_controller.is_critical()
     }
 
     /// Set the body pose (orientation and translation)
