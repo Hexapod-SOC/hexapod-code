@@ -1,7 +1,6 @@
 use crate::gaits::GaitTemplate;
 use crate::legs::Leg;
 use glam::Vec3;
-use std::f32::consts::PI;
 
 /// Represents the current state of a walking gait cycle
 pub struct Gait {
@@ -75,6 +74,16 @@ impl Gait {
             phase: 0.0,
             default_stance: stance,
         }
+    }
+
+    /// Update the default stance configuration
+    pub fn set_default_stance(&mut self, stance: LegStances) {
+        self.default_stance = stance;
+    }
+
+    /// Get the current default stance
+    pub fn get_default_stance(&self) -> &LegStances {
+        &self.default_stance
     }
 
     /// Update gait phase based on time delta

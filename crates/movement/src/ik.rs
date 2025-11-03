@@ -31,7 +31,7 @@ impl SimpleIK {
         let tibia_angle = (self.c.femur_length.powi(2) + self.c.tibia_length.powi(2) - vertical_diag.powi(2))
             / (2.0 * self.c.femur_length * self.c.tibia_length);
         let tibia_angle = tibia_angle.acos().to_degrees();
-        println!("IK Debug - Leg: {:?}, Pos: {:?}, Coxa Angle: {:.2}, Femur Angle: {:.2}, Tibia Angle: {:.2}", leg, pos, coxa_angle, femur_angle, tibia_angle);
+        //println!("IK Debug - Leg: {:?}, Pos: {:?}, Coxa Angle: {:.2}, Femur Angle: {:.2}, Tibia Angle: {:.2}", leg, pos, coxa_angle, femur_angle, tibia_angle);
 
         match leg {
             Leg::LeftBack | Leg::RightBack => coxa_angle = coxa_angle - 45.0,

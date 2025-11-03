@@ -60,7 +60,7 @@ impl BodyPose {
 /// High-level controller for hexapod movement
 pub struct GaitController {
     pub gait: Gait,
-    ik: SimpleIK,
+    pub ik: SimpleIK,  // Made public for hexapod.rs access
     body_pose: BodyPose,
 }
 
