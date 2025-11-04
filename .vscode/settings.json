@@ -1,4 +1,5 @@
 {
+  //TODO U SET VSCODE LINTING FEATURE
   "rust-analyzer.check.extraArgs": [
     "--target", "aarch64-unknown-linux-gnu",
     /*   \/ Use either of these   */ 
