@@ -26,8 +26,8 @@ pub async fn demo_body_tilt(hexapod: &mut Hexapod) {
 
     for (description, pose) in poses {
         println!("  - {}", description);
-        hexapod.set_body_pose(pose);
-        hexapod.apply_static_pose();
+        hexapod.set_body_pose(pose).await;
+        hexapod.apply_static_pose().await;
         tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
     }
     
@@ -47,8 +47,8 @@ pub async fn demo_tripod_walk(hexapod: &mut Hexapod, duration_secs: f32) {
     println!("  - Walking for {:.1} seconds", duration_secs);
     
     for _ in 0..steps {
-        hexapod.update(dt);
-        hexapod.walk(velocity, 0.0);
+        hexapod.update(dt).await;
+        hexapod.walk(velocity, 0.0).await;
         tokio::time::sleep(tokio::time::Duration::from_millis((dt * 1000.0) as u64)).await;
     }
     
@@ -72,16 +72,16 @@ pub async fn demo_walk_with_tilt(hexapod: &mut Hexapod, duration_secs: f32) {
         
         // Oscillating roll during walk
         let roll = 10.0 * (t * 6.28).sin(); // 1 cycle
-        hexapod.set_body_pose(BodyPose::with_rotation(roll, 0.0, 0.0));
+        hexapod.set_body_pose(BodyPose::with_rotation(roll, 0.0, 0.0)).await;
         
-        hexapod.update(dt);
-        hexapod.walk_with_pose(velocity, 0.0);
+        hexapod.update(dt).await;
+        hexapod.walk_with_pose(velocity, 0.0).await;
         
         tokio::time::sleep(tokio::time::Duration::from_millis((dt * 1000.0) as u64)).await;
     }
     
     // Return to neutral
-    hexapod.set_body_pose(BodyPose::default());
+    hexapod.set_body_pose(BodyPose::default()).await;
     
     println!("Walk with tilt demo complete\n");
 }
@@ -99,8 +99,8 @@ pub async fn demo_rotation(hexapod: &mut Hexapod, duration_secs: f32) {
     println!("  - Rotating for {:.1} seconds", duration_secs);
     
     for _ in 0..steps {
-        hexapod.update(dt);
-        hexapod.walk(Vec3::ZERO, rotation_speed);
+        hexapod.update(dt).await;
+        hexapod.walk(Vec3::ZERO, rotation_speed).await;
         
         tokio::time::sleep(tokio::time::Duration::from_millis((dt * 1000.0) as u64)).await;
     }
@@ -119,15 +119,15 @@ pub async fn demo_strafe(hexapod: &mut Hexapod, duration_secs: f32) {
 
     println!("  - Strafing right for {:.1} seconds", duration_secs / 2.0);
     for _ in 0..(steps / 2) {
-        hexapod.update(dt);
-        hexapod.walk(Vec3::new(0.0, 0.0, 40.0), 0.0); // Strafe right
+        hexapod.update(dt).await;
+        hexapod.walk(Vec3::new(0.0, 0.0, 40.0), 0.0).await; // Strafe right
         tokio::time::sleep(tokio::time::Duration::from_millis((dt * 1000.0) as u64)).await;
     }
 
     println!("  - Strafing left for {:.1} seconds", duration_secs / 2.0);
     for _ in 0..(steps / 2) {
-        hexapod.update(dt);
-        hexapod.walk(Vec3::new(0.0, 0.0, -40.0), 0.0); // Strafe left
+        hexapod.update(dt).await;
+        hexapod.walk(Vec3::new(0.0, 0.0, -40.0), 0.0).await; // Strafe left
         tokio::time::sleep(tokio::time::Duration::from_millis((dt * 1000.0) as u64)).await;
     }
     
@@ -148,8 +148,8 @@ pub async fn demo_combined_movement(hexapod: &mut Hexapod, duration_secs: f32) {
     println!("  - Moving in a curve for {:.1} seconds", duration_secs);
     
     for _ in 0..steps {
-        hexapod.update(dt);
-        hexapod.walk(velocity, rotation);
+        hexapod.update(dt).await;
+        hexapod.walk(velocity, rotation).await;
         
         tokio::time::sleep(tokio::time::Duration::from_millis((dt * 1000.0) as u64)).await;
     }
@@ -164,7 +164,7 @@ pub async fn run_all_demos(hexapod: &mut Hexapod) {
     println!("╚════════════════════════════════════════╝\n");
 
     // Reset to default stance before starting
-    hexapod.reset_to_default_stance();
+    hexapod.reset_to_default_stance().await;
     tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
 
     // Run demos
@@ -186,7 +186,7 @@ pub async fn run_all_demos(hexapod: &mut Hexapod) {
     demo_combined_movement(hexapod, 5.0).await;
 
     // Return to default stance
-    hexapod.reset_to_default_stance();
+    hexapod.reset_to_default_stance().await;
     
     println!("\n╔════════════════════════════════════════╗");
     println!("║   ALL DEMOS COMPLETED                 ║");

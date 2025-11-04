@@ -1,0 +1,52 @@
+use axum::{
+    routing::{get, post},
+    Router,
+};
+use std::net::SocketAddr;
+use std::sync::Arc;
+use tower_http::cors::CorsLayer;
+use tower_http::trace::TraceLayer;
+use tracing_subscriber;
+
+use crate::api;
+use crate::state::AppState;
+
+pub async fn run_server(state: AppState, port: u16) -> Result<(), Box<dyn std::error::Error>> {
+    // Initialize tracing
+    tracing_subscriber::fmt::init();
+
+    let app_state = Arc::new(state);
+
+    // Build our application with routes
+    let app = Router::new()
+        // Health check
+        .route("/api/health", get(api::health_check))
+        
+        // Status endpoints
+        .route("/api/status", get(api::get_status))
+        .route("/api/battery", get(api::get_battery))
+        
+        // Movement control
+        .route("/api/move", post(api::move_hexapod))
+        .route("/api/stop", post(api::stop_hexapod))
+        
+        // Gait control
+        .route("/api/gait", get(api::get_gait))
+        .route("/api/gait", post(api::set_gait))
+        
+        // Body pose
+        .route("/api/pose", post(api::set_body_pose))
+        
+        // Add state and middleware
+        .with_state(app_state)
+        .layer(CorsLayer::permissive())
+        .layer(TraceLayer::new_for_http());
+
+    let addr = SocketAddr::from(([0, 0, 0, 0], port));
+    tracing::info!("Hexapod API server listening on {}", addr);
+
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    axum::serve(listener, app).await?;
+
+    Ok(())
+}

@@ -25,6 +25,7 @@ real  = ["devices/real", "audio/real"]  # enables the devices real feature
 devices = { path = "crates/devices" }
 movement = { path = "crates/movement" }
 audio = { path = "crates/audio" }
+web = { path = "crates/web" }
 # External dependencies
 tokio = { version = "1.45.1", features = ["full", "macros", "rt-multi-thread"] }
 glam = "0.30.8"
