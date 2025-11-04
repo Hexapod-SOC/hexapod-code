@@ -37,16 +37,13 @@ A Rust-based control system for a hexapod robot with 18 servos (3 per leg), feat
 # Install Rust
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
-# Add ARM64 target
-rustup target add aarch64-unknown-linux-gnu
-
 # Install cross-compilation tool
 # Only required for cross compiling to PI
 # Local dummy run on amd64 platform doesnt use it 
-cargo install cross
+cargo install --force cross
 
 # Install cargo-make for task runner
-cargo install cargo-make
+cargo install --no-default-features --force cargo-make
 
 # For remote code running on the hexapod
 # [ONLY USE WHEN HEXAPOD WITH YOU]
