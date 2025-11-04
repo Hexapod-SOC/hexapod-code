@@ -25,6 +25,11 @@ args = ["run", "--features", "dummy", "--release"]
 workspace = false
 
 # RASPBERRY PI BUILDS
+[tasks.picheck]
+command = "cross"
+args = ["check", "--target", "aarch64-unknown-linux-gnu", "--features", "real"]
+workspace = false
+
 [tasks.pibuild]
 command = "cross"
 args = ["build", "--target", "aarch64-unknown-linux-gnu", "--features", "real"]
