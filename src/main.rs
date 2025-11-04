@@ -13,9 +13,9 @@ use audio::tts;
 
 #[tokio::main]
 async fn main() {
-    println!("╔════════════════════════════════════════╗");
-    println!("║   HEXAPOD ROBOT - EY                  ║");
-    println!("╚════════════════════════════════════════╝\n");
+    println!("╔═══════════════════╗");
+    println!("║   HEXAPOD ROBOT   ║");
+    println!("╚═══════════════════╝\n");
 
     // Initialize text-to-speech
     println!("Initializing TTS...");
@@ -45,18 +45,9 @@ async fn main() {
     
     println!("Hexapod ready!\n");
 
-    // Check if we should run API server
-    let args: Vec<String> = std::env::args().collect();
-    let run_api_server = args.contains(&"--api".to_string()) || true; // Force on for now
-    let api_port = args.iter()
-        .position(|arg| arg == "--port")
-        .and_then(|i| args.get(i + 1))
-        .and_then(|p| p.parse::<u16>().ok())
-        .unwrap_or(3000);
+    if config::WEB_ENABLE {
+        println!("Starting API server on port {} (non-blocking)...", config::API_PORT);
 
-    if run_api_server {
-        println!("Starting API server on port {} (non-blocking)...", api_port);
-        
         // Create web API state from shared controllers
         let state = web::AppState::from_shared(
             hexapod.get_servo_controller(),
@@ -66,7 +57,7 @@ async fn main() {
         
         // Spawn server in background task
         tokio::spawn(async move {
-            if let Err(e) = web::run_server(state, api_port).await {
+            if let Err(e) = web::run_server(state, config::API_PORT).await {
                 eprintln!("Server error: {}", e);
             }
         });
@@ -125,16 +116,11 @@ async fn main() {
         
         // Check for critical battery state
         if hexapod.is_battery_critical().await {
-            println!("\n⚠️  CRITICAL BATTERY STATE DETECTED!");
-            println!("Initiating emergency system shutdown...");
-            
-            tts::sayen("Critical battery detected. Emergency shutdown initiated.").unwrap();
-            
-            // Wait a moment for TTS to complete
-            tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+            println!("\n⚠️  CRITICAL BATTERY STATE DETECTED!\nInitiating emergency system shutdown...");
+            tts::sayen_blocking("Critical battery detected. Emergency shutdown initiated.").unwrap();
             
             // Move to safe shutdown position to prevent servo strain
-            // MG996R servos can draw up to 8A (all 18 = 144A!) if holding awkward angles
+            // MG996R servos can draw up to 8A (all 18 = 144A!) if holding null/awkward angles
             println!("Moving to safe shutdown position...");
             hexapod.safe_shutdown_position().await;
             tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
@@ -142,13 +128,10 @@ async fn main() {
             // Execute system shutdown
             match hexapod.emergency_shutdown() {
                 Ok(_) => {
-                    println!("System shutdown command sent successfully.");
-                    println!("System will power off shortly...");
-                    println!("Servos will maintain safe position until power loss.");
+                    println!("System shutdown command sent successfully.\nSystem will power off shortly...\nServos will maintain safe position until power loss.");
                 }
                 Err(e) => {
-                    eprintln!("Failed to execute shutdown command: {}", e);
-                    eprintln!("Please shutdown manually to prevent battery damage!");
+                    eprintln!("Failed to execute shutdown command: {}\nPlease shutdown manually to prevent battery damage!", e);
                 }
             }
             

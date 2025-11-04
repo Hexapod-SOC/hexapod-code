@@ -1,11 +1,9 @@
 [package]
 name = "hexapod-code"
-# For some reason windows wont accept workspace values here
-# Soooo we set them twice i guess
-version = "0.0.0"
-description = "Code for controlling a hexapod robot"
-authors = ["Adam", "Michael"]
-edition = "2024"
+version.workspace = true
+description.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [workspace]
 members = ["crates/*"]
