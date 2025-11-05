@@ -52,7 +52,12 @@ impl ServoController {
     pub fn set_servo_angle(&mut self, leg: Leg, part: LegPart, angle: f32) {
         // Convert angle (0-180 degrees) to PWM value
         let pwm_value = self.angle_to_pwm(angle);
+        self.set_servo_pwm(leg, part, pwm_value);
+    }
 
+    /// Set a single servo using raw PWM value (246-492)
+    /// This bypasses angle conversion for precise control from calibration data
+    pub fn set_servo_pwm(&mut self, leg: Leg, part: LegPart, pwm_value: u16) {
         // Get the pin number for this leg and part
         let pin = self.get_pin(leg, part);
         let channel = self.pin_to_channel(pin);
@@ -64,7 +69,7 @@ impl ServoController {
                 self.pca_left.set_channel_off(channel, pwm_value).unwrap();
             }
             Leg::RightFront | Leg::RightMiddle | Leg::RightBack => {
-                // Invert angle for right side (mirrored servos)
+                // Invert PWM for right side (mirrored servos)
                 let final_pwm = SERVO_MIN + SERVO_MAX - pwm_value;
                 self.pca_right.set_channel_on(channel, 0).unwrap();
                 self.pca_right.set_channel_off(channel, final_pwm).unwrap();

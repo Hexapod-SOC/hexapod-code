@@ -1,21 +1,51 @@
-use axum::Router;
-use std::net::SocketAddr;
-use tower_http::{
-    cors::CorsLayer,
-    services::ServeDir,
+use axum::{
+    Router,
+    response::{Html, IntoResponse, Response},
+    http::header,
 };
+use std::net::SocketAddr;
+use tower_http::cors::CorsLayer;
+
+// Embed static files at compile time
+const INDEX_HTML: &str = include_str!("../static/index.html");
+const APP_JS: &str = include_str!("../static/app.js");
+const STYLE_CSS: &str = include_str!("../static/style.css");
+const FAVICON_SVG: &str = include_str!("../static/favicon.svg");
+
+async fn serve_index() -> Html<&'static str> {
+    Html(INDEX_HTML)
+}
+
+async fn serve_js() -> Response {
+    (
+        [(header::CONTENT_TYPE, "application/javascript")],
+        APP_JS,
+    ).into_response()
+}
+
+async fn serve_css() -> Response {
+    (
+        [(header::CONTENT_TYPE, "text/css")],
+        STYLE_CSS,
+    ).into_response()
+}
+
+async fn serve_favicon() -> Response {
+    (
+        [(header::CONTENT_TYPE, "image/svg+xml")],
+        FAVICON_SVG,
+    ).into_response()
+}
 
 pub async fn run_panel(port: u16) -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("Starting web panel on port {}", port);
 
-    // Serve static files from the static directory
-    let static_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("static");
-    
-    tracing::info!("Serving static files from: {:?}", static_dir);
-
     let app = Router::new()
-        .nest_service("/", ServeDir::new(static_dir))
+        .route("/", axum::routing::get(serve_index))
+        .route("/index.html", axum::routing::get(serve_index))
+        .route("/app.js", axum::routing::get(serve_js))
+        .route("/style.css", axum::routing::get(serve_css))
+        .route("/favicon.svg", axum::routing::get(serve_favicon))
         .layer(CorsLayer::permissive());
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));

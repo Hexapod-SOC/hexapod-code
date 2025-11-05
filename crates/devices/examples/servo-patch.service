@@ -1,0 +1,35 @@
+[Unit]
+Description=Servo Patch - Initialize servos to safe position on boot
+Documentation=https://github.com/Adam-Grman/hexapod-code
+After=local-fs.target
+Before=hexapod.service
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/local/bin/servo_patch
+
+# Environment configuration
+# Uncomment and modify as needed:
+#Environment="SERVO_PATCH_ANGLE=90"
+#Environment="SERVO_PATCH_PWM=369"
+#Environment="SERVO_PATCH_LEFT_ADDR=0x40"
+#Environment="SERVO_PATCH_RIGHT_ADDR=0x41"
+#Environment="SERVO_PATCH_ENABLE_LEFT=true"
+#Environment="SERVO_PATCH_ENABLE_RIGHT=true"
+#Environment="SERVO_PATCH_DELAY_MS=100"
+
+# Keep the service active after exit (for ordering with other services)
+RemainAfterExit=yes
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=servo-patch
+
+# Restart policy
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

@@ -1,5 +1,5 @@
-// API Configuration
-const API_BASE = 'http://localhost:3000/api';
+// API Configuration - Use current window location for API calls
+const API_BASE = `${window.location.protocol}//${window.location.hostname}:3000/api`;
 
 // State
 let currentGait = 'tri';
@@ -102,7 +102,7 @@ function setupJoystick(joystick, callback) {
             cancelAnimationFrame(animationFrame);
         }
 
-        // Send stop command
+        // Send zero velocity to stop the robot
         callback(0, 0);
     }
 
@@ -186,6 +186,7 @@ function initEmergencyStop() {
 // API Calls
 async function sendMoveCommand(velocity) {
     try {
+        console.log('Sending move command:', velocity);
         const response = await fetch(`${API_BASE}/move`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -464,13 +465,12 @@ function pollGamepad() {
     const rotation = processAxis(rightStickX);
 
     // Send movement command (convert -1 to 1 range to -100 to 100 mm/s)
-    if (strafeX !== 0 || forwardY !== 0 || rotation !== 0) {
-        sendMoveCommand({ 
-            forward: forwardY * 100, 
-            strafe: strafeX * 100, 
-            rotation: rotation 
-        });
-    }
+    // Always send commands, even when zero, to ensure robot stops when sticks are released
+    sendMoveCommand({ 
+        forward: forwardY * 100, 
+        strafe: strafeX * 100, 
+        rotation: rotation 
+    });
 
     // Handle button presses (detect button down events)
     const buttonA = gamepad.buttons[mapping.A || 0];

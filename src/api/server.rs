@@ -16,6 +16,12 @@ pub async fn run_server(state: AppState, port: u16) -> Result<(), Box<dyn std::e
     tracing_subscriber::fmt::init();
 
     let app_state = Arc::new(state);
+    
+    // Spawn background task for continuous movement updates
+    let movement_state = app_state.clone();
+    tokio::spawn(async move {
+        movement_update_loop(movement_state).await;
+    });
 
     // Build our application with routes
     let app = Router::new()
@@ -49,4 +55,42 @@ pub async fn run_server(state: AppState, port: u16) -> Result<(), Box<dyn std::e
     axum::serve(listener, app).await?;
 
     Ok(())
+}
+
+/// Background task that continuously updates gait and applies movement
+async fn movement_update_loop(state: Arc<AppState>) {
+    let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(50)); // 20 Hz update rate
+    
+    loop {
+        interval.tick().await;
+        
+        // Get current movement velocity
+        let movement = {
+            let mov = state.movement_velocity.lock().await;
+            *mov
+        };
+        
+        // Update gait
+        {
+            let mut gait = state.gait_controller.lock().await;
+            gait.update(0.05); // 50ms timestep
+        }
+        
+        // Calculate and apply movement if any velocity is set
+        let is_moving = movement.velocity.length() > 0.01 || movement.rotation.abs() > 0.001;
+        
+        if is_moving {
+            // Calculate walking angles
+            let angles = {
+                let gait = state.gait_controller.lock().await;
+                gait.calculate_walking_angles(movement.velocity, movement.rotation)
+            };
+            
+            // Apply to servos
+            let mut servo = state.servo_controller.lock().await;
+            for (leg, leg_angles) in angles.iter() {
+                servo.set_leg_angles(*leg, *leg_angles);
+            }
+        }
+    }
 }

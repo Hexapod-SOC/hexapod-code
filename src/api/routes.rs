@@ -90,20 +90,11 @@ pub async fn move_hexapod(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<MoveRequest>,
 ) -> Result<Json<MoveResponse>, StatusCode> {
-    let mut gait = state.gait_controller.lock().await;
-    let mut servo = state.servo_controller.lock().await;
-    
-    // Update gait
-    gait.update(0.05); // 50ms update
-    
-    // Calculate angles for movement
-    let velocity = Vec3::new(payload.forward, 0.0, payload.strafe);
-    let angles = gait.calculate_walking_angles(velocity, payload.rotation);
-    
-    // Apply to servos
-    for (leg, leg_angles) in angles.iter() {
-        servo.set_leg_angles(*leg, *leg_angles);
-    }
+    // Update the movement velocity state
+    // The background task will continuously apply this velocity
+    let mut movement = state.movement_velocity.lock().await;
+    movement.velocity = Vec3::new(payload.forward, 0.0, payload.strafe);
+    movement.rotation = payload.rotation;
     
     Ok(Json(MoveResponse {
         success: true,
@@ -119,11 +110,12 @@ pub struct StopRequest {}
 
 /// POST /api/stop
 pub async fn stop_hexapod(
-    State(_state): State<Arc<AppState>>,
+    State(state): State<Arc<AppState>>,
     Json(_payload): Json<StopRequest>,
 ) -> Result<Json<MoveResponse>, StatusCode> {
     // Stop movement by setting zero velocity
-    // In a real implementation, you'd reset the hexapod to default stance
+    let mut movement = state.movement_velocity.lock().await;
+    *movement = super::state::MovementVelocity::default();
     
     Ok(Json(MoveResponse {
         success: true,
