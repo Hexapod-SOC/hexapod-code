@@ -4,7 +4,7 @@ use devices::servo::ServoController;
 use devices::picoubec::PicoUbecController;
 use movement::controller::GaitController;
 
-/// Shared application state for the web API
+/// Shared application state for the API
 pub struct AppState {
     pub servo_controller: Arc<Mutex<ServoController>>,
     pub gait_controller: Arc<Mutex<GaitController>>,

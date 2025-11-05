@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hexapod Control Panel</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <div class="connection-status disconnected" id="connection-status">
+        ● Connecting...
+    </div>
+    
+    <div class="container">
+        <h1>🦾 Hexapod Control</h1>
+        <p class="subtitle">Real-time Robot Control Interface</p>
+        
+        <!-- Status Display -->
+        <div class="status-grid">
+            <div class="status-card">
+                <div class="status-label">Battery</div>
+                <div class="status-value" id="voltage-value">--.-V</div>
+            </div>
+            <div class="status-card">
+                <div class="status-label">Current</div>
+                <div class="status-value" id="current-value">--.-A</div>
+            </div>
+            <div class="status-card">
+                <div class="status-label">Gait</div>
+                <div class="status-value" id="gait-status">---</div>
+            </div>
+            <div class="status-card">
+                <div class="status-label">State</div>
+                <div class="status-value" id="state-status">---</div>
+            </div>
+        </div>
+        
+        <!-- Gamepad Control -->
+        <div class="control-section">
+            <h2 class="section-title">🎮 Gamepad Control</h2>
+            <div class="gamepad-controls">
+                <div class="gamepad-status" id="gamepadStatus">
+                    <span class="gamepad-indicator">●</span>
+                    <span id="gamepadStatusText">No gamepad connected</span>
+                </div>
+                <div class="gamepad-layout-toggle">
+                    <label class="toggle-label">Controller Layout:</label>
+                    <div class="toggle-buttons">
+                        <button class="toggle-btn active" id="xboxBtn" onclick="setGamepadLayout('xbox')">Xbox</button>
+                        <button class="toggle-btn" id="playstationBtn" onclick="setGamepadLayout('playstation')">PlayStation</button>
+                    </div>
+                </div>
+                <div class="gamepad-info" id="gamepadInfo">
+                    <small>Connect a gamepad and press any button to activate</small>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Movement Control -->
+        <div class="control-section">
+            <h2 class="section-title">Movement Control</h2>
+            <div class="joystick-container">
+                <div>
+                    <div class="joystick" id="move-joystick">
+                        <div class="joystick-stick"></div>
+                    </div>
+                    <div class="joystick-label">Move (Forward/Strafe)</div>
+                </div>
+                <div>
+                    <div class="joystick" id="rotate-joystick">
+                        <div class="joystick-stick"></div>
+                    </div>
+                    <div class="joystick-label">Rotate (Left/Right)</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Gait Selection -->
+        <div class="control-section">
+            <h2 class="section-title">Gait Selection</h2>
+            <div class="gait-selector">
+                <button class="gait-btn" data-gait="tri">Tripod</button>
+                <button class="gait-btn" data-gait="wave">Wave</button>
+                <button class="gait-btn" data-gait="ripple">Ripple</button>
+                <button class="gait-btn" data-gait="bi">Bipod</button>
+                <button class="gait-btn" data-gait="quad">Quad</button>
+                <button class="gait-btn" data-gait="hop">Hop</button>
+            </div>
+        </div>
+        
+        <!-- Body Pose -->
+        <div class="control-section">
+            <h2 class="section-title">Body Pose</h2>
+            <div class="pose-controls">
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>X Position</span>
+                        <span id="pose-x-val">0.00</span>
+                    </div>
+                    <input type="range" min="-50" max="50" value="0" step="1" id="pose-x">
+                </div>
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>Y Position</span>
+                        <span id="pose-y-val">0.00</span>
+                    </div>
+                    <input type="range" min="-50" max="50" value="0" step="1" id="pose-y">
+                </div>
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>Z Position</span>
+                        <span id="pose-z-val">0.00</span>
+                    </div>
+                    <input type="range" min="-50" max="50" value="0" step="1" id="pose-z">
+                </div>
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>Roll</span>
+                        <span id="pose-roll-val">0.00</span>
+                    </div>
+                    <input type="range" min="-30" max="30" value="0" step="0.5" id="pose-roll">
+                </div>
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>Pitch</span>
+                        <span id="pose-pitch-val">0.00</span>
+                    </div>
+                    <input type="range" min="-30" max="30" value="0" step="0.5" id="pose-pitch">
+                </div>
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>Yaw</span>
+                        <span id="pose-yaw-val">0.00</span>
+                    </div>
+                    <input type="range" min="-40" max="40" value="0" step="0.5" id="pose-yaw">
+                </div>
+            </div>
+        </div>
+        
+        <button class="btn btn-stop" id="emergency-stop">🛑 EMERGENCY STOP</button>
+    </div>
+    
+    <script src="/app.js"></script>
+</body>
+</html>

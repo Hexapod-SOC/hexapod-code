@@ -8,8 +8,8 @@ use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 use tracing_subscriber;
 
-use crate::api;
-use crate::state::AppState;
+use super::routes;
+use super::state::AppState;
 
 pub async fn run_server(state: AppState, port: u16) -> Result<(), Box<dyn std::error::Error>> {
     // Initialize tracing
@@ -20,22 +20,22 @@ pub async fn run_server(state: AppState, port: u16) -> Result<(), Box<dyn std::e
     // Build our application with routes
     let app = Router::new()
         // Health check
-        .route("/api/health", get(api::health_check))
+        .route("/api/health", get(routes::health_check))
         
         // Status endpoints
-        .route("/api/status", get(api::get_status))
-        .route("/api/battery", get(api::get_battery))
+        .route("/api/status", get(routes::get_status))
+        .route("/api/battery", get(routes::get_battery))
         
         // Movement control
-        .route("/api/move", post(api::move_hexapod))
-        .route("/api/stop", post(api::stop_hexapod))
+        .route("/api/move", post(routes::move_hexapod))
+        .route("/api/stop", post(routes::stop_hexapod))
         
         // Gait control
-        .route("/api/gait", get(api::get_gait))
-        .route("/api/gait", post(api::set_gait))
+        .route("/api/gait", get(routes::get_gait))
+        .route("/api/gait", post(routes::set_gait))
         
         // Body pose
-        .route("/api/pose", post(api::set_body_pose))
+        .route("/api/pose", post(routes::set_body_pose))
         
         // Add state and middleware
         .with_state(app_state)

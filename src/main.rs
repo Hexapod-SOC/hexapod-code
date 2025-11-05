@@ -5,6 +5,7 @@
 pub mod config;
 pub mod hexapod;
 pub mod demos;
+pub mod api;
 
 // Workspace imports
 use config::{TTS_URL, TMP_DIR, CONSTRAINTS, SERVO_PINS};
@@ -48,27 +49,39 @@ async fn main() {
     if config::WEB_ENABLE {
         println!("Starting API server on port {} (non-blocking)...", config::API_PORT);
 
-        // Create web API state from shared controllers
-        let state = web::AppState::from_shared(
+        // Create API state from shared controllers
+        let state = api::AppState::from_shared(
             hexapod.get_servo_controller(),
             hexapod.get_gait_controller(),
             hexapod.get_ubec_controller(),
         );
         
-        // Spawn server in background task
+        // Spawn API server in background task
         tokio::spawn(async move {
-            if let Err(e) = web::run_server(state, config::API_PORT).await {
-                eprintln!("Server error: {}", e);
+            if let Err(e) = api::run_server(state, config::API_PORT).await {
+                eprintln!("API server error: {}", e);
             }
         });
         
-        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-        println!("API server started successfully!\n");
+        println!("API server started on http://0.0.0.0:{}", config::API_PORT);
     }
-    if let Some(_) = battery.last_update {
-        println!("Battery Status: {:.2}V / {:.2}A", battery.voltage, battery.current);
-    } else {
-        println!("Battery Status: Not available (monitoring disabled)");
+
+    if config::WEB_PANEL_ENABLE {
+        println!("Starting web panel on port {} (non-blocking)...", config::WEB_PANEL_PORT);
+        
+        // Spawn web panel in background task
+        tokio::spawn(async move {
+            if let Err(e) = web_panel::run_panel(config::WEB_PANEL_PORT).await {
+                eprintln!("Web panel error: {}", e);
+            }
+        });
+        
+        println!("Web panel started on http://0.0.0.0:{}", config::WEB_PANEL_PORT);
+    }
+    
+    if config::WEB_ENABLE || config::WEB_PANEL_ENABLE {
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+        println!();
     }
     
     println!("Hexapod ready!\n");

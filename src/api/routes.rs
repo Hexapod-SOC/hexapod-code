@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use glam::Vec3;
 
-use crate::state::AppState;
+use super::state::AppState;
 
 // ============= Status Endpoints =============
 

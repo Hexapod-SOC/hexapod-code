@@ -4,6 +4,8 @@ use movement::ik;
 
 pub const WEB_ENABLE: bool = true;
 pub const API_PORT: u16 = 3000;
+pub const WEB_PANEL_ENABLE: bool = true;
+pub const WEB_PANEL_PORT: u16 = 8080;
 
 pub const TMP_DIR: &str = "/tmp/hexapod/";
 pub const TTS_URL: &str = "http://127.0.0.1:5000";
