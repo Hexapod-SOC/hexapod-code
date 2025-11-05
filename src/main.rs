@@ -46,7 +46,7 @@ async fn main() {
     
     println!("Hexapod ready!\n");
 
-    if config::WEB_ENABLE {
+    if config::WEB_API_ENABLE {
         println!("Starting API server on port {} (non-blocking)...", config::API_PORT);
 
         // Create API state from shared controllers
@@ -79,7 +79,7 @@ async fn main() {
         println!("Web panel started on http://0.0.0.0:{}", config::WEB_PANEL_PORT);
     }
     
-    if config::WEB_ENABLE || config::WEB_PANEL_ENABLE {
+    if config::WEB_API_ENABLE || config::WEB_PANEL_ENABLE {
         tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
         println!();
     }

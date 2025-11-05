@@ -2,7 +2,7 @@
 use devices::servo::ServoPins;
 use movement::ik;
 
-pub const WEB_ENABLE: bool = true;
+pub const WEB_API_ENABLE: bool = true;
 pub const API_PORT: u16 = 3000;
 pub const WEB_PANEL_ENABLE: bool = true;
 pub const WEB_PANEL_PORT: u16 = 8080;
