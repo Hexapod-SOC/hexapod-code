@@ -49,9 +49,9 @@ async fn main() {
     if config::WEB_API_ENABLE {
         println!("Starting API server on port {} (non-blocking)...", config::API_PORT);
 
-        // Create API state from shared controllers
-        let state = api::AppState::from_shared(
-            hexapod.get_servo_controller(),
+        // Create API state from hexapod shared references
+        let state = api::AppState::from_hexapod(
+            hexapod.get_control(),
             hexapod.get_gait_controller(),
             hexapod.get_ubec_controller(),
         );
@@ -122,10 +122,17 @@ async fn main() {
     
     println!("\nPress Ctrl+C to exit.");
     
-    // Monitoring loop with periodic battery updates
+    // Main control loop - updates at ~20Hz
+    // This is where hexapod.update() reads the control state and applies it
+    let update_interval = tokio::time::Duration::from_millis(50); // 20 Hz
+    let mut interval = tokio::time::interval(update_interval);
     let mut last_battery_check = tokio::time::Instant::now();
+    
     loop {
-        hexapod.update(0.0).await;
+        interval.tick().await;
+        
+        // Main update - reads control state and applies movement
+        hexapod.update(0.05).await; // 50ms timestep
         
         // Check for critical battery state
         if hexapod.is_battery_critical().await {
@@ -183,7 +190,5 @@ async fn main() {
             
             last_battery_check = tokio::time::Instant::now();
         }
-        
-        tokio::time::sleep(tokio::time::Duration::from_millis(250)).await;
     }
 }

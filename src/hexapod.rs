@@ -16,6 +16,26 @@ use movement::{
 use devices::servo::{ServoController, ServoPins};
 use devices::picoubec::{PicoUbecController, BatteryStatus, PowerState};
 
+/// Control inputs for the hexapod - can be set by any control interface
+#[derive(Debug, Clone, Copy)]
+pub struct HexapodControl {
+    pub velocity: Vec3,      // X=forward, Z=strafe (Y unused)
+    pub rotation: f32,       // Yaw rotation rate
+    pub body_pose: BodyPose, // Body orientation
+    pub enabled: bool,       // Master enable/disable
+}
+
+impl Default for HexapodControl {
+    fn default() -> Self {
+        Self {
+            velocity: Vec3::ZERO,
+            rotation: 0.0,
+            body_pose: BodyPose::default(),
+            enabled: true,
+        }
+    }
+}
+
 /// Main hexapod robot controller
 /// 
 /// Combines servo control, inverse kinematics, and gait generation
@@ -24,6 +44,7 @@ pub struct Hexapod {
     servo_controller: Arc<Mutex<ServoController>>,
     gait_controller: Arc<Mutex<GaitController>>,
     ubec_controller: Arc<Mutex<PicoUbecController>>,
+    control: Arc<Mutex<HexapodControl>>, // Shared control state
 }
 
 impl Hexapod {
@@ -51,29 +72,70 @@ impl Hexapod {
             servo_controller: Arc::new(Mutex::new(servo_controller)),
             gait_controller: Arc::new(Mutex::new(gait_controller)),
             ubec_controller: Arc::new(Mutex::new(ubec_controller)),
+            control: Arc::new(Mutex::new(HexapodControl::default())),
         }
     }
     
-    /// Get shared reference to servo controller for web API
-    pub fn get_servo_controller(&self) -> Arc<Mutex<ServoController>> {
-        self.servo_controller.clone()
+    /// Get shared reference to control state for external control (API, Bluetooth, etc.)
+    pub fn get_control(&self) -> Arc<Mutex<HexapodControl>> {
+        self.control.clone()
     }
     
-    /// Get shared reference to gait controller for web API
+    /// Get shared reference to gait controller (for gait changes)
     pub fn get_gait_controller(&self) -> Arc<Mutex<GaitController>> {
         self.gait_controller.clone()
     }
     
-    /// Get shared reference to UBEC controller for web API
+    /// Get shared reference to UBEC controller (for battery status)
     pub fn get_ubec_controller(&self) -> Arc<Mutex<PicoUbecController>> {
         self.ubec_controller.clone()
     }
 
-    /// Update the gait cycle by a time delta (in seconds)
-    /// Also updates battery monitoring
+    /// Main update loop - reads control state and updates servos
+    /// 
+    /// This should be called periodically (e.g., 20-50Hz) in a tokio task.
+    /// All control interfaces (web API, gamepad, etc.) just modify the control state,
+    /// and this function does all the calculations and applies them.
     pub async fn update(&mut self, dt: f32) {
-        self.gait_controller.lock().await.update(dt);
+        // Update battery monitoring
         self.ubec_controller.lock().await.update();
+        
+        // Get current control inputs
+        let control = {
+            let ctrl = self.control.lock().await;
+            *ctrl // Copy the control state
+        };
+        
+        if !control.enabled {
+            // If disabled, don't move
+            return;
+        }
+        
+        // Update gait phase
+        {
+            let mut gait = self.gait_controller.lock().await;
+            gait.update(dt);
+            gait.set_body_pose(control.body_pose);
+        }
+        
+        // Calculate leg angles based on current control state
+        let is_moving = control.velocity.length() > 0.01 || control.rotation.abs() > 0.001;
+        
+        let angles = if is_moving {
+            // Walking with body pose
+            let gait = self.gait_controller.lock().await;
+            gait.calculate_walking_with_pose_angles(control.velocity, control.rotation)
+        } else {
+            // Static pose only
+            let gait = self.gait_controller.lock().await;
+            gait.calculate_pose_angles()
+        };
+        
+        // Apply to servos
+        let mut servo = self.servo_controller.lock().await;
+        for (leg, leg_angles) in angles.iter() {
+            servo.set_leg_angles(*leg, *leg_angles);
+        }
     }
     
     /// Get current battery status
@@ -89,6 +151,37 @@ impl Hexapod {
     /// Check if battery is in critical state
     pub async fn is_battery_critical(&self) -> bool {
         self.ubec_controller.lock().await.is_critical()
+    }
+    
+    /// Set control velocity (for programmatic control or demos)
+    pub async fn set_velocity(&self, velocity: Vec3, rotation: f32) {
+        let mut control = self.control.lock().await;
+        control.velocity = velocity;
+        control.rotation = rotation;
+    }
+    
+    /// Set body pose (for programmatic control or demos)
+    pub async fn set_body_pose(&self, pose: BodyPose) {
+        let mut control = self.control.lock().await;
+        control.body_pose = pose;
+    }
+    
+    /// Get the current body pose
+    pub async fn get_body_pose(&self) -> BodyPose {
+        let control = self.control.lock().await;
+        control.body_pose
+    }
+    
+    /// Enable/disable movement
+    pub async fn set_enabled(&self, enabled: bool) {
+        let mut control = self.control.lock().await;
+        control.enabled = enabled;
+    }
+    
+    /// Emergency stop - immediately zeros all control inputs
+    pub async fn emergency_stop(&self) {
+        let mut control = self.control.lock().await;
+        *control = HexapodControl::default();
     }
     
     /// Emergency shutdown - executes system shutdown command
@@ -113,18 +206,8 @@ impl Hexapod {
         Ok(())
     }
 
-    /// Set the body pose (orientation and translation)
-    pub async fn set_body_pose(&mut self, pose: BodyPose) {
-        self.gait_controller.lock().await.set_body_pose(pose);
-    }
-
-    /// Get the current body pose
-    pub async fn get_body_pose(&self) -> BodyPose {
-        self.gait_controller.lock().await.get_body_pose()
-    }
-
     /// Change the gait pattern
-    pub async fn set_gait(&mut self, gait_template: &'static GaitTemplate) {
+    pub async fn set_gait(&self, gait_template: &'static GaitTemplate) {
         self.gait_controller.lock().await.set_gait(gait_template);
     }
 
@@ -138,72 +221,19 @@ impl Hexapod {
         self.gait_controller.lock().await.get_template().name.to_string()
     }
 
-    /// Move a single leg to a specific position
-    /// 
-    /// # Arguments
-    /// * `leg` - Which leg to move
-    /// * `position` - Target position in mm (X, Y, Z)
-    pub async fn move_leg_to_position(&mut self, leg: Leg, position: Vec3) {
-        let gait = self.gait_controller.lock().await;
-        let angles = gait.ik.calc_pos_leg_angles(leg, position);
-        drop(gait);
-        self.servo_controller.lock().await.set_leg_angles(leg, angles);
-    }
-
-    /// Apply a static body pose without walking
-    /// 
-    /// Useful for body orientation control, tilting, etc.
-    pub async fn apply_static_pose(&mut self) {
-        let angles = self.gait_controller.lock().await.calculate_pose_angles();
-        self.apply_leg_angles(angles).await;
-    }
-
-    /// Walk with the current gait
-    /// 
-    /// # Arguments
-    /// * `velocity` - Movement velocity (X=forward, Y=strafe, Z=vertical)
-    /// * `rotation` - Rotation speed (yaw rate)
-    pub async fn walk(&mut self, velocity: Vec3, rotation: f32) {
-        let angles = self.gait_controller.lock().await.calculate_walking_angles(velocity, rotation);
-        self.apply_leg_angles(angles).await;
-    }
-
-    /// Walk while maintaining a body pose
-    /// 
-    /// Combines walking motion with body orientation control
-    /// 
-    /// # Arguments
-    /// * `velocity` - Movement velocity (X=forward, Y=strafe, Z=vertical)
-    /// * `rotation` - Rotation speed (yaw rate)
-    pub async fn walk_with_pose(&mut self, velocity: Vec3, rotation: f32) {
-        let angles = self.gait_controller.lock().await.calculate_walking_with_pose_angles(velocity, rotation);
-        self.apply_leg_angles(angles).await;
-    }
-
     /// Set all legs to the same angle
     /// 
     /// Useful for calibration or testing
-    pub async fn set_all_legs(&mut self, coxa: f32, femur: f32, tibia: f32) {
+    pub async fn set_all_legs(&self, coxa: f32, femur: f32, tibia: f32) {
         self.servo_controller.lock().await.set_all_legs_to_angles(coxa, femur, tibia);
-    }
-
-    /// Set a single leg's angles directly
-    pub async fn set_leg_angles(&mut self, leg: Leg, angles: LegAngles) {
-        self.servo_controller.lock().await.set_leg_angles(leg, angles);
-    }
-
-    /// Apply calculated leg angles to servos
-    async fn apply_leg_angles(&mut self, angles: [(Leg, LegAngles); 6]) {
-        let mut servo = self.servo_controller.lock().await;
-        for (leg, leg_angles) in angles.iter() {
-            servo.set_leg_angles(*leg, *leg_angles);
-        }
     }
 
     /// Reset to default standing position
     pub async fn reset_to_default_stance(&mut self) {
-        self.gait_controller.lock().await.set_body_pose(BodyPose::default());
-        self.apply_static_pose().await;
+        let mut control = self.control.lock().await;
+        control.body_pose = BodyPose::default();
+        control.velocity = Vec3::ZERO;
+        control.rotation = 0.0;
     }
     
     /// Put hexapod in safe shutdown position
@@ -213,7 +243,7 @@ impl Hexapod {
     /// drawing excessive current (up to 8A!) when holding awkward angles.
     /// 
     /// Position: Coxa neutral (90°), Femur up (135°), Tibia folded (135°)
-    pub async fn safe_shutdown_position(&mut self) {
+    pub async fn safe_shutdown_position(&self) {
         println!("Moving to safe shutdown position...");
         
         // Set all legs to a safe "folded up" position

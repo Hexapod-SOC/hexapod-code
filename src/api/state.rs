@@ -1,47 +1,29 @@
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use devices::servo::ServoController;
 use devices::picoubec::PicoUbecController;
 use movement::controller::GaitController;
-use glam::Vec3;
-
-/// Current movement velocity
-#[derive(Clone, Copy, Debug)]
-pub struct MovementVelocity {
-    pub velocity: Vec3,  // X=forward, Y=unused, Z=strafe
-    pub rotation: f32,   // Yaw rotation rate
-}
-
-impl Default for MovementVelocity {
-    fn default() -> Self {
-        Self {
-            velocity: Vec3::ZERO,
-            rotation: 0.0,
-        }
-    }
-}
+use crate::hexapod::HexapodControl;
 
 /// Shared application state for the API
+/// 
+/// This only contains references to the control state and read-only controllers.
+/// All movement calculations happen in hexapod.update(), not in the API handlers.
 pub struct AppState {
-    pub servo_controller: Arc<Mutex<ServoController>>,
+    pub control: Arc<Mutex<HexapodControl>>,
     pub gait_controller: Arc<Mutex<GaitController>>,
     pub ubec_controller: Arc<Mutex<PicoUbecController>>,
-    pub movement_velocity: Arc<Mutex<MovementVelocity>>,
 }
 
 impl AppState {
-    /// Create AppState from existing shared controllers
-    /// This avoids creating duplicate I2C device connections
-    pub fn from_shared(
-        servo_controller: Arc<Mutex<ServoController>>,
+    pub fn from_hexapod(
+        control: Arc<Mutex<HexapodControl>>,
         gait_controller: Arc<Mutex<GaitController>>,
         ubec_controller: Arc<Mutex<PicoUbecController>>,
     ) -> Self {
         Self {
-            servo_controller,
+            control,
             gait_controller,
             ubec_controller,
-            movement_velocity: Arc::new(Mutex::new(MovementVelocity::default())),
         }
     }
 }

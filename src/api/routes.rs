@@ -86,20 +86,19 @@ pub struct MoveResponse {
 }
 
 /// POST /api/move
+/// Just updates the control velocity - hexapod.update() does the actual movement
 pub async fn move_hexapod(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<MoveRequest>,
 ) -> Result<Json<MoveResponse>, StatusCode> {
-    // Update the movement velocity state
-    // The background task will continuously apply this velocity
-    let mut movement = state.movement_velocity.lock().await;
-    movement.velocity = Vec3::new(payload.forward, 0.0, payload.strafe);
-    movement.rotation = payload.rotation;
+    let mut control = state.control.lock().await;
+    control.velocity = Vec3::new(payload.forward, 0.0, payload.strafe);
+    control.rotation = payload.rotation;
     
     Ok(Json(MoveResponse {
         success: true,
         message: format!(
-            "Moving: forward={:.1}, strafe={:.1}, rotation={:.2}",
+            "Control set: forward={:.1}, strafe={:.1}, rotation={:.2}",
             payload.forward, payload.strafe, payload.rotation
         ),
     }))
@@ -113,13 +112,13 @@ pub async fn stop_hexapod(
     State(state): State<Arc<AppState>>,
     Json(_payload): Json<StopRequest>,
 ) -> Result<Json<MoveResponse>, StatusCode> {
-    // Stop movement by setting zero velocity
-    let mut movement = state.movement_velocity.lock().await;
-    *movement = super::state::MovementVelocity::default();
+    let mut control = state.control.lock().await;
+    control.velocity = Vec3::ZERO;
+    control.rotation = 0.0;
     
     Ok(Json(MoveResponse {
         success: true,
-        message: "Hexapod stopped".to_string(),
+        message: "Movement stopped".to_string(),
     }))
 }
 
@@ -196,17 +195,10 @@ pub async fn set_body_pose(
 ) -> Result<Json<BodyPoseResponse>, StatusCode> {
     use movement::controller::BodyPose;
     
-    let mut gait = state.gait_controller.lock().await;
-    let mut servo = state.servo_controller.lock().await;
-    
     let pose = BodyPose::with_rotation(payload.roll, payload.pitch, payload.yaw);
-    gait.set_body_pose(pose);
     
-    // Calculate and apply pose angles
-    let angles = gait.calculate_pose_angles();
-    for (leg, leg_angles) in angles.iter() {
-        servo.set_leg_angles(*leg, *leg_angles);
-    }
+    let mut control = state.control.lock().await;
+    control.body_pose = pose;
     
     Ok(Json(BodyPoseResponse {
         success: true,
