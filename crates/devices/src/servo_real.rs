@@ -28,9 +28,9 @@ pub struct ServoController {
 impl ServoController {
     pub fn new(servo_pins: ServoPins) -> Self {
         let mut servos_controller = ServoController {
-            pca_left: Pca9685::new(I2cdev::new("/dev/i2c-1").unwrap(), Address::from(0x40))
+            pca_left: Pca9685::new(I2cdev::new("/dev/i2c-1").unwrap(), Address::from(0x41))
                 .unwrap(),
-            pca_right: Pca9685::new(I2cdev::new("/dev/i2c-1").unwrap(), Address::from(0x41))
+            pca_right: Pca9685::new(I2cdev::new("/dev/i2c-1").unwrap(), Address::from(0x40))
                 .unwrap(),
             servo_pins,
         };

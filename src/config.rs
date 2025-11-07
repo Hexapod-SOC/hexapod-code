@@ -12,12 +12,12 @@ pub const TTS_URL: &str = "http://127.0.0.1:5000";
 //pub const VOICE_ID: &str = "en_us_001";
 
 pub const SERVO_PINS: ServoPins = ServoPins {
-    left_front: (0, 1, 2),
+    left_front: (12, 13, 14),
     left_middle: (4, 5, 6),
-    left_back: (8, 9, 10),
-    right_front: (0, 1, 2),
+    left_back: (0, 1, 2),
+    right_front: (12, 13, 14),
     right_middle: (4, 5, 6),
-    right_back: (8, 9, 10),
+    right_back: (0, 1, 2),
 };
 
 pub const CONSTRAINTS: ik::Constraints = ik::Constraints {
