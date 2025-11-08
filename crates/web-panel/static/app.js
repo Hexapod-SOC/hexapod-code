@@ -16,6 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initGaitSelector();
     initPoseControls();
     initEmergencyStop();
+    initTTS();
     initGamepad();
     startStatusUpdates();
 });
@@ -181,6 +182,75 @@ function initEmergencyStop() {
     stopBtn.addEventListener('click', () => {
         emergencyStop();
     });
+}
+
+// Text-to-Speech
+function initTTS() {
+    const speakBtn = document.getElementById('speak-btn');
+    const ttsInput = document.getElementById('tts-input');
+    const ttsStatus = document.getElementById('tts-status');
+
+    // Speak button click
+    speakBtn.addEventListener('click', () => {
+        const text = ttsInput.value.trim();
+        if (text.length === 0) {
+            showTTSStatus('Please enter some text', 'error');
+            return;
+        }
+        speakText(text);
+    });
+
+    // Enter key in input field
+    ttsInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            const text = ttsInput.value.trim();
+            if (text.length > 0) {
+                speakText(text);
+            }
+        }
+    });
+}
+
+async function speakText(text) {
+    const voice = document.getElementById('tts-voice').value;
+    const ttsStatus = document.getElementById('tts-status');
+    
+    try {
+        showTTSStatus('Speaking...', 'loading');
+        
+        const response = await fetch(`${API_BASE}/tts`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                text: text,
+                voice: voice
+            })
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            showTTSStatus('✓ Sent to speaker', 'success');
+            console.log('TTS:', data.message);
+            
+            // Clear status after 2 seconds
+            setTimeout(() => {
+                ttsStatus.textContent = '';
+                ttsStatus.className = 'tts-status';
+            }, 2000);
+        } else {
+            showTTSStatus('Failed to speak', 'error');
+        }
+    } catch (error) {
+        console.error('Error sending TTS request:', error);
+        showTTSStatus('Connection error', 'error');
+        updateConnectionStatus(false);
+    }
+}
+
+function showTTSStatus(message, type) {
+    const ttsStatus = document.getElementById('tts-status');
+    ttsStatus.textContent = message;
+    ttsStatus.className = `tts-status ${type}`;
 }
 
 // API Calls

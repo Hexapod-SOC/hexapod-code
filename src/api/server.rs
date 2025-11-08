@@ -37,6 +37,9 @@ pub async fn run_server(state: AppState, port: u16) -> Result<(), Box<dyn std::e
         // Body pose
         .route("/api/pose", post(routes::set_body_pose))
         
+        // Text-to-speech
+        .route("/api/tts", post(routes::speak_text))
+        
         // Add state and middleware
         .with_state(app_state)
         .layer(CorsLayer::permissive())

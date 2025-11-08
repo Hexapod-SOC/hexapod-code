@@ -305,3 +305,83 @@ input[type="range"]::-moz-range-thumb {
     border-radius: 5px;
     border-left: 3px solid #667eea;
 }
+
+/* Text-to-Speech Controls */
+.tts-controls {
+    background: #f9f9f9;
+    padding: 20px;
+    border-radius: 10px;
+}
+
+.input-group {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+}
+
+#tts-input {
+    flex: 1;
+    min-width: 200px;
+    padding: 12px 15px;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    font-size: 1em;
+    transition: border-color 0.3s;
+}
+
+#tts-input:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+#tts-voice {
+    padding: 12px 15px;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    font-size: 1em;
+    background: white;
+    cursor: pointer;
+    transition: border-color 0.3s;
+}
+
+#tts-voice:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.btn-tts {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    width: 100%;
+}
+
+.btn-tts:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(102, 126, 234, 0.4);
+}
+
+.tts-status {
+    padding: 10px;
+    border-radius: 5px;
+    text-align: center;
+    font-weight: bold;
+    margin-top: 10px;
+    min-height: 20px;
+}
+
+.tts-status.loading {
+    background: #fff9c4;
+    color: #f57f17;
+}
+
+.tts-status.success {
+    background: #c8e6c9;
+    color: #2e7d32;
+}
+
+.tts-status.error {
+    background: #ffcdd2;
+    color: #c62828;
+}
+

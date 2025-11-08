@@ -209,6 +209,49 @@ pub async fn set_body_pose(
     }))
 }
 
+// ============= Text-to-Speech Endpoints =============
+
+#[derive(Deserialize)]
+pub struct TTSRequest {
+    pub text: String,
+    #[serde(default)]
+    pub voice: Option<String>, // Optional: "en_US-ryan-medium", "sk_SK-lili-medium", etc.
+}
+
+#[derive(Serialize)]
+pub struct TTSResponse {
+    pub success: bool,
+    pub message: String,
+}
+
+/// POST /api/tts
+pub async fn speak_text(
+    Json(payload): Json<TTSRequest>,
+) -> Result<Json<TTSResponse>, StatusCode> {
+    use audio::tts;
+    
+    // Spawn TTS in a background task since it might take time
+    let text = payload.text.clone();
+    let voice = payload.voice.clone();
+    
+    tokio::task::spawn_blocking(move || {
+        let result = if let Some(v) = voice.as_deref() {
+            tts::say(&text, Some(v))
+        } else {
+            tts::sayen(&text)
+        };
+        
+        if let Err(e) = result {
+            eprintln!("TTS error: {}", e);
+        }
+    });
+    
+    Ok(Json(TTSResponse {
+        success: true,
+        message: format!("Speaking: '{}'", payload.text),
+    }))
+}
+
 // ============= Health Check =============
 
 #[derive(Serialize)]

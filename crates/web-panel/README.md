@@ -34,6 +34,11 @@ Interactive web-based control panel for the hexapod robot. Provides a visual int
 - Large, prominent emergency stop button
 - Resets all controls to neutral
 
+### 🔊 Text-to-Speech
+- Type text to be spoken by the robot
+- Voice selection (English/Slovak)
+- Real-time feedback on speech status
+
 ## Usage
 
 ### Starting the Panel
@@ -110,6 +115,18 @@ Click the red "🛑 EMERGENCY STOP" button to:
 - Stop all movement immediately
 - Reset body pose to neutral
 - Clear all joystick inputs
+
+### Text-to-Speech
+
+The TTS section allows you to:
+1. Type any text in the input field (max 500 characters)
+2. Select a voice from the dropdown:
+   - **English (Ryan)**: `en_US-ryan-medium`
+   - **Slovak (Lili)**: `sk_SK-lili-medium`
+3. Click "🔊 Speak" or press Enter to have the robot speak
+4. Status messages show if speech is being processed
+
+**Note**: In dummy mode, TTS will only print to console. In real mode, it requires a TTS server (configured in `src/config.rs`).
 
 ## Technical Details
 
@@ -203,6 +220,7 @@ The panel calls these API endpoints:
 - `POST /api/stop` - Emergency stop
 - `POST /api/gait` - Gait selection
 - `POST /api/pose` - Body pose
+- `POST /api/tts` - Text-to-speech
 
 ### Adding Static Assets
 

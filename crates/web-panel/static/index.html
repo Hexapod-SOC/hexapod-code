@@ -138,6 +138,22 @@
             </div>
         </div>
         
+        <!-- Text-to-Speech -->
+        <div class="control-section">
+            <h2 class="section-title">🔊 Text-to-Speech</h2>
+            <div class="tts-controls">
+                <div class="input-group">
+                    <input type="text" id="tts-input" placeholder="Enter text to speak..." maxlength="500">
+                    <select id="tts-voice">
+                        <option value="en_US-ryan-medium">English (Ryan)</option>
+                        <option value="sk_SK-lili-medium">Slovak (Lili)</option>
+                    </select>
+                </div>
+                <button class="btn btn-tts" id="speak-btn">🔊 Speak</button>
+                <div id="tts-status" class="tts-status"></div>
+            </div>
+        </div>
+        
         <button class="btn btn-stop" id="emergency-stop">🛑 EMERGENCY STOP</button>
     </div>
     
