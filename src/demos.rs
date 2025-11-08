@@ -116,11 +116,11 @@ pub async fn demo_strafe(hexapod: &mut Hexapod, duration_secs: f32) {
     println!("=== Demo: Strafing (Sideways Movement) ===");
 
     println!("  - Strafing right for {:.1} seconds", duration_secs / 2.0);
-    hexapod.set_velocity(Vec3::new(0.0, 0.0, 40.0), 0.0).await; // Strafe right
+    hexapod.set_velocity(Vec3::new(0.0, 40.0, 0.0), 0.0).await; // Strafe right (Y+)
     tokio::time::sleep(tokio::time::Duration::from_secs_f32(duration_secs / 2.0)).await;
 
     println!("  - Strafing left for {:.1} seconds", duration_secs / 2.0);
-    hexapod.set_velocity(Vec3::new(0.0, 0.0, -40.0), 0.0).await; // Strafe left
+    hexapod.set_velocity(Vec3::new(0.0, -40.0, 0.0), 0.0).await; // Strafe left (Y-)
     tokio::time::sleep(tokio::time::Duration::from_secs_f32(duration_secs / 2.0)).await;
     
     // Stop

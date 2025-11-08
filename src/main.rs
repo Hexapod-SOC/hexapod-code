@@ -8,7 +8,7 @@ pub mod demos;
 pub mod api;
 
 // Workspace imports
-use config::{TTS_URL, TMP_DIR, CONSTRAINTS, SERVO_PINS};
+use config::{TTS_URL, TMP_DIR, CONSTRAINTS, SERVO_PINS, SERVO_OFFSETS};
 use movement::gaits::GAITS;
 use audio::tts;
 
@@ -28,11 +28,13 @@ async fn main() {
     println!("Creating hexapod controller...");
     let mut hexapod = hexapod::Hexapod::new(
         SERVO_PINS,
+        SERVO_OFFSETS,
         CONSTRAINTS,
         &GAITS[0], // Tripod gait
         None, // Use default stance
     );
 
+    hexapod.set_all_legs(90.0, 90.0, 90.0);
     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
     
     // Display initial battery status
@@ -87,7 +89,7 @@ async fn main() {
     println!("Hexapod ready!\n");
 
     // Run demonstration sequence
-    tts::sayen("Starting demonstration sequence").unwrap();
+    //tts::sayen("Starting demonstration sequence").unwrap();
     
     // Battery monitoring loop - check periodically during demos
     let battery_check_interval = tokio::time::Duration::from_secs(5);
@@ -105,7 +107,7 @@ async fn main() {
     //demos::demo_combined_movement(&mut hexapod, 5.0).await;
 
     // Return to default stance
-    hexapod.reset_to_default_stance().await;
+    //hexapod.reset_to_default_stance().await;
     
     // Final battery status
     hexapod.update(0.0).await;
@@ -118,7 +120,7 @@ async fn main() {
     println!("║   DEMO COMPLETE                       ║");
     println!("╚════════════════════════════════════════╝");
     
-    tts::sayen("Demo complete. Standing by.").unwrap();
+    //tts::sayen("Demo complete. Standing by.").unwrap();
     
     println!("\nPress Ctrl+C to exit.");
     

@@ -92,7 +92,8 @@ pub async fn move_hexapod(
     Json(payload): Json<MoveRequest>,
 ) -> Result<Json<MoveResponse>, StatusCode> {
     let mut control = state.control.lock().await;
-    control.velocity = Vec3::new(payload.forward, 0.0, payload.strafe);
+    // X=forward/back, Y=left/right (strafe), Z=up/down
+    control.velocity = Vec3::new(payload.forward, payload.strafe, 0.0);
     control.rotation = payload.rotation;
     
     Ok(Json(MoveResponse {

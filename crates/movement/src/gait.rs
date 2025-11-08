@@ -25,12 +25,12 @@ impl Default for LegStances {
         // X: forward/back, Y: left/right, Z: up/down
         LegStances {
             //FIXME why front/back X is 0 it should be a offset forward/back 
-            left_front: Vec3::new(0.0, -55.0, -70.0),
-            left_middle: Vec3::new(0.0, -65.0, -65.0),
-            left_back: Vec3::new(0.0, -55.0, -70.0),
-            right_front: Vec3::new(0.0, 55.0, -70.0),
-            right_middle: Vec3::new(0.0, 65.0, -65.0),
-            right_back: Vec3::new(0.0, 55.0, -70.0),
+            left_front: Vec3::new(0.0, -55.0, -90.0),
+            left_middle: Vec3::new(0.0, -60.0, -90.0),
+            left_back: Vec3::new(0.0, -55.0, -90.0),
+            right_front: Vec3::new(0.0, 55.0, -90.0),
+            right_middle: Vec3::new(0.0, 60.0, -90.0),
+            right_back: Vec3::new(0.0, 55.0, -90.0),
         }
     }
 }
@@ -116,8 +116,8 @@ impl Gait {
     }
 
     /// Calculate the position of a leg during walking
-    /// velocity: direction and speed of movement (X=forward, Y=strafe left/right, Z=vertical)
-    /// rotation: body rotation speed (yaw)
+    /// velocity: direction and speed of movement (X=forward/back, Y=left/right, Z=up/down)
+    /// rotation: body rotation speed (yaw, positive = counter-clockwise when viewed from above)
     pub fn calculate_leg_position(
         &self,
         leg: Leg,
@@ -138,12 +138,14 @@ impl Gait {
             Vec3::ZERO
         };
 
-        // Add rotation component to step (rotate around Z axis)
+        // Add rotation component to step (rotate around Z axis - vertical)
         // For rotation: tangential velocity = angular_velocity × radius
+        // When rotating CCW (positive rotation), a point at +Y moves in -X direction
+        // and a point at +X moves in +Y direction
         let rotation_offset = Vec3::new(
-            -default_pos.y * rotation,  // Y affects X movement
-            default_pos.x * rotation,   // X affects Y movement
-            0.0,
+            -default_pos.y * rotation,  // Y position affects X velocity (tangential)
+            default_pos.x * rotation,   // X position affects Y velocity (tangential)
+            0.0,                        // Z unchanged for yaw rotation
         );
 
         let total_step = step_dir * step_length + rotation_offset;

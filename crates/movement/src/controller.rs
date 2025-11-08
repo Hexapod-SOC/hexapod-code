@@ -89,8 +89,8 @@ impl GaitController {
     }
 
     /// Calculate leg angles for walking with given velocity and rotation
-    /// velocity: Vec3(forward, 0, strafe) - forward/backward and left/right movement
-    /// rotation: body rotation speed (yaw rate)
+    /// velocity: Vec3(X=forward/back, Y=left/right, Z=up/down) - movement direction and speed
+    /// rotation: body rotation speed (yaw rate, positive = counter-clockwise from above)
     pub fn calculate_walking_angles(
         &self,
         velocity: Vec3,

@@ -13,7 +13,7 @@ use movement::{
     ik::{Constraints, SimpleIK},
     legs::{Leg, LegAngles},
 };
-use devices::servo::{ServoController, ServoPins};
+use devices::servo::{ServoController, ServoPins, ServoOffsets};
 use devices::picoubec::{PicoUbecController, BatteryStatus, PowerState};
 
 /// Control inputs for the hexapod - can be set by any control interface
@@ -51,11 +51,12 @@ impl Hexapod {
     /// Create a new hexapod controller
     pub fn new(
         servo_pins: ServoPins,
+        servo_offsets: ServoOffsets,
         ik_constraints: Constraints,
         initial_gait: &'static GaitTemplate,
         default_stance: Option<LegStances>,
     ) -> Self {
-        let servo_controller = ServoController::new(servo_pins);
+        let servo_controller = ServoController::new(servo_pins, servo_offsets);
         let ik = SimpleIK::new(ik_constraints);
         
         let mut gait_controller = GaitController::new(initial_gait, ik);
@@ -260,6 +261,7 @@ impl Hexapod {
 /// Builder pattern for creating a Hexapod with custom configuration
 pub struct HexapodBuilder {
     servo_pins: ServoPins,
+    servo_offsets: ServoOffsets,
     ik_constraints: Constraints,
     initial_gait: &'static GaitTemplate,
     default_stance: Option<LegStances>,
@@ -268,11 +270,13 @@ pub struct HexapodBuilder {
 impl HexapodBuilder {
     pub fn new(
         servo_pins: ServoPins,
+        servo_offsets: ServoOffsets,
         ik_constraints: Constraints,
         initial_gait: &'static GaitTemplate,
     ) -> Self {
         Self {
             servo_pins,
+            servo_offsets,
             ik_constraints,
             initial_gait,
             default_stance: None,
@@ -287,6 +291,7 @@ impl HexapodBuilder {
     pub fn build(self) -> Hexapod {
         Hexapod::new(
             self.servo_pins,
+            self.servo_offsets,
             self.ik_constraints,
             self.initial_gait,
             self.default_stance,

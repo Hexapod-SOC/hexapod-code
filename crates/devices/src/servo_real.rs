@@ -19,20 +19,35 @@ pub struct ServoPins {
     pub right_back: (u8, u8, u8),
 }
 
+/// (Coxa, Femur, Tibia) PWA offsets for each leg servo
+/// These offsets are measured in PWA units relative to 369 PWA (center position)
+/// WARNING: All servos were measured in one configuration. Left/right side servos
+/// are physically reversed/mirrored, so these offsets may need inversion for right side.
+pub struct ServoOffsets {
+    pub left_front: (f32, f32, f32),  // (Coxa, Femur, Tibia) in PWA units
+    pub left_middle: (f32, f32, f32),
+    pub left_back: (f32, f32, f32),
+    pub right_front: (f32, f32, f32),
+    pub right_middle: (f32, f32, f32),
+    pub right_back: (f32, f32, f32),
+}
+
 pub struct ServoController {
     pca_left: Pca9685<I2cdev>,
     pca_right: Pca9685<I2cdev>,
     servo_pins: ServoPins,
+    servo_offsets: ServoOffsets,
 }
 
 impl ServoController {
-    pub fn new(servo_pins: ServoPins) -> Self {
+    pub fn new(servo_pins: ServoPins, servo_offsets: ServoOffsets) -> Self {
         let mut servos_controller = ServoController {
             pca_left: Pca9685::new(I2cdev::new("/dev/i2c-1").unwrap(), Address::from(0x41))
                 .unwrap(),
             pca_right: Pca9685::new(I2cdev::new("/dev/i2c-1").unwrap(), Address::from(0x40))
                 .unwrap(),
             servo_pins,
+            servo_offsets,
         };
         servos_controller.init_servos();
         servos_controller.set_all_legs_to_angles(90.0, 50.0, 50.0); // Default position
@@ -61,16 +76,20 @@ impl ServoController {
         // Get the pin number for this leg and part
         let pin = self.get_pin(leg, part);
         let channel = self.pin_to_channel(pin);
+        
+        // Apply servo offset to shift the operating range
+        let offset = self.get_offset(leg, part);
+        let adjusted_pwm = (pwm_value as f32 + offset).clamp(SERVO_MIN as f32, SERVO_MAX as f32) as u16;
 
         // Determine which PCA to use and if we need to invert
         match leg {
             Leg::LeftFront | Leg::LeftMiddle | Leg::LeftBack => {
                 self.pca_left.set_channel_on(channel, 0).unwrap();
-                self.pca_left.set_channel_off(channel, pwm_value).unwrap();
+                self.pca_left.set_channel_off(channel, adjusted_pwm).unwrap();
             }
             Leg::RightFront | Leg::RightMiddle | Leg::RightBack => {
                 // Invert PWM for right side (mirrored servos)
-                let final_pwm = SERVO_MIN + SERVO_MAX - pwm_value;
+                let final_pwm = SERVO_MIN + SERVO_MAX - adjusted_pwm;
                 self.pca_right.set_channel_on(channel, 0).unwrap();
                 self.pca_right.set_channel_off(channel, final_pwm).unwrap();
             }
@@ -123,6 +142,24 @@ impl ServoController {
             LegPart::Coxa => pins.0,
             LegPart::Femur => pins.1,
             LegPart::Tibia => pins.2,
+        }
+    }
+
+    /// Get the PWA offset for a specific leg part
+    fn get_offset(&self, leg: Leg, part: LegPart) -> f32 {
+        let offsets = match leg {
+            Leg::LeftFront => self.servo_offsets.left_front,
+            Leg::LeftMiddle => self.servo_offsets.left_middle,
+            Leg::LeftBack => self.servo_offsets.left_back,
+            Leg::RightFront => self.servo_offsets.right_front,
+            Leg::RightMiddle => self.servo_offsets.right_middle,
+            Leg::RightBack => self.servo_offsets.right_back,
+        };
+
+        match part {
+            LegPart::Coxa => offsets.0,
+            LegPart::Femur => offsets.1,
+            LegPart::Tibia => offsets.2,
         }
     }
 

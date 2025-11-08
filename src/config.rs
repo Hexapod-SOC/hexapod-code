@@ -1,5 +1,5 @@
 //FIXME eventually convert to config files not hardcoded constants
-use devices::servo::ServoPins;
+use devices::servo::{ServoPins, ServoOffsets};
 use movement::ik;
 
 pub const WEB_API_ENABLE: bool = true;
@@ -28,4 +28,13 @@ pub const CONSTRAINTS: ik::Constraints = ik::Constraints {
     coxa_soffset:  90.0, // Offset to align coxa angle to 0 degrees forward
     femur_soffset: 83.0, // Offset to align femur angle to horizontal
     tibia_soffset: 35.0, // Offset to align tibia angle to straight down
+};
+
+pub const SERVO_OFFSETS: ServoOffsets = ServoOffsets {
+    left_front: (-2.5, -4.5, 0),
+    left_middle: (-5.0, -40.0, -1.5),
+    left_back: (7.5, -10.0, -6.0),
+    right_front: (2.5, 5.0, -3.0),
+    right_middle: (2.5, -40.0, 5.0),
+    right_back: (5.0, -1.5, -2.5),  // Fixed: was 5.0, should be -2.5 based on B1 data
 };

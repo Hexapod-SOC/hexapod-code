@@ -10,10 +10,23 @@ pub struct ServoPins {
     pub right_back: (u8, u8, u8),
 }
 
+/// (Coxa, Femur, Tibia) PWA offsets for each leg servo
+/// These offsets are measured in PWA units relative to 369 PWA (center position)
+/// WARNING: All servos were measured in one configuration. Left/right side servos
+/// are physically reversed/mirrored, so these offsets may need inversion for right side.
+pub struct ServoOffsets {
+    pub left_front: (f32, f32, f32),  // (Coxa, Femur, Tibia) in PWA units
+    pub left_middle: (f32, f32, f32),
+    pub left_back: (f32, f32, f32),
+    pub right_front: (f32, f32, f32),
+    pub right_middle: (f32, f32, f32),
+    pub right_back: (f32, f32, f32),
+}
+
 pub struct ServoController {}
 
 impl ServoController {
-    pub fn new(_servo_pins: ServoPins) -> Self {
+    pub fn new(_servo_pins: ServoPins, _servo_offsets: ServoOffsets) -> Self {
         let mut servos_controller = ServoController {};
         servos_controller.init_servos();
         servos_controller.set_all_legs_to_angles(90.0, 50.0, 50.0); // Default position

@@ -31,7 +31,7 @@ const GAIT_TRI: GaitTemplate = GaitTemplate {
     push_fraction: 3.0 / 6.0,
     speed_multiplier: 1.0,
     step_length_multiplier: 0.75,
-    lift_height_multiplier: 1.0,
+    lift_height_multiplier: 0.8,
     max_step_length: 240.0,
     max_speed: 200.0,
 };

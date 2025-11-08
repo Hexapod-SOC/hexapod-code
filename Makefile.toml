@@ -44,3 +44,14 @@ workspace = false
 command = "cargo"
 args = ["hexapod-devkit", "remoterun", "--local"]
 workspace = false
+
+# Adam nix shell wrappers for Pi builds
+[tasks.nixpibuildrelease]
+command = "nix-shell"
+args = ["-p", "cargo-cross", "--run", "cargo make pibuildrelease"]
+workspace = false
+
+[tasks.nixpirunremote]
+command = "nix-shell"
+args = ["-p", "cargo-cross", "--run", "cargo make pirunremote"]
+workspace = false
