@@ -25,12 +25,12 @@ impl Default for LegStances {
         // X: forward/back, Y: left/right, Z: up/down
         LegStances {
             //FIXME why front/back X is 0 it should be a offset forward/back 
-            left_front: Vec3::new(0.0, -55.0, -90.0),
-            left_middle: Vec3::new(0.0, -60.0, -90.0),
-            left_back: Vec3::new(0.0, -55.0, -90.0),
-            right_front: Vec3::new(0.0, 55.0, -90.0),
-            right_middle: Vec3::new(0.0, 60.0, -90.0),
-            right_back: Vec3::new(0.0, 55.0, -90.0),
+            left_front: Vec3::new(0.0, -55.0, -70.0),
+            left_middle: Vec3::new(0.0, -65.0, -60.0),
+            left_back: Vec3::new(0.0, -55.0, -70.0),
+            right_front: Vec3::new(0.0, 55.0, -70.0),
+            right_middle: Vec3::new(0.0, 65.0, -60.0),
+            right_back: Vec3::new(0.0, 55.0, -70.0),
         }
     }
 }

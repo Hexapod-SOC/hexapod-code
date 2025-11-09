@@ -34,7 +34,6 @@ async fn main() {
         None, // Use default stance
     );
 
-    hexapod.set_all_legs(90.0, 90.0, 90.0);
     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
     
     // Display initial battery status

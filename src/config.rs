@@ -31,7 +31,7 @@ pub const CONSTRAINTS: ik::Constraints = ik::Constraints {
 };
 
 pub const SERVO_OFFSETS: ServoOffsets = ServoOffsets {
-    left_front: (-2.5, -4.5, 0),
+    left_front: (-2.5, -4.5, 0.0),
     left_middle: (-5.0, -40.0, -1.5),
     left_back: (7.5, -10.0, -6.0),
     right_front: (2.5, 5.0, -3.0),
