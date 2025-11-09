@@ -20,6 +20,29 @@ impl SimpleIK {
     }
 
     pub fn calc_pos_leg_angles(&self, leg: Leg, pos: glam::Vec3) -> LegAngles {
+let mut pos = pos;
+
+// Servo mount correction: rotate world target into local servo space
+let theta = 45_f32.to_radians(); // 45° mount angle
+
+match leg {
+    // Legs whose servos are rotated +45° relative to body frame
+    Leg::LeftFront | Leg::RightBack => {
+        let rot = glam::Mat2::from_angle(theta);
+        let xy = rot.transpose() * glam::vec2(pos.x, pos.y);
+        pos.x = xy.x;
+        pos.y = xy.y;
+    }
+    // Legs whose servos are rotated -45° relative to body frame
+    Leg::LeftBack | Leg::RightFront => {
+        let rot = glam::Mat2::from_angle(-theta);
+        let xy = rot.transpose() * glam::vec2(pos.x, pos.y);
+        pos.x = xy.x;
+        pos.y = xy.y;
+    }
+    _ => {}
+}
+
         // Coxa angle: rotation in horizontal plane (XY plane)
         // atan2(Y, X) gives angle from X-axis toward Y-axis
         let mut coxa_angle = pos.y.atan2(pos.x).to_degrees();
@@ -44,11 +67,11 @@ impl SimpleIK {
         
         //println!("IK Debug - Leg: {:?}, Pos: {:?}, Coxa Angle: {:.2}, Femur Angle: {:.2}, Tibia Angle: {:.2}", leg, pos, coxa_angle, femur_angle, tibia_angle);
 
-        match leg {
+/*        match leg {
             Leg::LeftFront | Leg::RightBack => coxa_angle = coxa_angle - 45.0,
             Leg::LeftBack | Leg::RightFront => coxa_angle = coxa_angle + 45.0,
             _ => {}
-        }
+        } */
         match leg {
             Leg::RightBack | Leg::RightFront | Leg::RightMiddle => {}
             Leg::LeftBack | Leg::LeftFront | Leg::LeftMiddle => coxa_angle = -coxa_angle,
