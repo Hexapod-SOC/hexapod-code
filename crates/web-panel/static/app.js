@@ -18,6 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initEmergencyStop();
     initTTS();
     initGamepad();
+    initCustomGaitControls();
     startStatusUpdates();
 });
 
@@ -328,6 +329,64 @@ async function emergencyStop() {
         console.error('Error sending emergency stop:', error);
         updateConnectionStatus(false);
     }
+}
+
+// Custom Gait UI
+function initCustomGaitControls() {
+    const ids = [
+        'push-fraction','speed-mult','step-mult','lift-mult','max-step','max-speed',
+        'off-lf','off-lm','off-lb','off-rf','off-rm','off-rb'
+    ];
+    ids.forEach(id => {
+        const el = document.getElementById(id);
+        const val = document.getElementById(id + '-val');
+        if (el && val) {
+            el.addEventListener('input', () => {
+                val.textContent = el.value;
+            });
+        }
+    });
+
+    const applyBtn = document.getElementById('apply-custom-gait');
+    if (!applyBtn) return;
+
+    applyBtn.addEventListener('click', async () => {
+        const payload = {
+            name: document.getElementById('custom-gait-name').value || 'custom',
+            leg_cycle_offsets: {
+                left_front: parseFloat(document.getElementById('off-lf').value),
+                left_middle: parseFloat(document.getElementById('off-lm').value),
+                left_back: parseFloat(document.getElementById('off-lb').value),
+                right_front: parseFloat(document.getElementById('off-rf').value),
+                right_middle: parseFloat(document.getElementById('off-rm').value),
+                right_back: parseFloat(document.getElementById('off-rb').value),
+            },
+            push_fraction: parseFloat(document.getElementById('push-fraction').value),
+            speed_multiplier: parseFloat(document.getElementById('speed-mult').value),
+            step_length_multiplier: parseFloat(document.getElementById('step-mult').value),
+            lift_height_multiplier: parseFloat(document.getElementById('lift-mult').value),
+            max_step_length: parseFloat(document.getElementById('max-step').value),
+            max_speed: parseFloat(document.getElementById('max-speed').value)
+        };
+
+        try {
+            const res = await fetch(`${API_BASE}/custom_gait`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            if (res.ok) {
+                const data = await res.json();
+                console.log('Custom gait applied:', data.current_gait);
+            } else {
+                console.error('Failed to apply custom gait', res.status);
+                updateConnectionStatus(false);
+            }
+        } catch (err) {
+            console.error('Error applying custom gait', err);
+            updateConnectionStatus(false);
+        }
+    });
 }
 
 async function updateStatus() {

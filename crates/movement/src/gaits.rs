@@ -18,6 +18,7 @@ pub struct GaitTemplate {
     pub max_speed: f32,
 }
 
+// Try gait is quite fine tuned already
 const GAIT_TRI: GaitTemplate = GaitTemplate {
     name: "tri",
     leg_cycle_offsets: LegCycleOffsets {
@@ -28,11 +29,29 @@ const GAIT_TRI: GaitTemplate = GaitTemplate {
         right_middle: 0.0,
         right_back: 0.5,
     },
-    push_fraction: 3.0 / 6.0,
-    speed_multiplier: 1.2,
-    step_length_multiplier: 1.1,
-    lift_height_multiplier: 0.6,
-    max_step_length: 250.0,
+    push_fraction: 4.0 / 6.0,
+    speed_multiplier: 1.1,
+    step_length_multiplier: 0.8,
+    lift_height_multiplier: 0.8,
+    max_step_length: 200.0,
+    max_speed: 250.0,
+};
+
+const GAIT_RIPPLE: GaitTemplate = GaitTemplate {
+    name: "ripple",
+    leg_cycle_offsets: LegCycleOffsets {
+        left_front: 0.0,
+        left_middle: 4.0 / 6.0,
+        left_back: 2.0 / 6.0,
+        right_front: 5.0 / 6.0,
+        right_middle: 1.0 / 6.0,
+        right_back: 3.0 / 6.0,
+    },
+    push_fraction: 3.2 / 6.0,
+    speed_multiplier: 1.0,
+    step_length_multiplier: 1.3,
+    lift_height_multiplier: 1.1,
+    max_step_length: 220.0,
     max_speed: 200.0,
 };
 
@@ -52,24 +71,6 @@ const GAIT_WAVE: GaitTemplate = GaitTemplate {
     lift_height_multiplier: 1.2,
     max_step_length: 150.0,
     max_speed: 160.0,
-};
-
-const GAIT_RIPPLE: GaitTemplate = GaitTemplate {
-    name: "ripple",
-    leg_cycle_offsets: LegCycleOffsets {
-        left_front: 0.0,
-        left_middle: 4.0 / 6.0,
-        left_back: 2.0 / 6.0,
-        right_front: 5.0 / 6.0,
-        right_middle: 1.0 / 6.0,
-        right_back: 3.0 / 6.0,
-    },
-    push_fraction: 3.2 / 6.0,
-    speed_multiplier: 1.0,
-    step_length_multiplier: 1.3,
-    lift_height_multiplier: 1.1,
-    max_step_length: 220.0,
-    max_speed: 200.0,
 };
 
 const GAIT_BI: GaitTemplate = GaitTemplate {

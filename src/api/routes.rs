@@ -4,6 +4,7 @@ use axum::{
     Json,
 };
 use serde::{Deserialize, Serialize};
+use movement::gaits::{GaitTemplate, LegCycleOffsets};
 use std::sync::Arc;
 use glam::Vec3;
 
@@ -171,6 +172,72 @@ pub async fn get_gait(
         success: true,
         message: "Current gait".to_string(),
         current_gait: template.name.to_string(),
+    }))
+}
+
+// ============= Custom Gait Endpoint =============
+
+#[derive(Deserialize)]
+pub struct CustomLegOffsetsPayload {
+    pub left_front: f32,
+    pub left_middle: f32,
+    pub left_back: f32,
+    pub right_front: f32,
+    pub right_middle: f32,
+    pub right_back: f32,
+}
+
+#[derive(Deserialize)]
+pub struct SetCustomGaitRequest {
+    pub name: String,
+    pub leg_cycle_offsets: CustomLegOffsetsPayload,
+    pub push_fraction: f32,
+    pub speed_multiplier: f32,
+    pub step_length_multiplier: f32,
+    pub lift_height_multiplier: f32,
+    pub max_step_length: f32,
+    pub max_speed: f32,
+}
+
+/// POST /api/custom_gait
+pub async fn set_custom_gait(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<SetCustomGaitRequest>,
+) -> Result<Json<GaitResponse>, StatusCode> {
+    // Convert name to 'static str by leaking the String (acceptable for tuning/dev)
+    let name_static: &'static str = Box::leak(payload.name.into_boxed_str());
+
+    let offsets = LegCycleOffsets {
+        left_front: payload.leg_cycle_offsets.left_front,
+        left_middle: payload.leg_cycle_offsets.left_middle,
+        left_back: payload.leg_cycle_offsets.left_back,
+        right_front: payload.leg_cycle_offsets.right_front,
+        right_middle: payload.leg_cycle_offsets.right_middle,
+        right_back: payload.leg_cycle_offsets.right_back,
+    };
+
+    // Build a GaitTemplate and leak it to get a 'static reference quickly for runtime switching
+    let template_box = Box::new(GaitTemplate {
+        name: name_static,
+        leg_cycle_offsets: offsets,
+        push_fraction: payload.push_fraction,
+        speed_multiplier: payload.speed_multiplier,
+        step_length_multiplier: payload.step_length_multiplier,
+        lift_height_multiplier: payload.lift_height_multiplier,
+        max_step_length: payload.max_step_length,
+        max_speed: payload.max_speed,
+    });
+
+    let static_template: &'static GaitTemplate = Box::leak(template_box);
+
+    // Apply new gait
+    let mut gait_controller = state.gait_controller.lock().await;
+    gait_controller.set_gait(static_template);
+
+    Ok(Json(GaitResponse {
+        success: true,
+        message: format!("Custom gait applied: {}", static_template.name),
+        current_gait: static_template.name.to_string(),
     }))
 }
 
