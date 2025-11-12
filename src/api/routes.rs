@@ -320,6 +320,104 @@ pub async fn speak_text(
     }))
 }
 
+// ============= Leg Calibration Endpoints =============
+
+#[derive(Deserialize)]
+pub struct SetLegStanceRequest {
+    pub left_front: [f32; 3],   // [x, y, z]
+    pub left_middle: [f32; 3],
+    pub left_back: [f32; 3],
+    pub right_front: [f32; 3],
+    pub right_middle: [f32; 3],
+    pub right_back: [f32; 3],
+}
+
+#[derive(Serialize)]
+pub struct LegStanceResponse {
+    pub success: bool,
+    pub message: String,
+    pub current_stance: LegStancesData,
+}
+
+#[derive(Serialize)]
+pub struct LegStancesData {
+    pub left_front: [f32; 3],
+    pub left_middle: [f32; 3],
+    pub left_back: [f32; 3],
+    pub right_front: [f32; 3],
+    pub right_middle: [f32; 3],
+    pub right_back: [f32; 3],
+}
+
+/// GET /api/leg_stance
+pub async fn get_leg_stance(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<LegStanceResponse>, StatusCode> {
+    use movement::legs::Leg;
+    
+    let gait = state.gait_controller.lock().await;
+    let stance = gait.get_default_stance();
+    
+    Ok(Json(LegStanceResponse {
+        success: true,
+        message: "Current leg stance".to_string(),
+        current_stance: LegStancesData {
+            left_front: stance.to_array(Leg::LeftFront),
+            left_middle: stance.to_array(Leg::LeftMiddle),
+            left_back: stance.to_array(Leg::LeftBack),
+            right_front: stance.to_array(Leg::RightFront),
+            right_middle: stance.to_array(Leg::RightMiddle),
+            right_back: stance.to_array(Leg::RightBack),
+        },
+    }))
+}
+
+/// POST /api/leg_stance
+pub async fn set_leg_stance(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<SetLegStanceRequest>,
+) -> Result<Json<LegStanceResponse>, StatusCode> {
+    use movement::gait::LegStances;
+    use movement::legs::Leg;
+    
+    let new_stance = LegStances {
+        left_front: Vec3::from_array(payload.left_front),
+        left_middle: Vec3::from_array(payload.left_middle),
+        left_back: Vec3::from_array(payload.left_back),
+        right_front: Vec3::from_array(payload.right_front),
+        right_middle: Vec3::from_array(payload.right_middle),
+        right_back: Vec3::from_array(payload.right_back),
+    };
+    
+    let mut gait = state.gait_controller.lock().await;
+    gait.set_default_stance(new_stance);
+    
+    // Print Rust code format for easy copy-paste into config
+    println!("\n=== Calibrated Leg Stance (copy to constants) ===");
+    println!("LegStances {{");
+    println!("    left_front: Vec3::new({:.1}, {:.1}, {:.1}),", payload.left_front[0], payload.left_front[1], payload.left_front[2]);
+    println!("    left_middle: Vec3::new({:.1}, {:.1}, {:.1}),", payload.left_middle[0], payload.left_middle[1], payload.left_middle[2]);
+    println!("    left_back: Vec3::new({:.1}, {:.1}, {:.1}),", payload.left_back[0], payload.left_back[1], payload.left_back[2]);
+    println!("    right_front: Vec3::new({:.1}, {:.1}, {:.1}),", payload.right_front[0], payload.right_front[1], payload.right_front[2]);
+    println!("    right_middle: Vec3::new({:.1}, {:.1}, {:.1}),", payload.right_middle[0], payload.right_middle[1], payload.right_middle[2]);
+    println!("    right_back: Vec3::new({:.1}, {:.1}, {:.1}),", payload.right_back[0], payload.right_back[1], payload.right_back[2]);
+    println!("}}");
+    println!("==================================================\n");
+    
+    Ok(Json(LegStanceResponse {
+        success: true,
+        message: "Leg stance updated and printed to console".to_string(),
+        current_stance: LegStancesData {
+            left_front: payload.left_front,
+            left_middle: payload.left_middle,
+            left_back: payload.left_back,
+            right_front: payload.right_front,
+            right_middle: payload.right_middle,
+            right_back: payload.right_back,
+        },
+    }))
+}
+
 // ============= Health Check =============
 
 #[derive(Serialize)]

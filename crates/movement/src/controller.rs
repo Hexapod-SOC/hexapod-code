@@ -168,4 +168,14 @@ impl GaitController {
     pub fn get_template(&self) -> &GaitTemplate {
         self.gait.get_template()
     }
+
+    /// Set default leg stance for calibration
+    pub fn set_default_stance(&mut self, stance: LegStances) {
+        self.gait.set_default_stance(stance);
+    }
+
+    /// Get current default stance
+    pub fn get_default_stance(&self) -> &LegStances {
+        self.gait.get_default_stance()
+    }
 }

@@ -135,6 +135,122 @@
             </div>
         </div>
         
+        <!-- Leg Calibration -->
+        <div class="control-section">
+            <h2 class="section-title">⚙️ Leg Position Calibration</h2>
+            <p class="subtitle">Adjust default leg positions (X=forward, Y=strafe, Z=height)</p>
+            
+            <div class="calibration-grid">
+                <!-- Left Front -->
+                <div class="leg-calibration">
+                    <h4>Left Front</h4>
+                    <div class="slider-group">
+                        <label>X <span id="lf-x-val">0.0</span></label>
+                        <input type="range" id="lf-x" min="-100" max="100" step="1" value="0">
+                    </div>
+                    <div class="slider-group">
+                        <label>Y <span id="lf-y-val">-45.0</span></label>
+                        <input type="range" id="lf-y" min="-150" max="150" step="1" value="-45">
+                    </div>
+                    <div class="slider-group">
+                        <label>Z <span id="lf-z-val">-70.0</span></label>
+                        <input type="range" id="lf-z" min="-150" max="0" step="1" value="-70">
+                    </div>
+                </div>
+
+                <!-- Left Middle -->
+                <div class="leg-calibration">
+                    <h4>Left Middle</h4>
+                    <div class="slider-group">
+                        <label>X <span id="lm-x-val">0.0</span></label>
+                        <input type="range" id="lm-x" min="-100" max="100" step="1" value="0">
+                    </div>
+                    <div class="slider-group">
+                        <label>Y <span id="lm-y-val">-55.0</span></label>
+                        <input type="range" id="lm-y" min="-150" max="150" step="1" value="-55">
+                    </div>
+                    <div class="slider-group">
+                        <label>Z <span id="lm-z-val">-50.0</span></label>
+                        <input type="range" id="lm-z" min="-150" max="0" step="1" value="-50">
+                    </div>
+                </div>
+
+                <!-- Left Back -->
+                <div class="leg-calibration">
+                    <h4>Left Back</h4>
+                    <div class="slider-group">
+                        <label>X <span id="lb-x-val">0.0</span></label>
+                        <input type="range" id="lb-x" min="-100" max="100" step="1" value="0">
+                    </div>
+                    <div class="slider-group">
+                        <label>Y <span id="lb-y-val">-45.0</span></label>
+                        <input type="range" id="lb-y" min="-150" max="150" step="1" value="-45">
+                    </div>
+                    <div class="slider-group">
+                        <label>Z <span id="lb-z-val">-70.0</span></label>
+                        <input type="range" id="lb-z" min="-150" max="0" step="1" value="-70">
+                    </div>
+                </div>
+
+                <!-- Right Front -->
+                <div class="leg-calibration">
+                    <h4>Right Front</h4>
+                    <div class="slider-group">
+                        <label>X <span id="rf-x-val">0.0</span></label>
+                        <input type="range" id="rf-x" min="-100" max="100" step="1" value="0">
+                    </div>
+                    <div class="slider-group">
+                        <label>Y <span id="rf-y-val">45.0</span></label>
+                        <input type="range" id="rf-y" min="-150" max="150" step="1" value="45">
+                    </div>
+                    <div class="slider-group">
+                        <label>Z <span id="rf-z-val">-70.0</span></label>
+                        <input type="range" id="rf-z" min="-150" max="0" step="1" value="-70">
+                    </div>
+                </div>
+
+                <!-- Right Middle -->
+                <div class="leg-calibration">
+                    <h4>Right Middle</h4>
+                    <div class="slider-group">
+                        <label>X <span id="rm-x-val">0.0</span></label>
+                        <input type="range" id="rm-x" min="-100" max="100" step="1" value="0">
+                    </div>
+                    <div class="slider-group">
+                        <label>Y <span id="rm-y-val">55.0</span></label>
+                        <input type="range" id="rm-y" min="-150" max="150" step="1" value="55">
+                    </div>
+                    <div class="slider-group">
+                        <label>Z <span id="rm-z-val">-50.0</span></label>
+                        <input type="range" id="rm-z" min="-150" max="0" step="1" value="-50">
+                    </div>
+                </div>
+
+                <!-- Right Back -->
+                <div class="leg-calibration">
+                    <h4>Right Back</h4>
+                    <div class="slider-group">
+                        <label>X <span id="rb-x-val">0.0</span></label>
+                        <input type="range" id="rb-x" min="-100" max="100" step="1" value="0">
+                    </div>
+                    <div class="slider-group">
+                        <label>Y <span id="rb-y-val">45.0</span></label>
+                        <input type="range" id="rb-y" min="-150" max="150" step="1" value="45">
+                    </div>
+                    <div class="slider-group">
+                        <label>Z <span id="rb-z-val">-70.0</span></label>
+                        <input type="range" id="rb-z" min="-150" max="0" step="1" value="-70">
+                    </div>
+                </div>
+            </div>
+
+            <div class="calibration-controls">
+                <button class="btn btn-secondary" id="load-current-stance">Load Current Values</button>
+                <button class="btn btn-primary" id="apply-leg-stance">Apply & Print to Console</button>
+                <button class="btn btn-secondary" id="reset-leg-stance">Reset to Default</button>
+            </div>
+        </div>
+
         <!-- Body Pose -->
         <div class="control-section">
             <h2 class="section-title">Body Pose</h2>

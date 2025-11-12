@@ -19,6 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initTTS();
     initGamepad();
     initCustomGaitControls();
+    initLegCalibration();
     startStatusUpdates();
 });
 
@@ -713,3 +714,149 @@ function adjustPose(axis, delta) {
 
 // Make setGamepadLayout available globally
 window.setGamepadLayout = setGamepadLayout;
+
+// ===== LEG CALIBRATION =====
+
+function initLegCalibration() {
+    const legIds = ['lf', 'lm', 'lb', 'rf', 'rm', 'rb'];
+    const axes = ['x', 'y', 'z'];
+    
+    // Set up slider value displays
+    legIds.forEach(legId => {
+        axes.forEach(axis => {
+            const slider = document.getElementById(`${legId}-${axis}`);
+            const valueDisplay = document.getElementById(`${legId}-${axis}-val`);
+            
+            if (slider && valueDisplay) {
+                slider.addEventListener('input', () => {
+                    valueDisplay.textContent = parseFloat(slider.value).toFixed(1);
+                });
+            }
+        });
+    });
+    
+    // Load current stance button
+    const loadBtn = document.getElementById('load-current-stance');
+    if (loadBtn) {
+        loadBtn.addEventListener('click', loadCurrentStance);
+    }
+    
+    // Apply leg stance button
+    const applyBtn = document.getElementById('apply-leg-stance');
+    if (applyBtn) {
+        applyBtn.addEventListener('click', applyLegStance);
+    }
+    
+    // Reset button
+    const resetBtn = document.getElementById('reset-leg-stance');
+    if (resetBtn) {
+        resetBtn.addEventListener('click', resetLegStance);
+    }
+}
+
+async function loadCurrentStance() {
+    try {
+        const response = await fetch(`${API_BASE}/leg_stance`);
+        if (response.ok) {
+            const data = await response.json();
+            const stance = data.current_stance;
+            
+            // Update sliders with current values
+            setLegSliders('lf', stance.left_front);
+            setLegSliders('lm', stance.left_middle);
+            setLegSliders('lb', stance.left_back);
+            setLegSliders('rf', stance.right_front);
+            setLegSliders('rm', stance.right_middle);
+            setLegSliders('rb', stance.right_back);
+            
+            console.log('Loaded current stance:', stance);
+        } else {
+            console.error('Failed to load current stance');
+        }
+    } catch (error) {
+        console.error('Error loading current stance:', error);
+        updateConnectionStatus(false);
+    }
+}
+
+function setLegSliders(legId, values) {
+    const axes = ['x', 'y', 'z'];
+    axes.forEach((axis, index) => {
+        const slider = document.getElementById(`${legId}-${axis}`);
+        const valueDisplay = document.getElementById(`${legId}-${axis}-val`);
+        
+        if (slider && valueDisplay) {
+            slider.value = values[index];
+            valueDisplay.textContent = parseFloat(values[index]).toFixed(1);
+        }
+    });
+}
+
+async function applyLegStance() {
+    const payload = {
+        left_front: [
+            parseFloat(document.getElementById('lf-x').value),
+            parseFloat(document.getElementById('lf-y').value),
+            parseFloat(document.getElementById('lf-z').value)
+        ],
+        left_middle: [
+            parseFloat(document.getElementById('lm-x').value),
+            parseFloat(document.getElementById('lm-y').value),
+            parseFloat(document.getElementById('lm-z').value)
+        ],
+        left_back: [
+            parseFloat(document.getElementById('lb-x').value),
+            parseFloat(document.getElementById('lb-y').value),
+            parseFloat(document.getElementById('lb-z').value)
+        ],
+        right_front: [
+            parseFloat(document.getElementById('rf-x').value),
+            parseFloat(document.getElementById('rf-y').value),
+            parseFloat(document.getElementById('rf-z').value)
+        ],
+        right_middle: [
+            parseFloat(document.getElementById('rm-x').value),
+            parseFloat(document.getElementById('rm-y').value),
+            parseFloat(document.getElementById('rm-z').value)
+        ],
+        right_back: [
+            parseFloat(document.getElementById('rb-x').value),
+            parseFloat(document.getElementById('rb-y').value),
+            parseFloat(document.getElementById('rb-z').value)
+        ]
+    };
+    
+    try {
+        const response = await fetch(`${API_BASE}/leg_stance`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            console.log('✓ Leg stance applied:', data.message);
+            console.log('Check your console for Rust code to copy!');
+            alert('✓ Leg stance applied! Check the terminal console for Rust code to copy into your constants.');
+        } else {
+            console.error('Failed to apply leg stance');
+            alert('Failed to apply leg stance');
+        }
+    } catch (error) {
+        console.error('Error applying leg stance:', error);
+        updateConnectionStatus(false);
+        alert('Connection error while applying leg stance');
+    }
+}
+
+function resetLegStance() {
+    // Reset to default values from LegStances::default()
+    setLegSliders('lf', [0.0, -45.0, -70.0]);
+    setLegSliders('lm', [0.0, -55.0, -50.0]);
+    setLegSliders('lb', [0.0, -45.0, -70.0]);
+    setLegSliders('rf', [0.0, 45.0, -70.0]);
+    setLegSliders('rm', [0.0, 55.0, -50.0]);
+    setLegSliders('rb', [0.0, 45.0, -70.0]);
+    
+    console.log('Reset to default stance');
+}

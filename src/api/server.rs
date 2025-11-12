@@ -33,8 +33,12 @@ pub async fn run_server(state: AppState, port: u16) -> Result<(), Box<dyn std::e
         // Gait control
         .route("/api/gait", get(routes::get_gait))
         .route("/api/gait", post(routes::set_gait))
-    // Custom gait tuning
-    .route("/api/custom_gait", post(routes::set_custom_gait))
+        // Custom gait tuning
+        .route("/api/custom_gait", post(routes::set_custom_gait))
+        
+        // Leg calibration
+        .route("/api/leg_stance", get(routes::get_leg_stance))
+        .route("/api/leg_stance", post(routes::set_leg_stance))
         
         // Body pose
         .route("/api/pose", post(routes::set_body_pose))

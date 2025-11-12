@@ -57,6 +57,12 @@ impl LegStances {
             Leg::RightBack => self.right_back = pos,
         }
     }
+
+    /// Convert Vec3 positions to array format for API responses
+    pub fn to_array(&self, leg: Leg) -> [f32; 3] {
+        let pos = self.get(leg);
+        [pos.x, pos.y, pos.z]
+    }
 }
 
 impl Gait {
