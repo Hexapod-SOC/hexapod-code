@@ -720,6 +720,7 @@ window.setGamepadLayout = setGamepadLayout;
 function initLegCalibration() {
     const legIds = ['lf', 'lm', 'lb', 'rf', 'rm', 'rb'];
     const axes = ['x', 'y', 'z'];
+    let legStanceAbortController = null;
     
     // Set up slider value displays
     legIds.forEach(legId => {
@@ -730,6 +731,8 @@ function initLegCalibration() {
             if (slider && valueDisplay) {
                 slider.addEventListener('input', () => {
                     valueDisplay.textContent = parseFloat(slider.value).toFixed(1);
+                    // Instant live apply while dragging (autosaves on server)
+                    applyLegStanceLive();
                 });
             }
         });
@@ -739,12 +742,6 @@ function initLegCalibration() {
     const loadBtn = document.getElementById('load-current-stance');
     if (loadBtn) {
         loadBtn.addEventListener('click', loadCurrentStance);
-    }
-    
-    // Apply leg stance button
-    const applyBtn = document.getElementById('apply-leg-stance');
-    if (applyBtn) {
-        applyBtn.addEventListener('click', applyLegStance);
     }
     
     // Reset button
@@ -792,8 +789,8 @@ function setLegSliders(legId, values) {
     });
 }
 
-async function applyLegStance() {
-    const payload = {
+function collectLegStancePayload() {
+    return {
         left_front: [
             parseFloat(document.getElementById('lf-x').value),
             parseFloat(document.getElementById('lf-y').value),
@@ -825,6 +822,10 @@ async function applyLegStance() {
             parseFloat(document.getElementById('rb-z').value)
         ]
     };
+}
+
+async function applyLegStance() {
+    const payload = collectLegStancePayload();
     
     try {
         const response = await fetch(`${API_BASE}/leg_stance`, {
@@ -835,9 +836,8 @@ async function applyLegStance() {
         
         if (response.ok) {
             const data = await response.json();
-            console.log('✓ Leg stance applied:', data.message);
-            console.log('Check your console for Rust code to copy!');
-            alert('✓ Leg stance applied! Check the terminal console for Rust code to copy into your constants.');
+            console.log('✓ Leg stance applied and saved:', data.message);
+            alert('✓ Leg stance applied and saved as default.');
         } else {
             console.error('Failed to apply leg stance');
             alert('Failed to apply leg stance');
@@ -846,6 +846,47 @@ async function applyLegStance() {
         console.error('Error applying leg stance:', error);
         updateConnectionStatus(false);
         alert('Connection error while applying leg stance');
+    }
+}
+
+async function applyLegStanceLive() {
+    const payload = collectLegStancePayload();
+    try {
+        // Abort previous in-flight request to avoid backlog
+        if (window.__legStanceAbortController) {
+            try { window.__legStanceAbortController.abort(); } catch (e) {}
+        }
+        window.__legStanceAbortController = new AbortController();
+
+        await fetch(`${API_BASE}/leg_stance`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            signal: window.__legStanceAbortController.signal
+        });
+    } catch (e) {
+        // ignore
+    }
+}
+
+async function saveLegStanceAsDefault() {
+    const payload = collectLegStancePayload();
+    try {
+        const response = await fetch(`${API_BASE}/leg_stance/save`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (response.ok) {
+            console.log('✓ Leg stance saved as default');
+            alert('✓ Saved as default. Will be loaded automatically on next start.');
+        } else {
+            console.error('Failed to save leg stance');
+            alert('Failed to save leg stance');
+        }
+    } catch (e) {
+        console.error('Error saving leg stance:', e);
+        alert('Connection error while saving leg stance');
     }
 }
 

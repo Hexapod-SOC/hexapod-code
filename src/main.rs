@@ -11,6 +11,35 @@ pub mod api;
 use config::{TTS_URL, TMP_DIR, CONSTRAINTS, SERVO_PINS, SERVO_OFFSETS};
 use movement::gaits::GAITS;
 use audio::tts;
+use config::CALIBRATION_LEG_STANCE_FILE;
+use movement::gait::LegStances;
+use glam::Vec3;
+
+fn load_saved_leg_stance() -> Option<LegStances> {
+    let path = std::path::Path::new(CALIBRATION_LEG_STANCE_FILE);
+    if !path.exists() {
+        return None;
+    }
+    let content = std::fs::read_to_string(path).ok()?;
+    #[derive(serde::Deserialize)]
+    struct FileStance {
+        left_front: [f32; 3],
+        left_middle: [f32; 3],
+        left_back: [f32; 3],
+        right_front: [f32; 3],
+        right_middle: [f32; 3],
+        right_back: [f32; 3],
+    }
+    let parsed: FileStance = serde_json::from_str(&content).ok()?;
+    Some(LegStances {
+        left_front: Vec3::from_array(parsed.left_front),
+        left_middle: Vec3::from_array(parsed.left_middle),
+        left_back: Vec3::from_array(parsed.left_back),
+        right_front: Vec3::from_array(parsed.right_front),
+        right_middle: Vec3::from_array(parsed.right_middle),
+        right_back: Vec3::from_array(parsed.right_back),
+    })
+}
 
 #[tokio::main]
 async fn main() {
@@ -26,12 +55,15 @@ async fn main() {
 
     // Create hexapod controller with tripod gait
     println!("Creating hexapod controller...");
+    // Load saved default stance if available
+    let saved_stance = load_saved_leg_stance();
+
     let mut hexapod = hexapod::Hexapod::new(
         SERVO_PINS,
         SERVO_OFFSETS,
         CONSTRAINTS,
         &GAITS[0], // Tripod gait
-        None, // Use default stance
+        saved_stance, // Use saved stance if present
     );
 
     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;

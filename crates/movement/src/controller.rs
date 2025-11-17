@@ -102,7 +102,16 @@ impl GaitController {
 
     /// Calculate leg angles for static body pose (no walking)
     pub fn calculate_pose_angles(&self) -> [(Leg, LegAngles); 6] {
-        let mut positions = LegStances::default();
+        // Start from the current default stance configured in the gait
+        let base = self.gait.get_default_stance();
+        let mut positions = LegStances {
+            left_front: base.left_front,
+            left_middle: base.left_middle,
+            left_back: base.left_back,
+            right_front: base.right_front,
+            right_middle: base.right_middle,
+            right_back: base.right_back,
+        };
         
         // Apply body pose transformation to each default stance
         let legs = [

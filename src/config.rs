@@ -38,3 +38,7 @@ pub const SERVO_OFFSETS: ServoOffsets = ServoOffsets {
     right_middle: (2.5, -40.0, 5.0),
     right_back: (5.0, -1.5, -2.5),  // Fixed: was 5.0, should be -2.5 based on B1 data
 };
+
+// Persistent calibration storage (JSON). Relative to the working directory.
+// Example path: ./calibration/leg_stance.json
+pub const CALIBRATION_LEG_STANCE_FILE: &str = "calibration/leg_stance.json";

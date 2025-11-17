@@ -7,6 +7,9 @@ use serde::{Deserialize, Serialize};
 use movement::gaits::{GaitTemplate, LegCycleOffsets};
 use std::sync::Arc;
 use glam::Vec3;
+use crate::config::CALIBRATION_LEG_STANCE_FILE;
+use tokio::fs;
+use tokio::io::AsyncWriteExt;
 
 use super::state::AppState;
 
@@ -330,6 +333,8 @@ pub struct SetLegStanceRequest {
     pub right_front: [f32; 3],
     pub right_middle: [f32; 3],
     pub right_back: [f32; 3],
+    #[serde(default)]
+    pub print_to_console: Option<bool>,
 }
 
 #[derive(Serialize)]
@@ -392,21 +397,48 @@ pub async fn set_leg_stance(
     let mut gait = state.gait_controller.lock().await;
     gait.set_default_stance(new_stance);
     
-    // Print Rust code format for easy copy-paste into config
-    println!("\n=== Calibrated Leg Stance (copy to constants) ===");
-    println!("LegStances {{");
-    println!("    left_front: Vec3::new({:.1}, {:.1}, {:.1}),", payload.left_front[0], payload.left_front[1], payload.left_front[2]);
-    println!("    left_middle: Vec3::new({:.1}, {:.1}, {:.1}),", payload.left_middle[0], payload.left_middle[1], payload.left_middle[2]);
-    println!("    left_back: Vec3::new({:.1}, {:.1}, {:.1}),", payload.left_back[0], payload.left_back[1], payload.left_back[2]);
-    println!("    right_front: Vec3::new({:.1}, {:.1}, {:.1}),", payload.right_front[0], payload.right_front[1], payload.right_front[2]);
-    println!("    right_middle: Vec3::new({:.1}, {:.1}, {:.1}),", payload.right_middle[0], payload.right_middle[1], payload.right_middle[2]);
-    println!("    right_back: Vec3::new({:.1}, {:.1}, {:.1}),", payload.right_back[0], payload.right_back[1], payload.right_back[2]);
-    println!("}}");
-    println!("==================================================\n");
+    // Optional: Print Rust code format for easy copy-paste into config
+    if payload.print_to_console.unwrap_or(false) {
+        println!("\n=== Calibrated Leg Stance (copy to constants) ===");
+        println!("LegStances {{");
+        println!("    left_front: Vec3::new({:.1}, {:.1}, {:.1}),", payload.left_front[0], payload.left_front[1], payload.left_front[2]);
+        println!("    left_middle: Vec3::new({:.1}, {:.1}, {:.1}),", payload.left_middle[0], payload.left_middle[1], payload.left_middle[2]);
+        println!("    left_back: Vec3::new({:.1}, {:.1}, {:.1}),", payload.left_back[0], payload.left_back[1], payload.left_back[2]);
+        println!("    right_front: Vec3::new({:.1}, {:.1}, {:.1}),", payload.right_front[0], payload.right_front[1], payload.right_front[2]);
+        println!("    right_middle: Vec3::new({:.1}, {:.1}, {:.1}),", payload.right_middle[0], payload.right_middle[1], payload.right_middle[2]);
+        println!("    right_back: Vec3::new({:.1}, {:.1}, {:.1}),", payload.right_back[0], payload.right_back[1], payload.right_back[2]);
+        println!("}}");
+        println!("==================================================\n");
+    }
+
+    // Also persist immediately so no manual copy/paste is needed
+    if let Some(dir) = std::path::Path::new(CALIBRATION_LEG_STANCE_FILE).parent() {
+        if let Err(e) = fs::create_dir_all(dir).await {
+            eprintln!("Failed to create calibration dir: {}", e);
+        }
+    }
+    let data = serde_json::json!({
+        "left_front": payload.left_front,
+        "left_middle": payload.left_middle,
+        "left_back": payload.left_back,
+        "right_front": payload.right_front,
+        "right_middle": payload.right_middle,
+        "right_back": payload.right_back,
+    });
+    match fs::File::create(CALIBRATION_LEG_STANCE_FILE).await {
+        Ok(mut file) => {
+            if let Err(e) = file.write_all(serde_json::to_string_pretty(&data).unwrap().as_bytes()).await {
+                eprintln!("Failed to write leg stance file: {}", e);
+            }
+        }
+        Err(e) => {
+            eprintln!("Failed to open leg stance file: {}", e);
+        }
+    }
     
     Ok(Json(LegStanceResponse {
         success: true,
-        message: "Leg stance updated and printed to console".to_string(),
+        message: "Leg stance applied and saved".to_string(),
         current_stance: LegStancesData {
             left_front: payload.left_front,
             left_middle: payload.left_middle,
@@ -418,6 +450,108 @@ pub async fn set_leg_stance(
     }))
 }
 
+// ============= Leg Calibration Persistence =============
+
+#[derive(Serialize, Deserialize)]
+struct LegStanceFile {
+    left_front: [f32; 3],
+    left_middle: [f32; 3],
+    left_back: [f32; 3],
+    right_front: [f32; 3],
+    right_middle: [f32; 3],
+    right_back: [f32; 3],
+}
+
+#[derive(Serialize)]
+pub struct SaveResponse {
+    pub success: bool,
+    pub message: String,
+}
+
+/// POST /api/leg_stance/save
+pub async fn save_leg_stance(
+    Json(payload): Json<SetLegStanceRequest>,
+) -> Result<Json<SaveResponse>, StatusCode> {
+    // Ensure directory exists
+    if let Some(dir) = std::path::Path::new(CALIBRATION_LEG_STANCE_FILE).parent() {
+        if let Err(e) = fs::create_dir_all(dir).await {
+            eprintln!("Failed to create calibration dir: {}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    let data = LegStanceFile {
+        left_front: payload.left_front,
+        left_middle: payload.left_middle,
+        left_back: payload.left_back,
+        right_front: payload.right_front,
+        right_middle: payload.right_middle,
+        right_back: payload.right_back,
+    };
+
+    let json = match serde_json::to_string_pretty(&data) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("Failed to serialize leg stance: {}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    };
+
+    match fs::File::create(CALIBRATION_LEG_STANCE_FILE).await {
+        Ok(mut file) => {
+            if let Err(e) = file.write_all(json.as_bytes()).await {
+                eprintln!("Failed to write leg stance file: {}", e);
+                return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            }
+        }
+        Err(e) => {
+            eprintln!("Failed to open leg stance file: {}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    Ok(Json(SaveResponse {
+        success: true,
+        message: "Leg stance saved".to_string(),
+    }))
+}
+
+/// GET /api/leg_stance/saved
+pub async fn get_saved_leg_stance() -> Result<Json<LegStanceResponse>, StatusCode> {
+    let path = std::path::Path::new(CALIBRATION_LEG_STANCE_FILE);
+    if !path.exists() {
+        return Err(StatusCode::NOT_FOUND);
+    }
+
+    let content = match fs::read_to_string(path).await {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("Failed to read leg stance file: {}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    };
+
+    let parsed: LegStanceFile = match serde_json::from_str(&content) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("Failed to parse leg stance file: {}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    };
+
+    Ok(Json(LegStanceResponse {
+        success: true,
+        message: "Saved leg stance".to_string(),
+        current_stance: LegStancesData {
+            left_front: parsed.left_front,
+            left_middle: parsed.left_middle,
+            left_back: parsed.left_back,
+            right_front: parsed.right_front,
+            right_middle: parsed.right_middle,
+            right_back: parsed.right_back,
+        },
+    }))
+}
 // ============= Health Check =============
 
 #[derive(Serialize)]
