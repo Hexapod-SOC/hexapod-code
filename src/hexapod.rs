@@ -16,6 +16,36 @@ use movement::{
 use devices::servo::{ServoController, ServoPins, ServoOffsets};
 use devices::picoubec::{PicoUbecController, BatteryStatus, PowerState};
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ServoAngleTriplet {
+    pub coxa: f32,
+    pub femur: f32,
+    pub tibia: f32,
+}
+
+#[derive(Debug, Clone)]
+pub struct ServoAngleTweaks {
+    pub left_front: ServoAngleTriplet,
+    pub left_middle: ServoAngleTriplet,
+    pub left_back: ServoAngleTriplet,
+    pub right_front: ServoAngleTriplet,
+    pub right_middle: ServoAngleTriplet,
+    pub right_back: ServoAngleTriplet,
+}
+
+impl Default for ServoAngleTweaks {
+    fn default() -> Self {
+        Self {
+            left_front: ServoAngleTriplet::default(),
+            left_middle: ServoAngleTriplet::default(),
+            left_back: ServoAngleTriplet::default(),
+            right_front: ServoAngleTriplet::default(),
+            right_middle: ServoAngleTriplet::default(),
+            right_back: ServoAngleTriplet::default(),
+        }
+    }
+}
+
 /// Control inputs for the hexapod - can be set by any control interface
 #[derive(Debug, Clone, Copy)]
 pub struct HexapodControl {
@@ -45,6 +75,7 @@ pub struct Hexapod {
     gait_controller: Arc<Mutex<GaitController>>,
     ubec_controller: Arc<Mutex<PicoUbecController>>,
     control: Arc<Mutex<HexapodControl>>, // Shared control state
+    servo_angle_tweaks: Arc<Mutex<ServoAngleTweaks>>,
 }
 
 impl Hexapod {
@@ -74,12 +105,18 @@ impl Hexapod {
             gait_controller: Arc::new(Mutex::new(gait_controller)),
             ubec_controller: Arc::new(Mutex::new(ubec_controller)),
             control: Arc::new(Mutex::new(HexapodControl::default())),
+            servo_angle_tweaks: Arc::new(Mutex::new(ServoAngleTweaks::default())),
         }
     }
     
     /// Get shared reference to control state for external control (API, Bluetooth, etc.)
     pub fn get_control(&self) -> Arc<Mutex<HexapodControl>> {
         self.control.clone()
+    }
+    
+    /// Get shared reference to per-servo angle tweaks
+    pub fn get_servo_angle_tweaks(&self) -> Arc<Mutex<ServoAngleTweaks>> {
+        self.servo_angle_tweaks.clone()
     }
     
     /// Get shared reference to gait controller (for gait changes)
@@ -132,9 +169,26 @@ impl Hexapod {
             gait.calculate_pose_angles()
         };
         
+        // Apply per-servo angle tweaks
+        let tweaks = { self.servo_angle_tweaks.lock().await.clone() };
+        let mut adjusted = angles;
+        for (leg, leg_angles) in adjusted.iter_mut() {
+            let t = match leg {
+                Leg::LeftFront => tweaks.left_front,
+                Leg::LeftMiddle => tweaks.left_middle,
+                Leg::LeftBack => tweaks.left_back,
+                Leg::RightFront => tweaks.right_front,
+                Leg::RightMiddle => tweaks.right_middle,
+                Leg::RightBack => tweaks.right_back,
+            };
+            leg_angles.coxa = (leg_angles.coxa + t.coxa).clamp(0.0, 180.0);
+            leg_angles.femur = (leg_angles.femur + t.femur).clamp(0.0, 180.0);
+            leg_angles.tibia = (leg_angles.tibia + t.tibia).clamp(0.0, 180.0);
+        }
+        
         // Apply to servos
         let mut servo = self.servo_controller.lock().await;
-        for (leg, leg_angles) in angles.iter() {
+        for (leg, leg_angles) in adjusted.iter() {
             servo.set_leg_angles(*leg, *leg_angles);
         }
     }

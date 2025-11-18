@@ -42,6 +42,12 @@ pub async fn run_server(state: AppState, port: u16) -> Result<(), Box<dyn std::e
         .route("/api/leg_stance/save", post(routes::save_leg_stance))
         .route("/api/leg_stance/saved", get(routes::get_saved_leg_stance))
         
+        // Servo angle tweaks (per-servo calibration)
+        .route("/api/servo_tweaks", get(routes::get_servo_tweaks))
+        .route("/api/servo_tweaks", post(routes::set_servo_tweaks))
+        .route("/api/servo_tweaks/save", post(routes::save_servo_tweaks))
+        .route("/api/servo_tweaks/saved", get(routes::get_saved_servo_tweaks))
+        
         // Body pose
         .route("/api/pose", post(routes::set_body_pose))
         

@@ -8,13 +8,39 @@ pub mod demos;
 pub mod api;
 
 // Workspace imports
-use config::{TTS_URL, TMP_DIR, CONSTRAINTS, SERVO_PINS, SERVO_OFFSETS};
+use config::{TTS_URL, TMP_DIR, CONSTRAINTS, SERVO_PINS, SERVO_OFFSETS, CALIBRATION_SERVO_TWEAKS_FILE};
 use movement::gaits::GAITS;
 use audio::tts;
 use config::CALIBRATION_LEG_STANCE_FILE;
 use movement::gait::LegStances;
 use glam::Vec3;
+use crate::hexapod::{ServoAngleTweaks, ServoAngleTriplet};
 
+fn load_saved_servo_tweaks() -> Option<ServoAngleTweaks> {
+    let path = std::path::Path::new(CALIBRATION_SERVO_TWEAKS_FILE);
+    if !path.exists() {
+        return None;
+    }
+    let content = std::fs::read_to_string(path).ok()?;
+    #[derive(serde::Deserialize)]
+    struct FileTweaks {
+        left_front: [f32; 3],
+        left_middle: [f32; 3],
+        left_back: [f32; 3],
+        right_front: [f32; 3],
+        right_middle: [f32; 3],
+        right_back: [f32; 3],
+    }
+    let parsed: FileTweaks = serde_json::from_str(&content).ok()?;
+    Some(ServoAngleTweaks {
+        left_front: ServoAngleTriplet { coxa: parsed.left_front[0], femur: parsed.left_front[1], tibia: parsed.left_front[2] },
+        left_middle: ServoAngleTriplet { coxa: parsed.left_middle[0], femur: parsed.left_middle[1], tibia: parsed.left_middle[2] },
+        left_back: ServoAngleTriplet { coxa: parsed.left_back[0], femur: parsed.left_back[1], tibia: parsed.left_back[2] },
+        right_front: ServoAngleTriplet { coxa: parsed.right_front[0], femur: parsed.right_front[1], tibia: parsed.right_front[2] },
+        right_middle: ServoAngleTriplet { coxa: parsed.right_middle[0], femur: parsed.right_middle[1], tibia: parsed.right_middle[2] },
+        right_back: ServoAngleTriplet { coxa: parsed.right_back[0], femur: parsed.right_back[1], tibia: parsed.right_back[2] },
+    })
+}
 fn load_saved_leg_stance() -> Option<LegStances> {
     let path = std::path::Path::new(CALIBRATION_LEG_STANCE_FILE);
     if !path.exists() {
@@ -66,6 +92,13 @@ async fn main() {
         saved_stance, // Use saved stance if present
     );
 
+    // Load saved per-servo angle tweaks if available
+    if let Some(tweaks) = load_saved_servo_tweaks() {
+        let tweaks_arc = hexapod.get_servo_angle_tweaks();
+        let mut t = tweaks_arc.lock().await;
+        *t = tweaks;
+    }
+
     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
     
     // Display initial battery status
@@ -87,6 +120,7 @@ async fn main() {
             hexapod.get_control(),
             hexapod.get_gait_controller(),
             hexapod.get_ubec_controller(),
+            hexapod.get_servo_angle_tweaks(),
         );
         
         // Spawn API server in background task

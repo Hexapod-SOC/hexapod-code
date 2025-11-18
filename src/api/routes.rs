@@ -7,11 +7,12 @@ use serde::{Deserialize, Serialize};
 use movement::gaits::{GaitTemplate, LegCycleOffsets};
 use std::sync::Arc;
 use glam::Vec3;
-use crate::config::CALIBRATION_LEG_STANCE_FILE;
+use crate::config::{CALIBRATION_LEG_STANCE_FILE, CALIBRATION_SERVO_TWEAKS_FILE};
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
 
 use super::state::AppState;
+use crate::hexapod::{ServoAngleTweaks, ServoAngleTriplet};
 
 // ============= Status Endpoints =============
 
@@ -550,6 +551,135 @@ pub async fn get_saved_leg_stance() -> Result<Json<LegStanceResponse>, StatusCod
             right_middle: parsed.right_middle,
             right_back: parsed.right_back,
         },
+    }))
+}
+
+// ============= Servo Angle Tweaks (Per-Servo) =============
+
+#[derive(Serialize, Deserialize, Clone, Copy)]
+pub struct ServoTweaksData {
+    pub left_front: [f32; 3],   // [coxa, femur, tibia] in degrees
+    pub left_middle: [f32; 3],
+    pub left_back: [f32; 3],
+    pub right_front: [f32; 3],
+    pub right_middle: [f32; 3],
+    pub right_back: [f32; 3],
+}
+
+#[derive(Serialize)]
+pub struct ServoTweaksResponse {
+    pub success: bool,
+    pub message: String,
+    pub tweaks: ServoTweaksData,
+}
+
+/// GET /api/servo_tweaks
+pub async fn get_servo_tweaks(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<ServoTweaksResponse>, StatusCode> {
+    let t = state.servo_angle_tweaks.lock().await.clone();
+    let data = ServoTweaksData {
+        left_front: [t.left_front.coxa, t.left_front.femur, t.left_front.tibia],
+        left_middle: [t.left_middle.coxa, t.left_middle.femur, t.left_middle.tibia],
+        left_back: [t.left_back.coxa, t.left_back.femur, t.left_back.tibia],
+        right_front: [t.right_front.coxa, t.right_front.femur, t.right_front.tibia],
+        right_middle: [t.right_middle.coxa, t.right_middle.femur, t.right_middle.tibia],
+        right_back: [t.right_back.coxa, t.right_back.femur, t.right_back.tibia],
+    };
+    Ok(Json(ServoTweaksResponse {
+        success: true,
+        message: "Current servo angle tweaks".to_string(),
+        tweaks: data,
+    }))
+}
+
+/// POST /api/servo_tweaks
+pub async fn set_servo_tweaks(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<ServoTweaksData>,
+) -> Result<Json<ServoTweaksResponse>, StatusCode> {
+    let mut t = state.servo_angle_tweaks.lock().await;
+    *t = ServoAngleTweaks {
+        left_front: ServoAngleTriplet { coxa: payload.left_front[0], femur: payload.left_front[1], tibia: payload.left_front[2] },
+        left_middle: ServoAngleTriplet { coxa: payload.left_middle[0], femur: payload.left_middle[1], tibia: payload.left_middle[2] },
+        left_back: ServoAngleTriplet { coxa: payload.left_back[0], femur: payload.left_back[1], tibia: payload.left_back[2] },
+        right_front: ServoAngleTriplet { coxa: payload.right_front[0], femur: payload.right_front[1], tibia: payload.right_front[2] },
+        right_middle: ServoAngleTriplet { coxa: payload.right_middle[0], femur: payload.right_middle[1], tibia: payload.right_middle[2] },
+        right_back: ServoAngleTriplet { coxa: payload.right_back[0], femur: payload.right_back[1], tibia: payload.right_back[2] },
+    };
+    Ok(Json(ServoTweaksResponse {
+        success: true,
+        message: "Servo angle tweaks applied".to_string(),
+        tweaks: payload,
+    }))
+}
+
+/// POST /api/servo_tweaks/save
+pub async fn save_servo_tweaks(
+    Json(payload): Json<ServoTweaksData>,
+) -> Result<Json<SaveResponse>, StatusCode> {
+    // Ensure directory exists
+    if let Some(dir) = std::path::Path::new(CALIBRATION_SERVO_TWEAKS_FILE).parent() {
+        if let Err(e) = fs::create_dir_all(dir).await {
+            eprintln!("Failed to create calibration dir: {}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    let json = match serde_json::to_string_pretty(&payload) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("Failed to serialize servo tweaks: {}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    };
+
+    match fs::File::create(CALIBRATION_SERVO_TWEAKS_FILE).await {
+        Ok(mut file) => {
+            if let Err(e) = file.write_all(json.as_bytes()).await {
+                eprintln!("Failed to write servo tweaks file: {}", e);
+                return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            }
+        }
+        Err(e) => {
+            eprintln!("Failed to open servo tweaks file: {}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    Ok(Json(SaveResponse {
+        success: true,
+        message: "Servo tweaks saved".to_string(),
+    }))
+}
+
+/// GET /api/servo_tweaks/saved
+pub async fn get_saved_servo_tweaks() -> Result<Json<ServoTweaksResponse>, StatusCode> {
+    let path = std::path::Path::new(CALIBRATION_SERVO_TWEAKS_FILE);
+    if !path.exists() {
+        return Err(StatusCode::NOT_FOUND);
+    }
+
+    let content = match fs::read_to_string(path).await {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("Failed to read servo tweaks file: {}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    };
+
+    let parsed: ServoTweaksData = match serde_json::from_str(&content) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("Failed to parse servo tweaks file: {}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    };
+
+    Ok(Json(ServoTweaksResponse {
+        success: true,
+        message: "Saved servo tweaks".to_string(),
+        tweaks: parsed,
     }))
 }
 // ============= Health Check =============

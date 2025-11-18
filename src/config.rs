@@ -42,3 +42,5 @@ pub const SERVO_OFFSETS: ServoOffsets = ServoOffsets {
 // Persistent calibration storage (JSON). Relative to the working directory.
 // Example path: ./calibration/leg_stance.json
 pub const CALIBRATION_LEG_STANCE_FILE: &str = "calibration/leg_stance.json";
+/// Persistent per-servo angle tweaks (degrees), applied on top of IK outputs.
+pub const CALIBRATION_SERVO_TWEAKS_FILE: &str = "calibration/servo_angle_tweaks.json";

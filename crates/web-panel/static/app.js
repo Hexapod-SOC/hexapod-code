@@ -20,6 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initGamepad();
     initCustomGaitControls();
     initLegCalibration();
+    initServoTweaks();
     startStatusUpdates();
 });
 
@@ -900,4 +901,115 @@ function resetLegStance() {
     setLegSliders('rb', [0.0, 45.0, -70.0]);
     
     console.log('Reset to default stance');
+}
+
+// ===== SERVO ANGLE TWEAKS =====
+
+function initServoTweaks() {
+    const legIds = ['lf', 'lm', 'lb', 'rf', 'rm', 'rb'];
+    const parts = ['coxa', 'femur', 'tibia'];
+
+    // Bind slider inputs
+    legIds.forEach(legId => {
+        parts.forEach(part => {
+            const slider = document.getElementById(`${legId}-${part}`);
+            const val = document.getElementById(`${legId}-${part}-val`);
+            if (slider && val) {
+                slider.addEventListener('input', () => {
+                    val.textContent = parseFloat(slider.value).toFixed(1);
+                    applyServoTweaksLive();
+                });
+            }
+        });
+    });
+
+    // Buttons
+    const loadBtn = document.getElementById('load-servo-tweaks');
+    if (loadBtn) loadBtn.addEventListener('click', loadCurrentServoTweaks);
+    const resetBtn = document.getElementById('reset-servo-tweaks');
+    if (resetBtn) resetBtn.addEventListener('click', resetServoTweaks);
+
+    // Load current from server on init
+    loadCurrentServoTweaks();
+}
+
+function collectServoTweaksPayload() {
+    const getTriplet = (id) => [
+        parseFloat(document.getElementById(`${id}-coxa`).value),
+        parseFloat(document.getElementById(`${id}-femur`).value),
+        parseFloat(document.getElementById(`${id}-tibia`).value),
+    ];
+
+    return {
+        left_front: getTriplet('lf'),
+        left_middle: getTriplet('lm'),
+        left_back: getTriplet('lb'),
+        right_front: getTriplet('rf'),
+        right_middle: getTriplet('rm'),
+        right_back: getTriplet('rb'),
+    };
+}
+
+function setServoSliders(legId, values) {
+    const parts = ['coxa', 'femur', 'tibia'];
+    parts.forEach((part, index) => {
+        const slider = document.getElementById(`${legId}-${part}`);
+        const val = document.getElementById(`${legId}-${part}-val`);
+        if (slider && val) {
+            slider.value = values[index];
+            val.textContent = parseFloat(values[index]).toFixed(1);
+        }
+    });
+}
+
+async function loadCurrentServoTweaks() {
+    try {
+        const res = await fetch(`${API_BASE}/servo_tweaks`);
+        if (res.ok) {
+            const data = await res.json();
+            const t = data.tweaks;
+            setServoSliders('lf', t.left_front);
+            setServoSliders('lm', t.left_middle);
+            setServoSliders('lb', t.left_back);
+            setServoSliders('rf', t.right_front);
+            setServoSliders('rm', t.right_middle);
+            setServoSliders('rb', t.right_back);
+        }
+    } catch (_) {
+        // ignore
+    }
+}
+
+async function applyServoTweaksLive() {
+    const payload = collectServoTweaksPayload();
+    try {
+        if (window.__servoTweaksAbortController) {
+            try { window.__servoTweaksAbortController.abort(); } catch (e) {}
+        }
+        window.__servoTweaksAbortController = new AbortController();
+        await fetch(`${API_BASE}/servo_tweaks`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            signal: window.__servoTweaksAbortController.signal,
+        });
+        // Best-effort save to disk too
+        await fetch(`${API_BASE}/servo_tweaks/save`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+    } catch (_) {
+        // ignore
+    }
+}
+
+function resetServoTweaks() {
+    setServoSliders('lf', [0.0, 0.0, 0.0]);
+    setServoSliders('lm', [0.0, 0.0, 0.0]);
+    setServoSliders('lb', [0.0, 0.0, 0.0]);
+    setServoSliders('rf', [0.0, 0.0, 0.0]);
+    setServoSliders('rm', [0.0, 0.0, 0.0]);
+    setServoSliders('rb', [0.0, 0.0, 0.0]);
+    applyServoTweaksLive();
 }

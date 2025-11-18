@@ -89,6 +89,121 @@
             </div>
         </div>
 
+        <!-- Servo Angle Calibration -->
+        <div class="control-section">
+            <h2 class="section-title">🛠️ Servo Angle Calibration</h2>
+            <p class="subtitle">Adjust per-servo angle tweaks (degrees) applied on top of IK</p>
+
+            <div class="calibration-grid">
+                <!-- Left Front -->
+                <div class="leg-calibration">
+                    <h4>Left Front</h4>
+                    <div class="slider-group">
+                        <label>Coxa <span id="lf-coxa-val">0.0</span></label>
+                        <input type="range" id="lf-coxa" min="-30" max="30" step="0.5" value="0">
+                    </div>
+                    <div class="slider-group">
+                        <label>Femur <span id="lf-femur-val">0.0</span></label>
+                        <input type="range" id="lf-femur" min="-30" max="30" step="0.5" value="0">
+                    </div>
+                    <div class="slider-group">
+                        <label>Tibia <span id="lf-tibia-val">0.0</span></label>
+                        <input type="range" id="lf-tibia" min="-30" max="30" step="0.5" value="0">
+                    </div>
+                </div>
+
+                <!-- Left Middle -->
+                <div class="leg-calibration">
+                    <h4>Left Middle</h4>
+                    <div class="slider-group">
+                        <label>Coxa <span id="lm-coxa-val">0.0</span></label>
+                        <input type="range" id="lm-coxa" min="-30" max="30" step="0.5" value="0">
+                    </div>
+                    <div class="slider-group">
+                        <label>Femur <span id="lm-femur-val">0.0</span></label>
+                        <input type="range" id="lm-femur" min="-30" max="30" step="0.5" value="0">
+                    </div>
+                    <div class="slider-group">
+                        <label>Tibia <span id="lm-tibia-val">0.0</span></label>
+                        <input type="range" id="lm-tibia" min="-30" max="30" step="0.5" value="0">
+                    </div>
+                </div>
+
+                <!-- Left Back -->
+                <div class="leg-calibration">
+                    <h4>Left Back</h4>
+                    <div class="slider-group">
+                        <label>Coxa <span id="lb-coxa-val">0.0</span></label>
+                        <input type="range" id="lb-coxa" min="-30" max="30" step="0.5" value="0">
+                    </div>
+                    <div class="slider-group">
+                        <label>Femur <span id="lb-femur-val">0.0</span></label>
+                        <input type="range" id="lb-femur" min="-30" max="30" step="0.5" value="0">
+                    </div>
+                    <div class="slider-group">
+                        <label>Tibia <span id="lb-tibia-val">0.0</span></label>
+                        <input type="range" id="lb-tibia" min="-30" max="30" step="0.5" value="0">
+                    </div>
+                </div>
+
+                <!-- Right Front -->
+                <div class="leg-calibration">
+                    <h4>Right Front</h4>
+                    <div class="slider-group">
+                        <label>Coxa <span id="rf-coxa-val">0.0</span></label>
+                        <input type="range" id="rf-coxa" min="-30" max="30" step="0.5" value="0">
+                    </div>
+                    <div class="slider-group">
+                        <label>Femur <span id="rf-femur-val">0.0</span></label>
+                        <input type="range" id="rf-femur" min="-30" max="30" step="0.5" value="0">
+                    </div>
+                    <div class="slider-group">
+                        <label>Tibia <span id="rf-tibia-val">0.0</span></label>
+                        <input type="range" id="rf-tibia" min="-30" max="30" step="0.5" value="0">
+                    </div>
+                </div>
+
+                <!-- Right Middle -->
+                <div class="leg-calibration">
+                    <h4>Right Middle</h4>
+                    <div class="slider-group">
+                        <label>Coxa <span id="rm-coxa-val">0.0</span></label>
+                        <input type="range" id="rm-coxa" min="-30" max="30" step="0.5" value="0">
+                    </div>
+                    <div class="slider-group">
+                        <label>Femur <span id="rm-femur-val">0.0</span></label>
+                        <input type="range" id="rm-femur" min="-30" max="30" step="0.5" value="0">
+                    </div>
+                    <div class="slider-group">
+                        <label>Tibia <span id="rm-tibia-val">0.0</span></label>
+                        <input type="range" id="rm-tibia" min="-30" max="30" step="0.5" value="0">
+                    </div>
+                </div>
+
+                <!-- Right Back -->
+                <div class="leg-calibration">
+                    <h4>Right Back</h4>
+                    <div class="slider-group">
+                        <label>Coxa <span id="rb-coxa-val">0.0</span></label>
+                        <input type="range" id="rb-coxa" min="-30" max="30" step="0.5" value="0">
+                    </div>
+                    <div class="slider-group">
+                        <label>Femur <span id="rb-femur-val">0.0</span></label>
+                        <input type="range" id="rb-femur" min="-30" max="30" step="0.5" value="0">
+                    </div>
+                    <div class="slider-group">
+                        <label>Tibia <span id="rb-tibia-val">0.0</span></label>
+                        <input type="range" id="rb-tibia" min="-30" max="30" step="0.5" value="0">
+                    </div>
+                </div>
+            </div>
+
+            <div class="calibration-controls">
+                <button class="btn btn-secondary" id="load-servo-tweaks">Load Current</button>
+                <button class="btn btn-secondary" id="reset-servo-tweaks">Reset to Zero</button>
+            </div>
+        </div>
+
         <!-- Custom Gait Fine-tuning -->
         <div class="control-section">
             <h2 class="section-title">Custom Gait (Fine-tune)</h2>
