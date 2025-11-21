@@ -59,4 +59,5 @@ glam = "0.30.8"
 pwm-pca9685 = "1.0.0"
 linux-embedded-hal = "0.4.0"
 sha2 = "0.10.9"
+anyhow = "1.0"
 

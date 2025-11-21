@@ -10,7 +10,17 @@ movement = { path = "../movement" }
 linux-embedded-hal = { workspace = true, optional = true }
 pwm-pca9685 = { workspace = true, optional = true }
 libc = { version = "0.2", optional = true }
+anyhow = { workspace = true }
+
+# Web dependencies (for examples)
+tokio = { workspace = true, optional = true }
+axum = { version = "0.7", features = ["ws"], optional = true }
 
 [features]
 dummy = []  # PC/testing mode without hardware
 real = ["dep:linux-embedded-hal", "dep:pwm-pca9685", "dep:libc"]
+web = ["dep:tokio", "dep:axum"]
+
+[[example]]
+name = "lidar_web"
+required-features = ["web"]
