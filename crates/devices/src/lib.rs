@@ -12,6 +12,11 @@ pub mod picoubec_dummy;
 pub mod picoubec_real;
 
 #[cfg(feature = "dummy")]
+pub mod gps_dummy;
+#[cfg(feature = "real")]
+pub mod gps_real;
+
+#[cfg(feature = "dummy")]
 pub use servo_dummy as servo;
 #[cfg(feature = "real")]
 pub use servo_real as servo;
@@ -20,6 +25,11 @@ pub use servo_real as servo;
 pub use picoubec_dummy as picoubec;
 #[cfg(feature = "real")]
 pub use picoubec_real as picoubec;
+
+#[cfg(feature = "dummy")]
+pub use gps_dummy as gps;
+#[cfg(feature = "real")]
+pub use gps_real as gps;
 
 // LiDAR module (works with both dummy and real features)
 pub mod lidar;
