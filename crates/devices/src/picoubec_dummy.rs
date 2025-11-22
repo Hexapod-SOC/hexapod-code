@@ -83,6 +83,16 @@ impl PicoUbecController {
             remaining_seconds: delay_seconds,
         };
     }
+
+    /// Enable servos via UART command
+    pub fn enable_servos(&mut self) {
+        println!("(Dummy) Enable servos command sent");
+    }
+
+    /// Disable servos via UART command
+    pub fn disable_servos(&mut self) {
+        println!("(Dummy) Disable servos command sent");
+    }
 }
 
 // Simple random function for dummy implementation

@@ -309,4 +309,38 @@ impl PicoUbecController {
     pub fn is_connected(&self) -> bool {
         !self.connection_failed && self.reader.is_some()
     }
+
+    /// Enable servos via UART command
+    pub fn enable_servos(&mut self) {
+        if self.connection_failed {
+            eprintln!("Cannot enable servos: UART not connected");
+            return;
+        }
+
+        if let Some(writer) = self.writer.as_mut() {
+            let cmd = "ENABLE_SERVOS\n";
+            if let Err(e) = writer.write_all(cmd.as_bytes()) {
+                eprintln!("Failed to send enable servos command: {}", e);
+            } else {
+                println!("Enable servos command sent");
+            }
+        }
+    }
+
+    /// Disable servos via UART command
+    pub fn disable_servos(&mut self) {
+        if self.connection_failed {
+            eprintln!("Cannot disable servos: UART not connected");
+            return;
+        }
+
+        if let Some(writer) = self.writer.as_mut() {
+            let cmd = "DISABLE_SERVOS\n";
+            if let Err(e) = writer.write_all(cmd.as_bytes()) {
+                eprintln!("Failed to send disable servos command: {}", e);
+            } else {
+                println!("Disable servos command sent");
+            }
+        }
+    }
 }

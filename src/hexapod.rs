@@ -98,7 +98,10 @@ impl Hexapod {
         }
         
         // Initialize battery monitor (will gracefully handle if not available)
-        let ubec_controller = PicoUbecController::new("/dev/serial0");
+        let mut ubec_controller = PicoUbecController::new("/dev/serial0");
+        
+        // Enable servos on startup
+        ubec_controller.enable_servos();
         
         Self {
             servo_controller: Arc::new(Mutex::new(servo_controller)),
