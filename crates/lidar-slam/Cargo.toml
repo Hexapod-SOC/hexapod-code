@@ -1,0 +1,39 @@
+[package]
+name = "lidar-slam"
+version.workspace = true
+description = "2D SLAM implementation for LD19 LiDAR on hexapod robot"
+authors.workspace = true
+edition.workspace = true
+
+[features]
+default = []
+dummy = ["devices/dummy"]
+real = ["devices/real"]
+
+[dependencies]
+# Workspace dependencies
+devices = { path = "../devices" }
+
+# Core dependencies
+nalgebra = { version = "0.33", features = ["serde-serialize"] }
+anyhow = "1.0"
+thiserror = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Async runtime
+tokio = { version = "1.45", features = ["full", "sync"] }
+
+# Web server for visualization
+axum = { version = "0.7", features = ["ws"] }
+tower-http = { version = "0.5", features = ["cors"] }
+
+# Logging
+tracing = "0.1"
+
+[dev-dependencies]
+tokio = { version = "1.45", features = ["full", "macros", "rt-multi-thread"] }
+
+[[example]]
+name = "slam_web"
+path = "examples/slam_web.rs"

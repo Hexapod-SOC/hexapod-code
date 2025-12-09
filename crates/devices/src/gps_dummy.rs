@@ -146,7 +146,7 @@ mod rand {
 
     pub fn random<T>() -> T
     where
-        T: From<f32> + From<f64>,
+        T: From<f32>,
     {
         SEED.with(|seed| {
             let mut s = seed.get();
@@ -158,13 +158,7 @@ mod rand {
             // Generate a value between 0.0 and 1.0
             let val = (s as f64) / (u64::MAX as f64);
             
-            // Try to convert to the target type
-            // This is a simplified approach - for production use proper traits
-            if std::mem::size_of::<T>() == std::mem::size_of::<f32>() {
-                T::from(val as f32)
-            } else {
-                T::from(val)
-            }
+            T::from(val as f32)
         })
     }
 }
