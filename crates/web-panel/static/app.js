@@ -905,6 +905,21 @@ function resetLegStance() {
 
 // ===== SERVO ANGLE TWEAKS =====
 
+const SERVO_TWEAK_MIN = -90;
+const SERVO_TWEAK_MAX = 90;
+const SERVO_TWEAK_STEP = 0.5;
+
+function clampServoTweak(value) {
+    const num = parseFloat(value);
+    if (Number.isNaN(num)) return 0;
+    return Math.min(SERVO_TWEAK_MAX, Math.max(SERVO_TWEAK_MIN, num));
+}
+
+function normalizeServoTweak(value) {
+    const clamped = clampServoTweak(value);
+    return Math.round(clamped / SERVO_TWEAK_STEP) * SERVO_TWEAK_STEP;
+}
+
 function initServoTweaks() {
     const legIds = ['lf', 'lm', 'lb', 'rf', 'rm', 'rb'];
     const parts = ['coxa', 'femur', 'tibia'];
@@ -914,12 +929,46 @@ function initServoTweaks() {
         parts.forEach(part => {
             const slider = document.getElementById(`${legId}-${part}`);
             const val = document.getElementById(`${legId}-${part}-val`);
-            if (slider && val) {
-                slider.addEventListener('input', () => {
-                    val.textContent = parseFloat(slider.value).toFixed(1);
-                    applyServoTweaksLive();
-                });
+            if (!slider || !val) return;
+
+            // Widen range to ±90 and add numeric entry alongside slider
+            slider.min = SERVO_TWEAK_MIN;
+            slider.max = SERVO_TWEAK_MAX;
+            slider.step = SERVO_TWEAK_STEP;
+
+            let numberInput = document.getElementById(`${legId}-${part}-input`);
+            if (!numberInput) {
+                numberInput = document.createElement('input');
+                numberInput.type = 'number';
+                numberInput.id = `${legId}-${part}-input`;
+                numberInput.min = SERVO_TWEAK_MIN;
+                numberInput.max = SERVO_TWEAK_MAX;
+                numberInput.step = SERVO_TWEAK_STEP;
+                numberInput.value = slider.value;
+
+                const row = document.createElement('div');
+                row.className = 'slider-input-row';
+                const container = slider.parentElement;
+                row.appendChild(slider);
+                row.appendChild(numberInput);
+                if (container) {
+                    container.appendChild(row);
+                }
             }
+
+            const updateValue = (raw, pushUpdate = true) => {
+                const normalized = normalizeServoTweak(raw);
+                slider.value = normalized;
+                numberInput.value = normalized;
+                val.textContent = normalized.toFixed(1);
+                if (pushUpdate) applyServoTweaksLive();
+            };
+
+            slider.addEventListener('input', () => updateValue(slider.value));
+            numberInput.addEventListener('input', () => updateValue(numberInput.value));
+
+            // Ensure initial display reflects the normalized range
+            updateValue(slider.value, false);
         });
     });
 
@@ -955,10 +1004,13 @@ function setServoSliders(legId, values) {
     parts.forEach((part, index) => {
         const slider = document.getElementById(`${legId}-${part}`);
         const val = document.getElementById(`${legId}-${part}-val`);
-        if (slider && val) {
-            slider.value = values[index];
-            val.textContent = parseFloat(values[index]).toFixed(1);
-        }
+        const numberInput = document.getElementById(`${legId}-${part}-input`);
+        if (!slider || !val) return;
+
+        const normalized = normalizeServoTweak(values[index]);
+        slider.value = normalized;
+        if (numberInput) numberInput.value = normalized;
+        val.textContent = normalized.toFixed(1);
     });
 }
 
