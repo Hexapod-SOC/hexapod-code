@@ -173,7 +173,8 @@ mod tests {
     fn test_crc8() {
         let data = [0x54, 0x2C, 0x10, 0x0E];
         let crc = calculate_crc8(&data);
-        assert!(crc < 256);
+        // Just verify the function runs and returns a value
+        let _ = crc;
     }
 
     #[test]

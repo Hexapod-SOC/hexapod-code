@@ -8,12 +8,14 @@ mod packet;
 mod parser;
 mod point;
 mod serial;
+mod slam;
 
 pub use filter::NearRangeFilter;
 pub use packet::{LidarFrame, LidarPacket};
 pub use parser::PacketParser;
 pub use point::{LidarType, Point, PointCloud};
 pub use serial::SerialInterface;
+pub use slam::{LidarSlamConfig, LidarSlamHandle, SlamSnapshot};
 
 use anyhow::Result;
 use std::sync::atomic::{AtomicBool, Ordering};

@@ -9,7 +9,6 @@ edition.workspace = true
 members = [
     "crates/audio",
     "crates/devices", 
-    "crates/lidar-slam",
     "crates/movement",
     "crates/web-panel",
 ]
@@ -21,8 +20,8 @@ authors = ["Adam", "Michael"]
 edition = "2024"
 
 [features]
-dummy = ["devices/dummy", "audio/dummy", "lidar-slam/dummy"] # enables the devices dummy feature
-real  = ["devices/real", "audio/real", "lidar-slam/real"]  # enables the devices real feature
+dummy = ["devices/dummy", "audio/dummy"] # enables the devices dummy feature
+real  = ["devices/real", "audio/real"]  # enables the devices real feature
 
 [dependencies]
 # Workspace crates
@@ -30,7 +29,6 @@ devices = { path = "crates/devices" }
 movement = { path = "crates/movement" }
 audio = { path = "crates/audio" }
 web-panel = { path = "crates/web-panel" }
-lidar-slam = { path = "crates/lidar-slam" }
 
 # External dependencies
 tokio = { version = "1.45.1", features = ["full", "macros", "rt-multi-thread"] }
