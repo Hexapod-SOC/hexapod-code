@@ -49,6 +49,9 @@ pub async fn run_server(state: AppState, port: u16) -> Result<(), Box<dyn std::e
         .route("/api/pose", post(routes::set_body_pose))
         // Text-to-speech
         .route("/api/tts", post(routes::speak_text))
+    // LiDAR SLAM data
+    .route("/api/lidar/frame", get(routes::get_lidar_frame))
+    .route("/api/lidar/map", get(routes::get_lidar_map))
         // Add state and middleware
         .with_state(app_state)
         .layer(CorsLayer::permissive())

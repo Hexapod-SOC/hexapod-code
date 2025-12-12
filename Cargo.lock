@@ -523,6 +523,7 @@ dependencies = [
  "axum",
  "devices",
  "glam",
+ "lidar-slam",
  "linux-embedded-hal",
  "movement",
  "pwm-pca9685",

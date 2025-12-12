@@ -1,5 +1,6 @@
 use crate::config::{CALIBRATION_LEG_STANCE_FILE, CALIBRATION_SERVO_TWEAKS_FILE};
 use axum::{Json, extract::State, http::StatusCode};
+use devices::lidar::SlamSnapshot;
 use glam::Vec3;
 use movement::gaits::{GaitTemplate, LegCycleOffsets};
 use serde::{Deserialize, Serialize};
@@ -350,6 +351,42 @@ pub struct LegStancesData {
     pub right_front: [f32; 3],
     pub right_middle: [f32; 3],
     pub right_back: [f32; 3],
+}
+
+// ============= LiDAR SLAM Endpoints =============
+
+#[derive(Serialize, Default, Clone, Copy)]
+pub struct PoseResponse {
+    pub x: f32,
+    pub y: f32,
+    pub theta: f32,
+}
+
+#[derive(Serialize, Clone, Copy)]
+pub struct LidarPointResponse {
+    pub angle_deg: f32,
+    pub distance_mm: u32,
+    pub intensity: u16,
+}
+
+#[derive(Serialize)]
+pub struct LidarFrameResponse {
+    pub frame: u64,
+    pub timestamp_ns: u64,
+    pub pose: PoseResponse,
+    pub rpm: f32,
+    pub points: Vec<LidarPointResponse>,
+}
+
+#[derive(Serialize)]
+pub struct LidarMapResponse {
+    pub frame: u64,
+    pub pose: PoseResponse,
+    pub width: usize,
+    pub height: usize,
+    pub resolution: f32,
+    pub origin: PoseResponse,
+    pub cells: Vec<i8>,
 }
 
 /// GET /api/leg_stance
@@ -726,6 +763,77 @@ pub async fn get_saved_servo_tweaks() -> Result<Json<ServoTweaksResponse>, Statu
         success: true,
         message: "Saved servo tweaks".to_string(),
         tweaks: parsed,
+    }))
+}
+
+fn snapshot_pose(snapshot: &SlamSnapshot) -> PoseResponse {
+    PoseResponse {
+        x: snapshot.pose.x,
+        y: snapshot.pose.y,
+        theta: snapshot.pose.theta,
+    }
+}
+
+/// GET /api/lidar/frame
+pub async fn get_lidar_frame(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<LidarFrameResponse>, StatusCode> {
+    let handle = state
+        .lidar
+        .as_ref()
+        .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
+    let snapshot = handle.latest();
+    if snapshot.frame == 0 {
+        return Err(StatusCode::NO_CONTENT);
+    }
+
+    let scan = snapshot
+        .last_scan
+        .as_ref()
+        .ok_or(StatusCode::NO_CONTENT)?;
+
+    let points = scan
+        .points
+        .iter()
+        .map(|p| LidarPointResponse {
+            angle_deg: p.angle_deg,
+            distance_mm: (p.distance_m.max(0.0) * 1000.0) as u32,
+            intensity: p.intensity,
+        })
+        .collect();
+
+    Ok(Json(LidarFrameResponse {
+        frame: snapshot.frame,
+        timestamp_ns: snapshot.timestamp_ns,
+        pose: snapshot_pose(&snapshot),
+        rpm: scan.rpm,
+        points,
+    }))
+}
+
+/// GET /api/lidar/map
+pub async fn get_lidar_map(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<LidarMapResponse>, StatusCode> {
+    let handle = state
+        .lidar
+        .as_ref()
+        .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
+    let snapshot = handle.latest();
+    let map = snapshot.map.as_ref().ok_or(StatusCode::NO_CONTENT)?;
+
+    Ok(Json(LidarMapResponse {
+        frame: snapshot.frame,
+        pose: snapshot_pose(&snapshot),
+        width: map.width(),
+        height: map.height(),
+        resolution: map.resolution(),
+        origin: PoseResponse {
+            x: map.origin().x,
+            y: map.origin().y,
+            theta: map.origin().theta,
+        },
+        cells: map.cells().to_vec(),
     }))
 }
 // ============= Health Check =============

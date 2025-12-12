@@ -1,11 +1,17 @@
 //FIXME eventually convert to config files not hardcoded constants
+use devices::lidar::LidarSlamConfig;
 use devices::servo::{ServoOffsets, ServoPins};
+use lidar_slam::SlamParams;
 use movement::ik;
+use std::time::Duration;
 
 pub const WEB_API_ENABLE: bool = true;
 pub const API_PORT: u16 = 3000;
 pub const WEB_PANEL_ENABLE: bool = true;
 pub const WEB_PANEL_PORT: u16 = 8080;
+pub const LIDAR_SLAM_ENABLE: bool = true;
+pub const LIDAR_SERIAL_PORT: &str = "/dev/ttyUSB0";
+pub const LIDAR_IDLE_SLEEP_MS: u64 = 5;
 
 pub const TMP_DIR: &str = "/tmp/hexapod/";
 pub const TTS_URL: &str = "http://127.0.0.1:5000";
@@ -49,3 +55,19 @@ pub const SERVO_OFFSETS: ServoOffsets = ServoOffsets {
 pub const CALIBRATION_LEG_STANCE_FILE: &str = "calibration/leg_stance.json";
 /// Persistent per-servo angle tweaks (degrees), applied on top of IK outputs.
 pub const CALIBRATION_SERVO_TWEAKS_FILE: &str = "calibration/servo_angle_tweaks.json";
+
+/// Helper to build the configuration passed into the LiDAR SLAM thread.
+pub fn lidar_slam_config() -> LidarSlamConfig {
+    let mut params = SlamParams::default();
+    params.map_size_pixels = 1024;
+    params.map_resolution = 0.04;
+    params.max_range_m = 12.0;
+    params.sample_step = 2;
+
+    LidarSlamConfig {
+        port: LIDAR_SERIAL_PORT.into(),
+        read_buffer_len: 8192,
+        idle_sleep: Duration::from_millis(LIDAR_IDLE_SLEEP_MS),
+        slam_params: params,
+    }
+}

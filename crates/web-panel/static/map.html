@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hexapod LiDAR Map</title>
+    <link rel="stylesheet" href="/map.css">
+</head>
+<body>
+    <header>
+        <h1>Hexapod • LiDAR SLAM Map</h1>
+        <p>Live pose + occupancy grid streamed from the onboard LD19</p>
+    </header>
+
+    <main>
+        <section id="stats">
+            <div class="stat">
+                <span class="label">Frame</span>
+                <span class="value" id="frame">0</span>
+            </div>
+            <div class="stat">
+                <span class="label">RPM</span>
+                <span class="value" id="rpm">0.0</span>
+            </div>
+            <div class="stat">
+                <span class="label">Points</span>
+                <span class="value" id="points">0</span>
+            </div>
+            <div class="stat">
+                <span class="label">Pose (m)</span>
+                <span class="value" id="pose-xy">0.00 / 0.00</span>
+            </div>
+            <div class="stat">
+                <span class="label">Heading</span>
+                <span class="value" id="pose-theta">0°</span>
+            </div>
+            <div class="stat">
+                <span class="label">FPS</span>
+                <span class="value" id="fps">0.0</span>
+            </div>
+        </section>
+
+        <div id="canvas-wrapper">
+            <canvas id="map-canvas" width="900" height="900"></canvas>
+            <div id="status" class="disconnected">Connecting…</div>
+        </div>
+
+        <section id="tips">
+            <p><strong>API endpoint</strong>: <code id="api-base"></code></p>
+            <p>You can override the API base URL by appending <code>?api=https://host:port/api</code>.</p>
+        </section>
+    </main>
+
+    <script src="/map.js" type="module"></script>
+</body>
+</html>

@@ -17,6 +17,7 @@ use config::{
 use glam::Vec3;
 use movement::gait::LegStances;
 use movement::gaits::GAITS;
+use std::sync::Arc;
 
 fn load_saved_servo_tweaks() -> Option<ServoAngleTweaks> {
     let path = std::path::Path::new(CALIBRATION_SERVO_TWEAKS_FILE);
@@ -118,6 +119,21 @@ async fn main() {
         saved_stance, // Use saved stance if present
     );
 
+    let lidar_handle = if config::LIDAR_SLAM_ENABLE {
+        match devices::lidar::LidarSlamHandle::new(config::lidar_slam_config()) {
+            Ok(handle) => {
+                println!("LiDAR SLAM thread started on {}", config::LIDAR_SERIAL_PORT);
+                Some(Arc::new(handle))
+            }
+            Err(err) => {
+                eprintln!("Failed to start LiDAR SLAM: {err:?}");
+                None
+            }
+        }
+    } else {
+        None
+    };
+
     // Load saved per-servo angle tweaks if available
     if let Some(tweaks) = load_saved_servo_tweaks() {
         let tweaks_arc = hexapod.get_servo_angle_tweaks();
@@ -153,6 +169,7 @@ async fn main() {
             hexapod.get_gait_controller(),
             hexapod.get_ubec_controller(),
             hexapod.get_servo_angle_tweaks(),
+            lidar_handle.clone(),
         );
 
         // Spawn API server in background task
