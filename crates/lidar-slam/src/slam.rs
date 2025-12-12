@@ -39,14 +39,14 @@ impl Default for SlamConfig {
         Self {
             icp: IcpConfig::default(),
             grid: OccupancyGridConfig::default(),
-            min_update_distance: 50.0,   // 5cm
-            min_update_rotation: 0.05,   // ~3 degrees
-            max_scan_age: 500,           // 500ms
+            min_update_distance: 50.0, // 5cm
+            min_update_rotation: 0.05, // ~3 degrees
+            max_scan_age: 500,         // 500ms
             scan_history_size: 10,
             icp_downsample: 2,
-            max_range: 8000.0,           // 8m
-            lidar_height: 100.0,         // 10cm from ground (hexapod body height)
-            use_gyro: false,             // Disabled since gyro is disconnected
+            max_range: 8000.0,   // 8m
+            lidar_height: 100.0, // 10cm from ground (hexapod body height)
+            use_gyro: false,     // Disabled since gyro is disconnected
         }
     }
 }
@@ -229,19 +229,21 @@ impl SlamProcessor {
             .collect();
 
         // Run ICP
-        let icp_result = self.icp.match_scans(&current_points, &reference_points, None);
+        let icp_result = self
+            .icp
+            .match_scans(&current_points, &reference_points, None);
 
         // Calculate quality score
         let quality = self.calculate_match_quality(&icp_result);
-        
+
         // Get the delta pose
         let mut delta_pose = icp_result.transform.to_pose();
-        
+
         // Limit maximum pose change to prevent jumps (motion constraints)
         // Max 100mm translation, 10 degrees rotation per scan
         let max_trans = 100.0;
         let max_rot = 0.175; // ~10 degrees
-        
+
         let trans_mag = (delta_pose.x.powi(2) + delta_pose.y.powi(2)).sqrt();
         if trans_mag > max_trans {
             let scale = max_trans / trans_mag;
@@ -266,11 +268,11 @@ impl SlamProcessor {
                 points.push(pose.transform_point(p));
             }
         }
-        
+
         // Alternatively, use map points for matching against the global map
         // This could be an option in config
         // points.extend(self.map.get_occupied_points());
-        
+
         points
     }
 
@@ -283,10 +285,10 @@ impl SlamProcessor {
         // Quality based on:
         // 1. Number of correspondences (more is better)
         let corr_score = (result.num_correspondences as f32 / 50.0).min(1.0);
-        
+
         // 2. MSE (lower is better) - adjusted for mm scale
         let mse_score = (-result.mse / 500.0).exp();
-        
+
         // 3. Number of iterations (fewer is better, indicates good initial guess)
         let iter_score = 1.0 - (result.iterations as f32 / self.config.icp.max_iterations as f32);
 
@@ -299,7 +301,7 @@ impl SlamProcessor {
         if self.scan_count < 10 {
             return true;
         }
-        
+
         let dx = self.pose.x - self.last_update_pose.x;
         let dy = self.pose.y - self.last_update_pose.y;
         let distance = (dx * dx + dy * dy).sqrt();
@@ -487,7 +489,7 @@ mod tests {
     #[test]
     fn test_slam_initialization() {
         let mut slam = SlamProcessor::new(SlamConfig::default());
-        
+
         // Create a simple scan
         let points: Vec<Point2D> = (0..36)
             .map(|i| {

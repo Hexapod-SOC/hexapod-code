@@ -24,7 +24,7 @@ pub struct ServoPins {
 /// WARNING: All servos were measured in one configuration. Left/right side servos
 /// are physically reversed/mirrored, so these offsets may need inversion for right side.
 pub struct ServoOffsets {
-    pub left_front: (f32, f32, f32),  // (Coxa, Femur, Tibia) in PWA units
+    pub left_front: (f32, f32, f32), // (Coxa, Femur, Tibia) in PWA units
     pub left_middle: (f32, f32, f32),
     pub left_back: (f32, f32, f32),
     pub right_front: (f32, f32, f32),
@@ -37,6 +37,10 @@ pub struct ServoController {
     pca_right: Pca9685<I2cdev>,
     servo_pins: ServoPins,
     servo_offsets: ServoOffsets,
+    // Cache last PWM we sent per channel to avoid re-sending identical pulses,
+    // which can create audible/visible twitch on some servos.
+    last_pwm_left: [Option<u16>; 16],
+    last_pwm_right: [Option<u16>; 16],
 }
 
 impl ServoController {
@@ -48,6 +52,8 @@ impl ServoController {
                 .unwrap(),
             servo_pins,
             servo_offsets,
+            last_pwm_left: [None; 16],
+            last_pwm_right: [None; 16],
         };
         servos_controller.init_servos();
         servos_controller.set_all_legs_to_angles(90.0, 50.0, 50.0); // Default position
@@ -76,20 +82,30 @@ impl ServoController {
         // Get the pin number for this leg and part
         let pin = self.get_pin(leg, part);
         let channel = self.pin_to_channel(pin);
-        
+
         // Apply servo offset to shift the operating range
         let offset = self.get_offset(leg, part);
-        let adjusted_pwm = (pwm_value as f32 + offset).clamp(SERVO_MIN as f32, SERVO_MAX as f32) as u16;
+        let adjusted_pwm =
+            (pwm_value as f32 + offset).clamp(SERVO_MIN as f32, SERVO_MAX as f32) as u16;
 
         // Determine which PCA to use and if we need to invert
+        // Avoid sending duplicate PWM to reduce jitter
         match leg {
             Leg::LeftFront | Leg::LeftMiddle | Leg::LeftBack => {
+                if self.should_skip_pwm(true, pin, adjusted_pwm) {
+                    return;
+                }
                 self.pca_left.set_channel_on(channel, 0).unwrap();
-                self.pca_left.set_channel_off(channel, adjusted_pwm).unwrap();
+                self.pca_left
+                    .set_channel_off(channel, adjusted_pwm)
+                    .unwrap();
             }
             Leg::RightFront | Leg::RightMiddle | Leg::RightBack => {
                 // Invert PWM for right side (mirrored servos)
                 let final_pwm = SERVO_MIN + SERVO_MAX - adjusted_pwm;
+                if self.should_skip_pwm(false, pin, final_pwm) {
+                    return;
+                }
                 self.pca_right.set_channel_on(channel, 0).unwrap();
                 self.pca_right.set_channel_off(channel, final_pwm).unwrap();
             }
@@ -184,5 +200,23 @@ impl ServoController {
             15 => Channel::C15,
             _ => panic!("Invalid pin number: {}", pin),
         }
+    }
+
+    /// Track whether the PWM for a given channel already matches the target.
+    /// This is a best-effort jitter reduction: we skip writes when unchanged.
+    fn should_skip_pwm(&mut self, is_left: bool, pin: u8, target: u16) -> bool {
+        let slot = if is_left {
+            &mut self.last_pwm_left[pin as usize]
+        } else {
+            &mut self.last_pwm_right[pin as usize]
+        };
+
+        if let Some(prev) = slot {
+            if *prev == target {
+                return true;
+            }
+        }
+        *slot = Some(target);
+        false
     }
 }

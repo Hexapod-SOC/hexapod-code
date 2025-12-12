@@ -5,11 +5,11 @@ use movement::ik::SimpleIK;
 use movement::legs::Leg;
 
 pub const CONSTRAINTS: movement::ik::Constraints = movement::ik::Constraints {
-    coxa_length:  43.0,  // Length of the coxa segment in mm
+    coxa_length: 43.0,   // Length of the coxa segment in mm
     femur_length: 60.0,  // Length of the femur segment in mm
     tibia_length: 104.0, // Length of the tibia segment in mm
 
-    coxa_soffset:  0.0, // Offset to align coxa angle to 0 degrees forward
+    coxa_soffset: 0.0,  // Offset to align coxa angle to 0 degrees forward
     femur_soffset: 0.0, // Offset to align femur angle to horizontal
     tibia_soffset: 0.0, // Offset to align tibia angle to straight down
 };
@@ -114,12 +114,12 @@ fn setup(
 
     // Create 6 legs
     let leg_angles: [f32; 6] = [60.0, 0.0, -60.0, -120.0, 180.0, 120.0]; // Angles around the body
-    
+
     for (i, &angle) in leg_angles.iter().enumerate() {
         let angle_rad = angle.to_radians();
         let attachment_x = angle_rad.sin() * BODY_RADIUS * SCALE;
         let attachment_z = angle_rad.cos() * BODY_RADIUS * SCALE;
-        
+
         // Coxa segment
         commands.spawn((
             Mesh3d(meshes.add(Cylinder::new(2.0 * SCALE, COXA_LENGTH * SCALE))),
@@ -228,7 +228,7 @@ fn keyboard_input(
     // Movement controls
     let mut velocity = state.velocity;
     let speed = BASE_SPEED;
-    
+
     // Forward/backward
     if keyboard.pressed(KeyCode::ArrowUp) {
         velocity.x = speed;
@@ -237,7 +237,7 @@ fn keyboard_input(
     } else {
         velocity.x = 0.0;
     }
-    
+
     // Strafe left/right
     if keyboard.pressed(KeyCode::ArrowLeft) {
         velocity.y = speed;
@@ -246,7 +246,7 @@ fn keyboard_input(
     } else {
         velocity.y = 0.0;
     }
-    
+
     state.velocity = velocity;
 
     // Rotation controls
@@ -293,15 +293,15 @@ fn update_hexapod(
 ) {
     // Leg angles around the body (in degrees)
     let leg_angles_global: [f32; 6] = [60.0, 0.0, -60.0, -120.0, 180.0, 120.0];
-    
+
     // Leg ordering matching the body angles
     let legs_ordered = [
-        Leg::RightFront,   // 60°
-        Leg::RightMiddle,  // 0°
-        Leg::RightBack,    // -60°
-        Leg::LeftBack,     // -120°
-        Leg::LeftMiddle,   // 180°
-        Leg::LeftFront,    // 120°
+        Leg::RightFront,  // 60°
+        Leg::RightMiddle, // 0°
+        Leg::RightBack,   // -60°
+        Leg::LeftBack,    // -120°
+        Leg::LeftMiddle,  // 180°
+        Leg::LeftFront,   // 120°
     ];
 
     // Update UI text with gait info
@@ -309,29 +309,27 @@ fn update_hexapod(
         let gait_template = state.controller.get_template();
         let phase = state.controller.get_gait_phase();
         let status = if state.paused { " [PAUSED]" } else { "" };
-        
+
         **text = format!(
             "Gait: {}{}\nPhase: {:.2}\nVelocity: ({:.0}, {:.0}) mm/s\nRotation: {:.2} rad/s",
-            gait_template.name,
-            status,
-            phase,
-            state.velocity.x,
-            state.velocity.y,
-            state.rotation
+            gait_template.name, status, phase, state.velocity.x, state.velocity.y, state.rotation
         );
     }
 
     // Get leg angles from gait controller
-    let leg_angles = state.controller.calculate_walking_angles(state.velocity, state.rotation);
+    let leg_angles = state
+        .controller
+        .calculate_walking_angles(state.velocity, state.rotation);
 
     // Calculate and apply leg positions
     for (leg_idx, leg_type) in legs_ordered.iter().enumerate() {
         // Find the angles for this leg
-        let angles = leg_angles.iter()
+        let angles = leg_angles
+            .iter()
             .find(|(leg, _)| leg == leg_type)
             .map(|(_, angles)| angles)
             .unwrap();
-        
+
         let body_angle = leg_angles_global[leg_idx];
         let body_angle_rad = body_angle.to_radians();
         let attachment_x = body_angle_rad.sin() * BODY_RADIUS * SCALE;
@@ -340,29 +338,32 @@ fn update_hexapod(
 
         // Calculate coxa angle in world space
         let coxa_world_angle = (angles.coxa + body_angle).to_radians();
-        
+
         // Calculate joint positions
-        let coxa_end = attachment_point + Vec3::new(
-            coxa_world_angle.sin() * COXA_LENGTH * SCALE,
-            0.0,
-            coxa_world_angle.cos() * COXA_LENGTH * SCALE,
-        );
-        
+        let coxa_end = attachment_point
+            + Vec3::new(
+                coxa_world_angle.sin() * COXA_LENGTH * SCALE,
+                0.0,
+                coxa_world_angle.cos() * COXA_LENGTH * SCALE,
+            );
+
         let femur_servo_angle_rad = angles.femur.to_radians();
-        
-        let femur_end = coxa_end + Vec3::new(
-            coxa_world_angle.sin() * femur_servo_angle_rad.cos() * FEMUR_LENGTH * SCALE,
-            femur_servo_angle_rad.sin() * FEMUR_LENGTH * SCALE,
-            coxa_world_angle.cos() * femur_servo_angle_rad.cos() * FEMUR_LENGTH * SCALE,
-        );
-        
+
+        let femur_end = coxa_end
+            + Vec3::new(
+                coxa_world_angle.sin() * femur_servo_angle_rad.cos() * FEMUR_LENGTH * SCALE,
+                femur_servo_angle_rad.sin() * FEMUR_LENGTH * SCALE,
+                coxa_world_angle.cos() * femur_servo_angle_rad.cos() * FEMUR_LENGTH * SCALE,
+            );
+
         let tibia_servo_angle_rad = femur_servo_angle_rad - (180.0_f32 - angles.tibia).to_radians();
-        
-        let tibia_end = femur_end + Vec3::new(
-            coxa_world_angle.sin() * tibia_servo_angle_rad.cos() * TIBIA_LENGTH * SCALE,
-            tibia_servo_angle_rad.sin() * TIBIA_LENGTH * SCALE,
-            coxa_world_angle.cos() * tibia_servo_angle_rad.cos() * TIBIA_LENGTH * SCALE,
-        );
+
+        let tibia_end = femur_end
+            + Vec3::new(
+                coxa_world_angle.sin() * tibia_servo_angle_rad.cos() * TIBIA_LENGTH * SCALE,
+                tibia_servo_angle_rad.sin() * TIBIA_LENGTH * SCALE,
+                coxa_world_angle.cos() * tibia_servo_angle_rad.cos() * TIBIA_LENGTH * SCALE,
+            );
 
         // Update target indicator (foot position)
         for (mut transform, target) in target_query.iter_mut() {

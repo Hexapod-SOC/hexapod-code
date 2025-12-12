@@ -2,13 +2,13 @@ use crate::gait::{Gait, LegStances};
 use crate::gaits::GaitTemplate;
 use crate::ik::SimpleIK;
 use crate::legs::{Leg, LegAngles};
-use glam::{Vec3, Mat3, Quat};
+use glam::{Mat3, Quat, Vec3};
 
 /// Body orientation and position offset
 #[derive(Debug, Clone, Copy)]
 pub struct BodyPose {
-    pub translation: Vec3,  // X, Y, Z offset
-    pub rotation: Vec3,     // Roll, Pitch, Yaw in degrees
+    pub translation: Vec3, // X, Y, Z offset
+    pub rotation: Vec3,    // Roll, Pitch, Yaw in degrees
 }
 
 impl Default for BodyPose {
@@ -46,7 +46,7 @@ impl BodyPose {
         let roll = self.rotation.x.to_radians();
         let pitch = self.rotation.y.to_radians();
         let yaw = self.rotation.z.to_radians();
-        
+
         Mat3::from_quat(Quat::from_euler(glam::EulerRot::XYZ, roll, pitch, yaw))
     }
 
@@ -60,7 +60,7 @@ impl BodyPose {
 /// High-level controller for hexapod movement
 pub struct GaitController {
     pub gait: Gait,
-    pub ik: SimpleIK,  // Made public for hexapod.rs access
+    pub ik: SimpleIK, // Made public for hexapod.rs access
     body_pose: BodyPose,
 }
 
@@ -91,11 +91,7 @@ impl GaitController {
     /// Calculate leg angles for walking with given velocity and rotation
     /// velocity: Vec3(X=forward/back, Y=left/right, Z=up/down) - movement direction and speed
     /// rotation: body rotation speed (yaw rate, positive = counter-clockwise from above)
-    pub fn calculate_walking_angles(
-        &self,
-        velocity: Vec3,
-        rotation: f32,
-    ) -> [(Leg, LegAngles); 6] {
+    pub fn calculate_walking_angles(&self, velocity: Vec3, rotation: f32) -> [(Leg, LegAngles); 6] {
         let leg_positions = self.gait.calculate_all_leg_positions(velocity, rotation);
         self.leg_positions_to_angles(leg_positions)
     }
@@ -112,19 +108,23 @@ impl GaitController {
             right_middle: base.right_middle,
             right_back: base.right_back,
         };
-        
+
         // Apply body pose transformation to each default stance
         let legs = [
-            Leg::LeftFront, Leg::LeftMiddle, Leg::LeftBack,
-            Leg::RightFront, Leg::RightMiddle, Leg::RightBack,
+            Leg::LeftFront,
+            Leg::LeftMiddle,
+            Leg::LeftBack,
+            Leg::RightFront,
+            Leg::RightMiddle,
+            Leg::RightBack,
         ];
-        
+
         for leg in legs.iter() {
             let default_pos = positions.get(*leg);
             let transformed = self.body_pose.transform_position(default_pos);
             positions.set(*leg, transformed);
         }
-        
+
         self.leg_positions_to_angles(positions)
     }
 
@@ -135,31 +135,59 @@ impl GaitController {
         rotation: f32,
     ) -> [(Leg, LegAngles); 6] {
         let mut leg_positions = self.gait.calculate_all_leg_positions(velocity, rotation);
-        
+
         // Apply body pose transformation
         let legs = [
-            Leg::LeftFront, Leg::LeftMiddle, Leg::LeftBack,
-            Leg::RightFront, Leg::RightMiddle, Leg::RightBack,
+            Leg::LeftFront,
+            Leg::LeftMiddle,
+            Leg::LeftBack,
+            Leg::RightFront,
+            Leg::RightMiddle,
+            Leg::RightBack,
         ];
-        
+
         for leg in legs.iter() {
             let pos = leg_positions.get(*leg);
             let transformed = self.body_pose.transform_position(pos);
             leg_positions.set(*leg, transformed);
         }
-        
+
         self.leg_positions_to_angles(leg_positions)
     }
 
     /// Convert leg positions to angles using IK
     fn leg_positions_to_angles(&self, positions: LegStances) -> [(Leg, LegAngles); 6] {
         [
-            (Leg::LeftFront, self.ik.calc_pos_leg_angles(Leg::LeftFront, positions.left_front)),
-            (Leg::LeftMiddle, self.ik.calc_pos_leg_angles(Leg::LeftMiddle, positions.left_middle)),
-            (Leg::LeftBack, self.ik.calc_pos_leg_angles(Leg::LeftBack, positions.left_back)),
-            (Leg::RightFront, self.ik.calc_pos_leg_angles(Leg::RightFront, positions.right_front)),
-            (Leg::RightMiddle, self.ik.calc_pos_leg_angles(Leg::RightMiddle, positions.right_middle)),
-            (Leg::RightBack, self.ik.calc_pos_leg_angles(Leg::RightBack, positions.right_back)),
+            (
+                Leg::LeftFront,
+                self.ik
+                    .calc_pos_leg_angles(Leg::LeftFront, positions.left_front),
+            ),
+            (
+                Leg::LeftMiddle,
+                self.ik
+                    .calc_pos_leg_angles(Leg::LeftMiddle, positions.left_middle),
+            ),
+            (
+                Leg::LeftBack,
+                self.ik
+                    .calc_pos_leg_angles(Leg::LeftBack, positions.left_back),
+            ),
+            (
+                Leg::RightFront,
+                self.ik
+                    .calc_pos_leg_angles(Leg::RightFront, positions.right_front),
+            ),
+            (
+                Leg::RightMiddle,
+                self.ik
+                    .calc_pos_leg_angles(Leg::RightMiddle, positions.right_middle),
+            ),
+            (
+                Leg::RightBack,
+                self.ik
+                    .calc_pos_leg_angles(Leg::RightBack, positions.right_back),
+            ),
         ]
     }
 

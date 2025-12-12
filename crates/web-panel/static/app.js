@@ -405,10 +405,15 @@ async function updateStatus() {
             // Update status display
             document.getElementById('gait-status').textContent = status.gait_name || 'unknown';
             document.getElementById('state-status').textContent = battery.power_state || 'unknown';
-            
-            // Update battery display
-            document.getElementById('voltage-value').textContent = `${battery.voltage.toFixed(2)}V`;
-            document.getElementById('current-value').textContent = `${battery.current.toFixed(2)}A`;
+
+            // Update battery display; if backend has no data, surface it clearly
+            if (battery.has_data) {
+                document.getElementById('voltage-value').textContent = `${battery.voltage.toFixed(2)}V`;
+                document.getElementById('current-value').textContent = `${battery.current.toFixed(2)}A`;
+            } else {
+                document.getElementById('voltage-value').textContent = 'N/A';
+                document.getElementById('current-value').textContent = 'N/A';
+            }
 
             updateConnectionStatus(true);
         } else {

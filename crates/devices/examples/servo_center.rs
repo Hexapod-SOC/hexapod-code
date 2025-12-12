@@ -70,8 +70,7 @@ fn main() {
     let mut board_addr = if addr_str.is_empty() {
         0x40
     } else {
-        u8::from_str_radix(addr_str.trim_start_matches("0x"), 16)
-            .unwrap_or(0x40)
+        u8::from_str_radix(addr_str.trim_start_matches("0x"), 16).unwrap_or(0x40)
     };
 
     // Ask for pin number
@@ -85,34 +84,43 @@ fn main() {
     let mut pca = Pca9685::new(
         I2cdev::new("/dev/i2c-1").expect("Failed to open I2C device"),
         Address::from(board_addr),
-    ).expect("Failed to initialize PCA9685");
+    )
+    .expect("Failed to initialize PCA9685");
     pca.set_prescale(100).expect("Failed to set prescale");
     pca.enable().expect("Failed to enable PCA9685");
 
     // Start at center position (PWM value, not angle)
     let mut current_pwm: u16 = 369; // Center position (~90°)
     let channel = pin_to_channel(pin);
-    pca.set_channel_on(channel, 0).expect("Failed to set channel on");
-    pca.set_channel_off(channel, current_pwm).expect("Failed to set channel off");
+    pca.set_channel_on(channel, 0)
+        .expect("Failed to set channel on");
+    pca.set_channel_off(channel, current_pwm)
+        .expect("Failed to set channel off");
 
-    println!("\nInitialized PCA9685 at address 0x{:02X}, pin {}", board_addr, pin);
+    println!(
+        "\nInitialized PCA9685 at address 0x{:02X}, pin {}",
+        board_addr, pin
+    );
     println!("Starting at PWM 369 (center position, ~90°)");
     print_help();
 
     loop {
         // Calculate approximate angle for display only
-        let approx_angle = ((current_pwm - SERVO_MIN) as f32 / (SERVO_MAX - SERVO_MIN) as f32) * 180.0;
-        
+        let approx_angle =
+            ((current_pwm - SERVO_MIN) as f32 / (SERVO_MAX - SERVO_MIN) as f32) * 180.0;
+
         // Check if in extended range
         let range_indicator = if current_pwm < SERVO_MIN || current_pwm > SERVO_MAX {
             "⚠️ EXTENDED"
         } else {
             "✓"
         };
-        
+
         println!("\n📍 Current Position:");
-        println!("   Board: 0x{:02X} | Pin: {} | PWM: {} | ~{:.1}° [{}]", 
-                 board_addr, pin, current_pwm, approx_angle, range_indicator);
+        println!(
+            "   Board: 0x{:02X} | Pin: {} | PWM: {} | ~{:.1}° [{}]",
+            board_addr, pin, current_pwm, approx_angle, range_indicator
+        );
         print!("\nCommand: ");
         io::stdout().flush().unwrap();
 
@@ -135,7 +143,8 @@ fn main() {
                 continue;
             }
             "q" => {
-                let final_angle = ((current_pwm - SERVO_MIN) as f32 / (SERVO_MAX - SERVO_MIN) as f32) * 180.0;
+                let final_angle =
+                    ((current_pwm - SERVO_MIN) as f32 / (SERVO_MAX - SERVO_MIN) as f32) * 180.0;
                 println!("\n📋 Final Position Summary:");
                 println!("   Board: 0x{:02X}", board_addr);
                 println!("   Pin: {}", pin);
@@ -150,12 +159,17 @@ fn main() {
                 match pwm_str.parse::<u16>() {
                     Ok(pwm) if pwm >= SERVO_EXTENDED_MIN && pwm <= SERVO_EXTENDED_MAX => {
                         if pwm < SERVO_MIN || pwm > SERVO_MAX {
-                            println!("⚠️  WARNING: Setting to extended range! Watch for mechanical limits!");
+                            println!(
+                                "⚠️  WARNING: Setting to extended range! Watch for mechanical limits!"
+                            );
                         }
                         current_pwm = pwm;
                     }
                     _ => {
-                        println!("❌ Invalid PWM. Use: s [{}-{}]", SERVO_EXTENDED_MIN, SERVO_EXTENDED_MAX);
+                        println!(
+                            "❌ Invalid PWM. Use: s [{}-{}]",
+                            SERVO_EXTENDED_MIN, SERVO_EXTENDED_MAX
+                        );
                         println!("   Standard range: {}-{}", SERVO_MIN, SERVO_MAX);
                         continue;
                     }
@@ -184,7 +198,8 @@ fn main() {
                         pca = Pca9685::new(
                             I2cdev::new("/dev/i2c-1").expect("Failed to open I2C device"),
                             Address::from(board_addr),
-                        ).expect("Failed to initialize PCA9685");
+                        )
+                        .expect("Failed to initialize PCA9685");
                         pca.set_prescale(100).expect("Failed to set prescale");
                         pca.enable().expect("Failed to enable PCA9685");
                         println!("✓ Switched to board 0x{:02X}", board_addr);
@@ -207,15 +222,18 @@ fn main() {
         current_pwm = current_pwm.clamp(SERVO_EXTENDED_MIN, SERVO_EXTENDED_MAX);
 
         // Warn if entering extended range
-        if (old_pwm >= SERVO_MIN && old_pwm <= SERVO_MAX) && 
-           (current_pwm < SERVO_MIN || current_pwm > SERVO_MAX) {
+        if (old_pwm >= SERVO_MIN && old_pwm <= SERVO_MAX)
+            && (current_pwm < SERVO_MIN || current_pwm > SERVO_MAX)
+        {
             println!("⚠️  WARNING: Entering extended range! Monitor servo for mechanical limits!");
         }
 
         // Update servo position
         let channel = pin_to_channel(pin);
-        pca.set_channel_on(channel, 0).expect("Failed to set channel on");
-        pca.set_channel_off(channel, current_pwm).expect("Failed to set channel off");
+        pca.set_channel_on(channel, 0)
+            .expect("Failed to set channel on");
+        pca.set_channel_off(channel, current_pwm)
+            .expect("Failed to set channel off");
 
         // Show movement
         let diff = current_pwm as i32 - old_pwm as i32;

@@ -1,7 +1,7 @@
 use axum::{
-    Router,
-    response::{Html, IntoResponse, Response},
     http::header,
+    response::{Html, IntoResponse, Response},
+    Router,
 };
 use std::net::SocketAddr;
 use tower_http::cors::CorsLayer;
@@ -17,24 +17,15 @@ async fn serve_index() -> Html<&'static str> {
 }
 
 async fn serve_js() -> Response {
-    (
-        [(header::CONTENT_TYPE, "application/javascript")],
-        APP_JS,
-    ).into_response()
+    ([(header::CONTENT_TYPE, "application/javascript")], APP_JS).into_response()
 }
 
 async fn serve_css() -> Response {
-    (
-        [(header::CONTENT_TYPE, "text/css")],
-        STYLE_CSS,
-    ).into_response()
+    ([(header::CONTENT_TYPE, "text/css")], STYLE_CSS).into_response()
 }
 
 async fn serve_favicon() -> Response {
-    (
-        [(header::CONTENT_TYPE, "image/svg+xml")],
-        FAVICON_SVG,
-    ).into_response()
+    ([(header::CONTENT_TYPE, "image/svg+xml")], FAVICON_SVG).into_response()
 }
 
 pub async fn run_panel(port: u16) -> Result<(), Box<dyn std::error::Error>> {

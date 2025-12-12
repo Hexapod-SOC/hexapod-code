@@ -77,7 +77,10 @@ impl GpsController {
                 (Some(r), false)
             }
             Err(e) => {
-                eprintln!("Warning: Failed to open GPS serial port {}: {}", port_path, e);
+                eprintln!(
+                    "Warning: Failed to open GPS serial port {}: {}",
+                    port_path, e
+                );
                 eprintln!("Continuing without GPS (location data unavailable)");
                 (None, true)
             }
@@ -105,7 +108,7 @@ impl GpsController {
         // Configure serial port using termios
         unsafe {
             let mut termios: libc::termios = std::mem::zeroed();
-            
+
             if libc::tcgetattr(fd, &mut termios) != 0 {
                 return Err(std::io::Error::last_os_error());
             }
@@ -181,7 +184,7 @@ impl GpsController {
     /// Parse an NMEA sentence manually
     fn parse_nmea(&mut self, sentence: &str) {
         let sentence = sentence.trim();
-        
+
         // Verify checksum
         if !Self::verify_checksum(sentence) {
             return;
@@ -256,7 +259,7 @@ impl GpsController {
         // 10: M (altitude unit)
         // 11: Geoid separation
         // 12: M (geoid unit)
-        
+
         if parts.len() < 10 {
             return;
         }
@@ -302,7 +305,7 @@ impl GpsController {
         // 7: Speed over ground (knots)
         // 8: Track angle (degrees)
         // 9: Date
-        
+
         if parts.len() < 9 {
             return;
         }
@@ -350,7 +353,7 @@ impl GpsController {
         // 7: Speed (km/h)
         // 8: K
         // 9: Mode
-        
+
         if parts.len() < 9 {
             return;
         }
@@ -371,10 +374,10 @@ impl GpsController {
 
         // Find decimal point
         let dot_pos = coord_str.find('.').ok_or("No decimal point")?;
-        
+
         // Degrees are before the last 2 digits before decimal
         let degrees_end = if dot_pos >= 2 { dot_pos - 2 } else { 0 };
-        
+
         let degrees_str = &coord_str[..degrees_end];
         let minutes_str = &coord_str[degrees_end..];
 
@@ -400,8 +403,7 @@ impl GpsController {
 
     /// Check if GPS has a valid fix
     pub fn has_fix(&self) -> bool {
-        self.position.fix_quality != FixQuality::NoFix
-            && self.position.satellites > 0
+        self.position.fix_quality != FixQuality::NoFix && self.position.satellites > 0
     }
 
     /// Check if UART connection is available

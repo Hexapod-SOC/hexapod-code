@@ -22,8 +22,7 @@ impl SerialInterface {
     pub fn new(port_name: &str) -> Result<Self> {
         use std::ffi::CString;
 
-        let path = CString::new(port_name)
-            .context("Invalid port name")?;
+        let path = CString::new(port_name).context("Invalid port name")?;
 
         // Open the serial port
         let fd = unsafe {
@@ -40,7 +39,7 @@ impl SerialInterface {
         // Configure the serial port
         unsafe {
             let mut options: libc::termios = std::mem::zeroed();
-            
+
             // Get current options
             if libc::tcgetattr(fd, &mut options) != 0 {
                 libc::close(fd);
@@ -54,11 +53,12 @@ impl SerialInterface {
             // 8N1 mode, no flow control
             options.c_cflag |= libc::CLOCAL | libc::CREAD | libc::CS8;
             options.c_cflag &= !(libc::CSTOPB | libc::PARENB);
-            
+
             // Raw input
             options.c_lflag &= !(libc::ICANON | libc::ECHO | libc::ECHOE | libc::ISIG);
             options.c_oflag &= !libc::OPOST;
-            options.c_iflag &= !(libc::IXON | libc::IXOFF | libc::INLCR | libc::IGNCR | libc::ICRNL);
+            options.c_iflag &=
+                !(libc::IXON | libc::IXOFF | libc::INLCR | libc::IGNCR | libc::ICRNL);
 
             // Timeout settings
             options.c_cc[libc::VMIN] = 0;
@@ -104,7 +104,10 @@ impl SerialInterface {
                 // No data available right now, not an error
                 Ok(0)
             } else {
-                Err(anyhow::anyhow!("Failed to read from serial port: errno {}", errno))
+                Err(anyhow::anyhow!(
+                    "Failed to read from serial port: errno {}",
+                    errno
+                ))
             }
         } else {
             Ok(n as usize)
@@ -122,13 +125,7 @@ impl SerialInterface {
     /// Write data to the serial port (for commands)
     #[cfg(feature = "real")]
     pub fn write(&mut self, data: &[u8]) -> Result<usize> {
-        let n = unsafe {
-            libc::write(
-                self.fd,
-                data.as_ptr() as *const libc::c_void,
-                data.len(),
-            )
-        };
+        let n = unsafe { libc::write(self.fd, data.as_ptr() as *const libc::c_void, data.len()) };
 
         if n < 0 {
             Err(anyhow::anyhow!("Failed to write to serial port"))

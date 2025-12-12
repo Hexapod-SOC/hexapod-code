@@ -17,21 +17,21 @@
 //!
 //! Then open in browser: http://localhost:3002
 
-use devices::lidar::LidarDriver;
-use lidar_slam::{SlamBuilder, SlamProcessor, Scan2D, Point2D};
-use std::sync::Arc;
-use std::thread;
-use std::time::{Duration, Instant};
-use tokio::sync::{broadcast, Mutex};
 use axum::{
+    Router,
     extract::{
-        ws::{Message, WebSocket, WebSocketUpgrade},
         State,
+        ws::{Message, WebSocket, WebSocketUpgrade},
     },
     response::{Html, IntoResponse},
     routing::get,
-    Router,
 };
+use devices::lidar::LidarDriver;
+use lidar_slam::{Point2D, Scan2D, SlamBuilder, SlamProcessor};
+use std::sync::Arc;
+use std::thread;
+use std::time::{Duration, Instant};
+use tokio::sync::{Mutex, broadcast};
 use tower_http::cors::{Any, CorsLayer};
 
 type SharedSlam = Arc<Mutex<SlamProcessor>>;
@@ -45,7 +45,7 @@ async fn main() -> anyhow::Result<()> {
     println!();
 
     let port = "/dev/ttyUSB0";
-    
+
     println!("🔌 Connecting to LiDAR on port: {}", port);
     let driver = match LidarDriver::new(port) {
         Ok(mut d) => {
@@ -64,13 +64,13 @@ async fn main() -> anyhow::Result<()> {
     // Create SLAM processor
     println!("📊 Initializing SLAM processor...");
     let slam = SlamBuilder::new()
-        .with_grid_resolution(50.0)        // 5cm cells
-        .with_grid_size(400, 400)          // 20m x 20m map
-        .with_max_range(8000.0)            // 8m max range
-        .with_gyro(false)                  // Gyro disconnected
-        .with_lidar_height(100.0)          // 10cm from ground
+        .with_grid_resolution(50.0) // 5cm cells
+        .with_grid_size(400, 400) // 20m x 20m map
+        .with_max_range(8000.0) // 8m max range
+        .with_gyro(false) // Gyro disconnected
+        .with_lidar_height(100.0) // 10cm from ground
         .build();
-    
+
     let slam = Arc::new(Mutex::new(slam));
     let current_scan: SharedScan = Arc::new(Mutex::new(None));
     println!("✓ SLAM initialized");
@@ -83,7 +83,7 @@ async fn main() -> anyhow::Result<()> {
     let driver_clone = Arc::clone(&driver);
     let tx_clone = tx.clone();
     let scan_clone = Arc::clone(&current_scan);
-    
+
     thread::spawn(move || {
         slam_processing_loop(driver_clone, slam_clone, tx_clone, scan_clone);
     });
@@ -101,7 +101,7 @@ async fn main() -> anyhow::Result<()> {
         .with_state((slam, tx, current_scan));
 
     let addr = "0.0.0.0:3002";
-    
+
     println!();
     println!("🌐 Web server starting on {}", addr);
     println!("📱 Open in browser: http://localhost:3002");
@@ -132,27 +132,30 @@ fn slam_processing_loop(
     let mut last_map_time = Instant::now();
     let mut scan_count = 0u64;
     let mut no_data_count = 0u64;
-    
+
     println!("🔄 SLAM processing loop started");
-    
+
     loop {
         // Check if frame is ready
         let frame_ready = {
             let driver = driver.lock().unwrap();
             driver.is_frame_ready()
         };
-        
+
         if !frame_ready {
             no_data_count += 1;
             if no_data_count % 500 == 0 {
                 let driver = driver.lock().unwrap();
-                println!("⏳ Waiting for LiDAR data... (speed: {:.1} Hz, errors: {})", 
-                    driver.get_speed(), driver.get_error_count());
+                println!(
+                    "⏳ Waiting for LiDAR data... (speed: {:.1} Hz, errors: {})",
+                    driver.get_speed(),
+                    driver.get_error_count()
+                );
             }
             thread::sleep(Duration::from_millis(2));
             continue;
         }
-        
+
         // Get point cloud from LiDAR
         let cloud = {
             let driver = driver.lock().unwrap();
@@ -162,23 +165,26 @@ fn slam_processing_loop(
         if let Some(cloud) = cloud {
             no_data_count = 0;
             let point_count = cloud.valid_count();
-            
+
             if point_count < 10 {
                 // Not enough points, skip
                 continue;
             }
-            
+
             // Convert to SLAM scan
             let scan = Scan2D::from_point_cloud(&cloud);
-            
+
             // Process with SLAM
             let world_points = rt.block_on(async {
                 let mut slam = slam.lock().await;
                 slam.process_scan_2d(&scan);
-                
+
                 // Get world-transformed scan points for visualization
                 let pose = slam.current_pose();
-                scan.points.iter().map(|p| pose.transform_point(p)).collect::<Vec<_>>()
+                scan.points
+                    .iter()
+                    .map(|p| pose.transform_point(p))
+                    .collect::<Vec<_>>()
             });
 
             // Store current scan for WebSocket
@@ -188,21 +194,21 @@ fn slam_processing_loop(
             });
 
             scan_count += 1;
-            
+
             // Send updates every 100ms for pose/scan
             if last_frame_time.elapsed() >= Duration::from_millis(100) {
                 last_frame_time = Instant::now();
-                
+
                 // Check if we should include map (every 2 seconds)
                 let include_map = last_map_time.elapsed() >= Duration::from_secs(2);
                 if include_map {
                     last_map_time = Instant::now();
                 }
-                
+
                 // Build update JSON
                 let update = rt.block_on(async {
                     let slam = slam.lock().await;
-                    
+
                     let mut json_obj = serde_json::json!({
                         "pose": {
                             "x": slam.current_pose().x,
@@ -222,7 +228,7 @@ fn slam_processing_loop(
                             "point_count": point_count,
                         }
                     });
-                    
+
                     // Only include map periodically to reduce bandwidth
                     if include_map {
                         let map = slam.get_map();
@@ -236,7 +242,7 @@ fn slam_processing_loop(
                             "cells": map_data,
                         });
                     }
-                    
+
                     json_obj
                 });
 
@@ -250,7 +256,7 @@ fn slam_processing_loop(
                 let elapsed = last_scan_time.elapsed();
                 let fps = 50.0 / elapsed.as_secs_f32();
                 last_scan_time = Instant::now();
-                
+
                 rt.block_on(async {
                     let slam = slam.lock().await;
                     let pose = slam.current_pose();
@@ -275,7 +281,7 @@ fn slam_processing_loop(
                 });
             }
         }
-        
+
         // Small sleep to prevent busy loop
         thread::sleep(Duration::from_millis(1));
     }
@@ -294,13 +300,9 @@ async fn websocket_handler(
     ws.on_upgrade(move |socket| handle_websocket(socket, slam, tx))
 }
 
-async fn handle_websocket(
-    mut socket: WebSocket,
-    slam: SharedSlam,
-    tx: broadcast::Sender<String>,
-) {
+async fn handle_websocket(mut socket: WebSocket, slam: SharedSlam, tx: broadcast::Sender<String>) {
     let mut rx = tx.subscribe();
-    
+
     println!("🌐 WebSocket client connected");
 
     // Send initial state
@@ -359,7 +361,7 @@ async fn handle_websocket(
             }
         }
     }
-    
+
     println!("🌐 WebSocket client disconnected");
 }
 
@@ -1101,4 +1103,3 @@ document.getElementById('zoom-level').textContent = Math.round(viewScale * 1000)
 </body>
 </html>
 "##;
-

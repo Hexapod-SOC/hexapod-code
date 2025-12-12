@@ -1,6 +1,6 @@
-use std::process::{Command, Stdio};
-use std::path::Path;
 use std::io::{self, Write};
+use std::path::Path;
+use std::process::{Command, Stdio};
 use std::thread;
 
 /// Plays a WAV file using `aplay`.
@@ -12,10 +12,7 @@ pub fn play_wav(file_path: &str) -> io::Result<()> {
     }
 
     println!("Executing command: sudo aplay {}", file_path);
-    let status = Command::new("sudo")
-        .arg("aplay")
-        .arg(file_path)
-        .status()?;
+    let status = Command::new("sudo").arg("aplay").arg(file_path).status()?;
 
     if status.success() {
         println!("WAV playback finished successfully.");

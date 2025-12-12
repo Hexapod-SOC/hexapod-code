@@ -26,8 +26,8 @@ impl Default for IcpConfig {
     fn default() -> Self {
         Self {
             max_iterations: 50,
-            translation_threshold: 1.0,    // 1mm
-            rotation_threshold: 0.001,     // ~0.06 degrees
+            translation_threshold: 1.0,     // 1mm
+            rotation_threshold: 0.001,      // ~0.06 degrees
             max_correspondence_dist: 500.0, // 500mm
             min_correspondences: 10,
         }
@@ -308,36 +308,48 @@ impl PointToLineIcp {
     /// Compute local surface normal at a point using neighbors
     pub fn compute_normals(points: &[Point2D], k: usize) -> Vec<Vector2<f32>> {
         let _grid = PointGrid::from_points(points, 100.0);
-        
-        points.iter().map(|p| {
-            // Find k nearest neighbors (simplified: just use nearby points)
-            let mut neighbors: Vec<(f32, Point2D)> = points
-                .iter()
-                .filter(|q| *q != p)
-                .map(|q| (p.distance_squared_to(q), *q))
-                .collect();
-            neighbors.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
-            let neighbors: Vec<Point2D> = neighbors.into_iter().take(k).map(|(_, q)| q).collect();
-            
-            if neighbors.len() < 2 {
-                return Vector2::new(1.0, 0.0);
-            }
-            
-            // Compute PCA to find normal direction
-            let centroid = neighbors.iter().fold(Point2D::zero(), |acc, q| acc + *q)
-                * (1.0 / neighbors.len() as f32);
-            
-            let mut cov = Matrix2::<f32>::zeros();
-            for q in &neighbors {
-                let d = Vector2::new(q.x - centroid.x, q.y - centroid.y);
-                cov += d * d.transpose();
-            }
-            
-            // Normal is eigenvector with smallest eigenvalue
-            let eigendecomp = cov.symmetric_eigen();
-            let min_idx = if eigendecomp.eigenvalues[0] < eigendecomp.eigenvalues[1] { 0 } else { 1 };
-            eigendecomp.eigenvectors.column(min_idx).normalize().into_owned()
-        }).collect()
+
+        points
+            .iter()
+            .map(|p| {
+                // Find k nearest neighbors (simplified: just use nearby points)
+                let mut neighbors: Vec<(f32, Point2D)> = points
+                    .iter()
+                    .filter(|q| *q != p)
+                    .map(|q| (p.distance_squared_to(q), *q))
+                    .collect();
+                neighbors.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+                let neighbors: Vec<Point2D> =
+                    neighbors.into_iter().take(k).map(|(_, q)| q).collect();
+
+                if neighbors.len() < 2 {
+                    return Vector2::new(1.0, 0.0);
+                }
+
+                // Compute PCA to find normal direction
+                let centroid = neighbors.iter().fold(Point2D::zero(), |acc, q| acc + *q)
+                    * (1.0 / neighbors.len() as f32);
+
+                let mut cov = Matrix2::<f32>::zeros();
+                for q in &neighbors {
+                    let d = Vector2::new(q.x - centroid.x, q.y - centroid.y);
+                    cov += d * d.transpose();
+                }
+
+                // Normal is eigenvector with smallest eigenvalue
+                let eigendecomp = cov.symmetric_eigen();
+                let min_idx = if eigendecomp.eigenvalues[0] < eigendecomp.eigenvalues[1] {
+                    0
+                } else {
+                    1
+                };
+                eigendecomp
+                    .eigenvectors
+                    .column(min_idx)
+                    .normalize()
+                    .into_owned()
+            })
+            .collect()
     }
 }
 
@@ -349,22 +361,22 @@ mod tests {
     // Create a more realistic test scene with walls
     fn create_test_points() -> Vec<Point2D> {
         let mut points = Vec::new();
-        
+
         // Front wall
         for i in 0..20 {
             points.push(Point2D::new(1000.0, -500.0 + (i as f32) * 50.0));
         }
-        
+
         // Right wall
         for i in 0..20 {
             points.push(Point2D::new(500.0 + (i as f32) * 25.0, -500.0));
         }
-        
+
         // Left wall
         for i in 0..20 {
             points.push(Point2D::new(500.0 + (i as f32) * 25.0, 500.0));
         }
-        
+
         points
     }
 
@@ -396,7 +408,10 @@ mod tests {
         let result = matcher.match_scans(&source, &target, None);
 
         // ICP should at least find some transformation
-        assert!(result.num_correspondences > 5, "Should find correspondences");
+        assert!(
+            result.num_correspondences > 5,
+            "Should find correspondences"
+        );
         let pose = result.transform.to_pose();
         // With sparse wall data, translation may not be exact but should be in right direction
         assert!(pose.x > 0.0, "X translation should be positive: {}", pose.x);
@@ -420,7 +435,11 @@ mod tests {
 
         assert!(result.converged, "ICP should converge for small rotation");
         let pose = result.transform.to_pose();
-        assert!((pose.theta - rotation_angle).abs() < 0.1, "Rotation error too large: {} vs {}", pose.theta, rotation_angle);
+        assert!(
+            (pose.theta - rotation_angle).abs() < 0.1,
+            "Rotation error too large: {} vs {}",
+            pose.theta,
+            rotation_angle
+        );
     }
 }
-

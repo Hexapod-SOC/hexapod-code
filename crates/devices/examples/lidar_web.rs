@@ -18,13 +18,13 @@
 //! ```
 //! Then open: http://localhost:3001
 
-use devices::lidar::LidarDriver;
 use axum::{
+    Router,
     extract::ws::{Message, WebSocket, WebSocketUpgrade},
     response::{Html, IntoResponse},
     routing::get,
-    Router,
 };
+use devices::lidar::LidarDriver;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
@@ -40,7 +40,7 @@ async fn main() -> anyhow::Result<()> {
     println!();
 
     let port = "/dev/ttyUSB0";
-    
+
     println!("🔌 Connecting to LiDAR on port: {}", port);
     let driver = match LidarDriver::new(port) {
         Ok(mut d) => {
@@ -58,7 +58,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Create broadcast channel for WebSocket updates
     let (tx, _rx) = broadcast::channel::<String>(100);
-    
+
     // Spawn thread to read LiDAR and broadcast updates
     let driver_clone = Arc::clone(&driver);
     let tx_clone = tx.clone();
@@ -101,7 +101,7 @@ fn lidar_broadcast_loop(driver: SharedDriver, tx: broadcast::Sender<String>) {
 
             if let Some(cloud) = cloud {
                 frame_count += 1;
-                
+
                 // Convert to JSON
                 let mut points_json = String::from("[");
                 for (i, point) in cloud.valid_points().enumerate() {
@@ -117,7 +117,10 @@ fn lidar_broadcast_loop(driver: SharedDriver, tx: broadcast::Sender<String>) {
 
                 let data = format!(
                     "{{\"frame\":{},\"speed\":{:.2},\"timestamp\":{},\"points\":{}}}",
-                    frame_count, cloud.frequency(), cloud.timestamp, points_json
+                    frame_count,
+                    cloud.frequency(),
+                    cloud.timestamp,
+                    points_json
                 );
 
                 let _ = tx.send(data);

@@ -1,12 +1,12 @@
-use std::sync::Arc;
-use tokio::sync::Mutex;
-use devices::picoubec::PicoUbecController;
-use movement::controller::GaitController;
 use crate::hexapod::HexapodControl;
 use crate::hexapod::ServoAngleTweaks;
+use devices::picoubec::PicoUbecController;
+use movement::controller::GaitController;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 /// Shared application state for the API
-/// 
+///
 /// This only contains references to the control state and read-only controllers.
 /// All movement calculations happen in hexapod.update(), not in the API handlers.
 pub struct AppState {

@@ -5,17 +5,17 @@
 
 use crate::slam::SlamProcessor;
 use axum::{
+    Router,
     extract::{
-        ws::{Message, WebSocket, WebSocketUpgrade},
         State,
+        ws::{Message, WebSocket, WebSocketUpgrade},
     },
     response::{Html, IntoResponse},
     routing::get,
-    Router,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tokio::sync::{broadcast, Mutex};
+use tokio::sync::{Mutex, broadcast};
 use tower_http::cors::{Any, CorsLayer};
 
 /// Shared SLAM state for web server
@@ -105,7 +105,7 @@ impl SlamWebServer {
     /// Broadcast an update to all connected clients
     pub async fn broadcast_update(&self, scan_points: &[crate::types::Point2D]) {
         let slam = self.slam.lock().await;
-        
+
         let update = SlamUpdate {
             pose: PoseData {
                 x: slam.current_pose().x,
@@ -160,11 +160,7 @@ async fn websocket_handler(
     ws.on_upgrade(move |socket| handle_websocket(socket, slam, tx))
 }
 
-async fn handle_websocket(
-    mut socket: WebSocket,
-    slam: SharedSlam,
-    tx: broadcast::Sender<String>,
-) {
+async fn handle_websocket(mut socket: WebSocket, slam: SharedSlam, tx: broadcast::Sender<String>) {
     let mut rx = tx.subscribe();
 
     // Send initial state

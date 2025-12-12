@@ -89,7 +89,7 @@ impl OccupancyGrid {
     /// Create a new occupancy grid centered at the origin
     pub fn new(config: OccupancyGridConfig) -> Self {
         let cells = vec![0.0; config.width * config.height];
-        
+
         // Center the grid at world origin
         let origin = Point2D::new(
             -(config.width as f32 * config.resolution) / 2.0,
@@ -135,11 +135,7 @@ impl OccupancyGrid {
         let gx = ((point.x - self.origin.x) / self.config.resolution).floor() as i32;
         let gy = ((point.y - self.origin.y) / self.config.resolution).floor() as i32;
 
-        if gx >= 0
-            && gx < self.config.width as i32
-            && gy >= 0
-            && gy < self.config.height as i32
-        {
+        if gx >= 0 && gx < self.config.width as i32 && gy >= 0 && gy < self.config.height as i32 {
             Some((gx as usize, gy as usize))
         } else {
             None
@@ -209,11 +205,11 @@ impl OccupancyGrid {
         for point in points {
             // Transform point to world coordinates
             let world_point = pose.transform_point(point);
-            
+
             if let Some((end_x, end_y)) = self.world_to_grid(&world_point) {
                 // Trace ray from robot to endpoint using Bresenham's line algorithm
                 self.trace_ray(robot_grid.0, robot_grid.1, end_x, end_y);
-                
+
                 // Mark endpoint as occupied
                 self.update_cell(end_x, end_y, self.config.log_odds_occupied);
             }
@@ -241,11 +237,7 @@ impl OccupancyGrid {
                 break;
             }
 
-            if x >= 0
-                && x < self.config.width as i32
-                && y >= 0
-                && y < self.config.height as i32
-            {
+            if x >= 0 && x < self.config.width as i32 && y >= 0 && y < self.config.height as i32 {
                 self.update_cell(x as usize, y as usize, self.config.log_odds_free);
             }
 
@@ -399,18 +391,18 @@ mod tests {
     #[test]
     fn test_ray_tracing() {
         let config = OccupancyGridConfig {
-            resolution: 50.0,  // Smaller cells for more precise ray tracing
+            resolution: 50.0, // Smaller cells for more precise ray tracing
             width: 200,
             height: 200,
-            log_odds_free: -1.0,  // Stronger signal
+            log_odds_free: -1.0, // Stronger signal
             log_odds_occupied: 2.0,
             ..Default::default()
         };
         let mut grid = OccupancyGrid::new(config);
 
         let pose = Pose2D::origin();
-        let point = Point2D::new(1000.0, 0.0);  // 1m away
-        
+        let point = Point2D::new(1000.0, 0.0); // 1m away
+
         // Multiple scans to strengthen the signal
         for _ in 0..5 {
             grid.update_from_scan(&pose, &[point]);
@@ -418,6 +410,10 @@ mod tests {
 
         // Endpoint should be occupied
         let endpoint_cell = grid.get_cell_at(&point);
-        assert_eq!(endpoint_cell, CellState::Occupied, "Endpoint should be occupied");
+        assert_eq!(
+            endpoint_cell,
+            CellState::Occupied,
+            "Endpoint should be occupied"
+        );
     }
 }

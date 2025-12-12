@@ -1,5 +1,5 @@
 //FIXME eventually convert to config files not hardcoded constants
-use devices::servo::{ServoPins, ServoOffsets};
+use devices::servo::{ServoOffsets, ServoPins};
 use movement::ik;
 
 pub const WEB_API_ENABLE: bool = true;
@@ -11,6 +11,10 @@ pub const TMP_DIR: &str = "/tmp/hexapod/";
 pub const TTS_URL: &str = "http://127.0.0.1:5000";
 //pub const VOICE_ID: &str = "en_us_001";
 
+/// Default serial port for the UBEC/battery monitor.
+/// You can override at runtime with the UBEC_PORT env var.
+pub const UBEC_PORT: &str = "/dev/serial0";
+
 pub const SERVO_PINS: ServoPins = ServoPins {
     left_front: (12, 13, 14),
     left_middle: (4, 5, 6),
@@ -21,11 +25,11 @@ pub const SERVO_PINS: ServoPins = ServoPins {
 };
 
 pub const CONSTRAINTS: ik::Constraints = ik::Constraints {
-    coxa_length:  43.0,  // Length of the coxa segment in mm
+    coxa_length: 43.0,   // Length of the coxa segment in mm
     femur_length: 60.0,  // Length of the femur segment in mm
     tibia_length: 104.0, // Length of the tibia segment in mm
 
-    coxa_soffset:  90.0, // Offset to align coxa angle to 0 degrees forward
+    coxa_soffset: 90.0,  // Offset to align coxa angle to 0 degrees forward
     femur_soffset: 83.0, // Offset to align femur angle to horizontal
     tibia_soffset: 35.0, // Offset to align tibia angle to straight down
 };
@@ -37,7 +41,7 @@ pub const SERVO_OFFSETS: ServoOffsets = ServoOffsets {
     left_back: (7.5, -10.0, -6.0),
     right_front: (2.5, 5.0, -3.0),
     right_middle: (2.5, -4.0, -5.0),
-    right_back: (5.0, -1.5, -2.5),  // Fixed: was 5.0, should be -2.5 based on B1 data
+    right_back: (5.0, -1.5, -2.5), // Fixed: was 5.0, should be -2.5 based on B1 data
 };
 
 // Persistent calibration storage (JSON). Relative to the working directory.

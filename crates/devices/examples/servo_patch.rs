@@ -43,8 +43,10 @@ fn pin_to_channel(pin: u8) -> Channel {
 fn set_all_channels(pca: &mut Pca9685<I2cdev>, pwm_value: u16) {
     for pin in 0..16 {
         let channel = pin_to_channel(pin);
-        pca.set_channel_on(channel, 0).expect("Failed to set channel on");
-        pca.set_channel_off(channel, pwm_value).expect("Failed to set channel off");
+        pca.set_channel_on(channel, 0)
+            .expect("Failed to set channel on");
+        pca.set_channel_off(channel, pwm_value)
+            .expect("Failed to set channel off");
     }
 }
 
@@ -91,35 +93,44 @@ fn main() {
 
     // Display configuration
     println!("Configuration:");
-    println!("  PWM Value: {} (~{:.1}°)", default_pwm, 
-             ((default_pwm - SERVO_MIN) as f32 / (SERVO_MAX - SERVO_MIN) as f32) * 180.0);
-    println!("  Left Board: 0x{:02X} ({})", left_board_addr, if enable_left { "enabled" } else { "disabled" });
-    println!("  Right Board: 0x{:02X} ({})", right_board_addr, if enable_right { "enabled" } else { "disabled" });
+    println!(
+        "  PWM Value: {} (~{:.1}°)",
+        default_pwm,
+        ((default_pwm - SERVO_MIN) as f32 / (SERVO_MAX - SERVO_MIN) as f32) * 180.0
+    );
+    println!(
+        "  Left Board: 0x{:02X} ({})",
+        left_board_addr,
+        if enable_left { "enabled" } else { "disabled" }
+    );
+    println!(
+        "  Right Board: 0x{:02X} ({})",
+        right_board_addr,
+        if enable_right { "enabled" } else { "disabled" }
+    );
     println!("  Delay: {}ms between boards", delay_ms);
     println!();
 
     // Initialize and set left board
     if enable_left {
         match I2cdev::new("/dev/i2c-1") {
-            Ok(i2c) => {
-                match Pca9685::new(i2c, Address::from(left_board_addr)) {
-                    Ok(mut pca_left) => {
-                        println!("✓ Initializing left board (0x{:02X})...", left_board_addr);
-                        pca_left.set_prescale(100).expect("Failed to set prescale");
-                        pca_left.enable().expect("Failed to enable PCA9685");
-                        
-                        set_all_channels(&mut pca_left, default_pwm);
-                        println!("✓ Set all channels on left board to PWM {}", default_pwm);
-                        
-                        if delay_ms > 0 {
-                            thread::sleep(Duration::from_millis(delay_ms));
-                        }
-                    }
-                    Err(e) => {
-                        eprintln!("✗ Failed to initialize left board: {:?}", e);
+            Ok(i2c) => match Pca9685::new(i2c, Address::from(left_board_addr)) {
+                Ok(mut pca_left) => {
+                    println!("✓ Initializing left board (0x{:02X})...", left_board_addr);
+                    pca_left.set_prescale(100).expect("Failed to set prescale");
+                    pca_left.enable().expect("Failed to enable PCA9685");
+
+                    set_all_channels(&mut pca_left, default_pwm);
+                    println!("✓ Set all channels on left board to PWM {}", default_pwm);
+
+                    if delay_ms > 0 {
+                        thread::sleep(Duration::from_millis(delay_ms));
                     }
                 }
-            }
+                Err(e) => {
+                    eprintln!("✗ Failed to initialize left board: {:?}", e);
+                }
+            },
             Err(e) => {
                 eprintln!("✗ Failed to open I2C device for left board: {:?}", e);
             }
@@ -131,21 +142,19 @@ fn main() {
     // Initialize and set right board
     if enable_right {
         match I2cdev::new("/dev/i2c-1") {
-            Ok(i2c) => {
-                match Pca9685::new(i2c, Address::from(right_board_addr)) {
-                    Ok(mut pca_right) => {
-                        println!("✓ Initializing right board (0x{:02X})...", right_board_addr);
-                        pca_right.set_prescale(100).expect("Failed to set prescale");
-                        pca_right.enable().expect("Failed to enable PCA9685");
-                        
-                        set_all_channels(&mut pca_right, default_pwm);
-                        println!("✓ Set all channels on right board to PWM {}", default_pwm);
-                    }
-                    Err(e) => {
-                        eprintln!("✗ Failed to initialize right board: {:?}", e);
-                    }
+            Ok(i2c) => match Pca9685::new(i2c, Address::from(right_board_addr)) {
+                Ok(mut pca_right) => {
+                    println!("✓ Initializing right board (0x{:02X})...", right_board_addr);
+                    pca_right.set_prescale(100).expect("Failed to set prescale");
+                    pca_right.enable().expect("Failed to enable PCA9685");
+
+                    set_all_channels(&mut pca_right, default_pwm);
+                    println!("✓ Set all channels on right board to PWM {}", default_pwm);
                 }
-            }
+                Err(e) => {
+                    eprintln!("✗ Failed to initialize right board: {:?}", e);
+                }
+            },
             Err(e) => {
                 eprintln!("✗ Failed to open I2C device for right board: {:?}", e);
             }

@@ -169,9 +169,7 @@ impl Pose2D {
     pub fn to_matrix(&self) -> Matrix3<f32> {
         let cos_t = self.theta.cos();
         let sin_t = self.theta.sin();
-        Matrix3::new(
-            cos_t, -sin_t, self.x, sin_t, cos_t, self.y, 0.0, 0.0, 1.0,
-        )
+        Matrix3::new(cos_t, -sin_t, self.x, sin_t, cos_t, self.y, 0.0, 0.0, 1.0)
     }
 }
 
@@ -284,7 +282,10 @@ impl Scan2D {
 
     /// Transform all points to world coordinates using the given pose
     pub fn transform(&self, pose: &Pose2D) -> Vec<Point2D> {
-        self.points.iter().map(|p| pose.transform_point(p)).collect()
+        self.points
+            .iter()
+            .map(|p| pose.transform_point(p))
+            .collect()
     }
 
     /// Get centroid of the scan
@@ -298,12 +299,7 @@ impl Scan2D {
 
     /// Downsample the scan to reduce computation
     pub fn downsample(&self, factor: usize) -> Self {
-        let points = self
-            .points
-            .iter()
-            .step_by(factor)
-            .copied()
-            .collect();
+        let points = self.points.iter().step_by(factor).copied().collect();
         Self {
             points,
             timestamp: self.timestamp,

@@ -1,4 +1,4 @@
-use devices::gps::{GpsController, FixQuality};
+use devices::gps::{FixQuality, GpsController};
 use std::thread;
 use std::time::Duration;
 
@@ -51,7 +51,10 @@ fn main() {
             // Print position data every 10 updates (reduce spam)
             if update_count % 10 == 0 {
                 println!("\n--- GPS Data ---");
-                println!("Position:    {:.6}°, {:.6}°", position.latitude, position.longitude);
+                println!(
+                    "Position:    {:.6}°, {:.6}°",
+                    position.latitude, position.longitude
+                );
                 println!("Altitude:    {:.2} m", position.altitude);
                 println!("Speed:       {:.2} km/h", position.speed_kmh);
                 if let Some(heading) = position.heading {
@@ -59,9 +62,12 @@ fn main() {
                 }
                 println!("Satellites:  {}", position.satellites);
                 println!("Fix Quality: {:?}", position.fix_quality);
-                
+
                 if let Some(last_update) = position.last_update {
-                    println!("Last Update: {:.2}s ago", last_update.elapsed().as_secs_f32());
+                    println!(
+                        "Last Update: {:.2}s ago",
+                        last_update.elapsed().as_secs_f32()
+                    );
                 }
 
                 // Print fix quality details
