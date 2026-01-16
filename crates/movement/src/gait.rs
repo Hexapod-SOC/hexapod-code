@@ -24,7 +24,7 @@ impl Default for LegStances {
         // Default hexapod stance positions
         // X: forward/back, Y: left/right, Z: up/down
         LegStances {
-            //FIXME why front/back X is 0 it should be a offset forward/back 
+            //FIXME why front/back X is 0 it should be a offset forward/back
             left_front: Vec3::new(0.0, -45.0, -70.0),
             left_middle: Vec3::new(0.0, -55.0, -50.0),
             left_back: Vec3::new(0.0, -45.0, -70.0),
@@ -124,19 +124,14 @@ impl Gait {
     /// Calculate the position of a leg during walking
     /// velocity: direction and speed of movement (X=forward/back, Y=left/right, Z=up/down)
     /// rotation: body rotation speed (yaw, positive = counter-clockwise when viewed from above)
-    pub fn calculate_leg_position(
-        &self,
-        leg: Leg,
-        velocity: Vec3,
-        rotation: f32,
-    ) -> Vec3 {
+    pub fn calculate_leg_position(&self, leg: Leg, velocity: Vec3, rotation: f32) -> Vec3 {
         let leg_phase = self.get_leg_phase(leg);
         let default_pos = self.default_stance.get(leg);
-        
+
         // Calculate step vector based on velocity and rotation
         let step_length = velocity.length() * self.template.step_length_multiplier;
         let step_length = step_length.min(self.template.max_step_length);
-        
+
         // Direction of step
         let step_dir = if velocity.length() > 0.01 {
             velocity.normalize()
@@ -149,16 +144,16 @@ impl Gait {
         // When rotating CCW (positive rotation), a point at +Y moves in -X direction
         // and a point at +X moves in +Y direction
         let rotation_offset = Vec3::new(
-            -default_pos.y * rotation,  // Y position affects X velocity (tangential)
-            default_pos.x * rotation,   // X position affects Y velocity (tangential)
-            0.0,                        // Z unchanged for yaw rotation
+            -default_pos.y * rotation, // Y position affects X velocity (tangential)
+            default_pos.x * rotation,  // X position affects Y velocity (tangential)
+            0.0,                       // Z unchanged for yaw rotation
         );
 
         let total_step = step_dir * step_length + rotation_offset;
 
         // Determine if leg is in swing (lifting) or stance (pushing) phase
         let push_fraction = self.template.push_fraction;
-        
+
         if leg_phase < push_fraction {
             // STANCE PHASE: Leg is on ground, pushing backward
             let stance_progress = leg_phase / push_fraction;
@@ -167,19 +162,19 @@ impl Gait {
         } else {
             // SWING PHASE: Leg is lifting and moving forward
             let swing_progress = (leg_phase - push_fraction) / (1.0 - push_fraction);
-            
+
             // Start position (end of stance)
             let start_offset = total_step * -0.5;
-            
+
             // End position (start of stance)
             let end_offset = total_step * 0.5;
-            
+
             // Interpolate horizontally
             let horizontal_offset = start_offset.lerp(end_offset, swing_progress);
-            
+
             // Lift trajectory (square wave with rounded corners) - Z is up
             let lift_height = self.template.lift_height_multiplier * 60.0;
-            
+
             // Create a square wave with smooth transitions using smoothstep
             let lift = if swing_progress < 0.15 {
                 // Rising edge - smooth ramp up
@@ -195,17 +190,13 @@ impl Gait {
                 let smoothed = t * t * (3.0 - 2.0 * t); // smoothstep
                 lift_height * (1.0 - smoothed)
             };
-            
+
             default_pos + horizontal_offset + Vec3::new(0.0, 0.0, lift)
         }
     }
 
     /// Get positions for all legs
-    pub fn calculate_all_leg_positions(
-        &self,
-        velocity: Vec3,
-        rotation: f32,
-    ) -> LegStances {
+    pub fn calculate_all_leg_positions(&self, velocity: Vec3, rotation: f32) -> LegStances {
         let mut stances = LegStances::default();
         stances.left_front = self.calculate_leg_position(Leg::LeftFront, velocity, rotation);
         stances.left_middle = self.calculate_leg_position(Leg::LeftMiddle, velocity, rotation);

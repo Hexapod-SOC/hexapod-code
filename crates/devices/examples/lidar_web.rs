@@ -1,76 +1,55 @@
-//! LiDAR Web Visualization Server
-//!
-//! This example creates a web server that displays real-time LiDAR data
-//! in an interactive HTML canvas visualization.
-//!
-//! # Usage
-//!
-//! On Raspberry Pi with real hardware:
-//! ```bash
-//! cargo run --example lidar_web --features real
-//! ```
-//!
-//! Then open in your browser: http://192.168.1.XXX:3001
-//!
-//! For testing on PC (dummy mode):
-//! ```bash
-//! cargo run --example lidar_web --features dummy
-//! ```
-//! Then open: http://localhost:3001
+// LiDAR SLAM Web Visualization Server
+//
+// Streams pose, scan, and map data from the LD19 through the SLAM pipeline and
+// renders a live occupancy grid plus the raw measurement points.
 
-use devices::lidar::LidarDriver;
 use axum::{
     extract::ws::{Message, WebSocket, WebSocketUpgrade},
+    extract::State,
+    http::StatusCode,
     response::{Html, IntoResponse},
     routing::get,
-    Router,
+    Json, Router,
 };
-use std::sync::{Arc, Mutex};
+use devices::lidar::{LidarSlamConfig, LidarSlamHandle, SlamSnapshot};
+use lidar_slam::Pose2D;
+use serde::Serialize;
+use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 use tokio::sync::broadcast;
 
-type SharedDriver = Arc<Mutex<LidarDriver>>;
+#[derive(Clone)]
+struct AppState {
+    slam: Arc<LidarSlamHandle>,
+    tx: broadcast::Sender<String>,
+}
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     println!("╔══════════════════════════════════════════════════════════════╗");
-    println!("║        LD19 LiDAR Web Visualization Server                  ║");
+    println!("║        LD19 LiDAR SLAM Web Visualization Server             ║");
     println!("╚══════════════════════════════════════════════════════════════╝");
     println!();
 
-    let port = "/dev/ttyUSB0";
-    
-    println!("🔌 Connecting to LiDAR on port: {}", port);
-    let driver = match LidarDriver::new(port) {
-        Ok(mut d) => {
-            println!("✓ Successfully opened serial port");
-            println!("🚀 Starting LiDAR...");
-            d.start()?;
-            println!("✓ LiDAR is running");
-            Arc::new(Mutex::new(d))
-        }
-        Err(e) => {
-            eprintln!("✗ Failed to open serial port: {}", e);
-            return Err(e);
-        }
+    let config = LidarSlamConfig::default();
+    println!("🔌 Connecting to LiDAR on port: {}", config.port);
+    let slam = Arc::new(LidarSlamHandle::new(config)?);
+    println!("✓ SLAM pipeline is running");
+
+    let (tx, _rx) = broadcast::channel::<String>(128);
+    spawn_broadcast_loop(Arc::clone(&slam), tx.clone());
+
+    let app_state = AppState {
+        slam: Arc::clone(&slam),
+        tx: tx.clone(),
     };
 
-    // Create broadcast channel for WebSocket updates
-    let (tx, _rx) = broadcast::channel::<String>(100);
-    
-    // Spawn thread to read LiDAR and broadcast updates
-    let driver_clone = Arc::clone(&driver);
-    let tx_clone = tx.clone();
-    thread::spawn(move || {
-        lidar_broadcast_loop(driver_clone, tx_clone);
-    });
-
-    // Build the router
     let app = Router::new()
         .route("/", get(index_handler))
         .route("/ws", get(websocket_handler))
-        .with_state((driver, tx));
+        .route("/map", get(map_handler))
+        .with_state(app_state);
 
     let addr = "0.0.0.0:3001";
     println!();
@@ -85,63 +64,128 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn lidar_broadcast_loop(driver: SharedDriver, tx: broadcast::Sender<String>) {
-    let mut frame_count = 0;
-    loop {
-        let is_ready = {
-            let driver = driver.lock().unwrap();
-            driver.is_frame_ready()
-        };
-
-        if is_ready {
-            let cloud = {
-                let driver = driver.lock().unwrap();
-                driver.get_point_cloud()
-            };
-
-            if let Some(cloud) = cloud {
-                frame_count += 1;
-                
-                // Convert to JSON
-                let mut points_json = String::from("[");
-                for (i, point) in cloud.valid_points().enumerate() {
-                    if i > 0 {
-                        points_json.push(',');
-                    }
-                    points_json.push_str(&format!(
-                        "{{\"angle\":{:.2},\"distance\":{},\"intensity\":{}}}",
-                        point.angle, point.distance, point.intensity
-                    ));
+fn spawn_broadcast_loop(handle: Arc<LidarSlamHandle>, tx: broadcast::Sender<String>) {
+    thread::spawn(move || {
+        let mut last_frame = 0;
+        loop {
+            let snapshot = handle.latest();
+            if snapshot.frame == 0 || snapshot.frame == last_frame {
+                thread::sleep(Duration::from_millis(25));
+                continue;
+            }
+            last_frame = snapshot.frame;
+            if let Some(frame) = SlamFrame::from_snapshot(&snapshot) {
+                if let Ok(payload) = serde_json::to_string(&frame) {
+                    let _ = tx.send(payload);
                 }
-                points_json.push(']');
-
-                let data = format!(
-                    "{{\"frame\":{},\"speed\":{:.2},\"timestamp\":{},\"points\":{}}}",
-                    frame_count, cloud.frequency(), cloud.timestamp, points_json
-                );
-
-                let _ = tx.send(data);
             }
         }
+    });
+}
 
-        thread::sleep(Duration::from_millis(50)); // Send updates at 20Hz max
+#[derive(Serialize)]
+struct SlamFrame {
+    frame: u64,
+    timestamp_ns: u64,
+    pose: PoseDto,
+    rpm: f32,
+    points: Vec<ScanPointDto>,
+}
+
+impl SlamFrame {
+    fn from_snapshot(snapshot: &SlamSnapshot) -> Option<Self> {
+        let scan = snapshot.last_scan.as_ref()?;
+        let rpm = if scan.rpm.is_finite() { scan.rpm } else { 0.0 };
+        let points = scan
+            .points
+            .iter()
+            .map(|p| ScanPointDto {
+                angle_deg: p.angle_deg,
+                distance_mm: (p.distance_m.max(0.0) * 1000.0) as u32,
+                intensity: p.intensity,
+            })
+            .collect();
+
+        Some(Self {
+            frame: snapshot.frame,
+            timestamp_ns: snapshot.timestamp_ns,
+            pose: PoseDto::from_pose(snapshot.pose),
+            rpm,
+            points,
+        })
     }
 }
 
-async fn websocket_handler(
-    ws: WebSocketUpgrade,
-    axum::extract::State((_, tx)): axum::extract::State<(SharedDriver, broadcast::Sender<String>)>,
-) -> impl IntoResponse {
-    ws.on_upgrade(|socket| websocket_connection(socket, tx))
+#[derive(Serialize)]
+struct PoseDto {
+    x: f32,
+    y: f32,
+    theta: f32,
+}
+
+impl PoseDto {
+    fn from_pose(p: Pose2D) -> Self {
+        Self {
+            x: p.x,
+            y: p.y,
+            theta: p.theta,
+        }
+    }
+}
+
+#[derive(Serialize)]
+struct ScanPointDto {
+    angle_deg: f32,
+    distance_mm: u32,
+    intensity: u16,
+}
+
+#[derive(Serialize)]
+struct MapResponse {
+    frame: u64,
+    width: usize,
+    height: usize,
+    resolution: f32,
+    origin: PoseDto,
+    pose: PoseDto,
+    cells: Vec<i8>,
+}
+
+impl MapResponse {
+    fn from_snapshot(snapshot: &SlamSnapshot) -> Option<Self> {
+        let map = snapshot.map.as_ref()?;
+        let origin = map.origin();
+        Some(Self {
+            frame: snapshot.frame,
+            width: map.width(),
+            height: map.height(),
+            resolution: map.resolution(),
+            origin: PoseDto::from_pose(origin),
+            pose: PoseDto::from_pose(snapshot.pose),
+            cells: map.cells().to_vec(),
+        })
+    }
+}
+
+async fn websocket_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| websocket_connection(socket, state.tx.clone()))
 }
 
 async fn websocket_connection(mut socket: WebSocket, tx: broadcast::Sender<String>) {
     let mut rx = tx.subscribe();
-
     while let Ok(msg) = rx.recv().await {
         if socket.send(Message::Text(msg)).await.is_err() {
             break;
         }
+    }
+}
+
+async fn map_handler(State(state): State<AppState>) -> impl IntoResponse {
+    let snapshot = state.slam.latest();
+    if let Some(map) = MapResponse::from_snapshot(&snapshot) {
+        Json(map).into_response()
+    } else {
+        StatusCode::NO_CONTENT.into_response()
     }
 }
 
@@ -154,196 +198,206 @@ const HTML_CONTENT: &str = r#"<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LD19 LiDAR Visualization</title>
+    <title>LD19 SLAM Viewer</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #1a1a2e;
-            color: #eee;
+            background: #0c1220;
+            color: #f5f5f5;
             display: flex;
             flex-direction: column;
             align-items: center;
             padding: 20px;
+            gap: 20px;
         }
-        h1 {
-            margin-bottom: 10px;
-            color: #00d9ff;
-            text-shadow: 0 0 10px rgba(0, 217, 255, 0.5);
-        }
+        h1 { color: #7dd3fc; text-shadow: 0 0 16px rgba(125, 211, 252, 0.6); }
         #stats {
-            background: #16213e;
-            padding: 15px 30px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-            display: flex;
-            gap: 30px;
-            flex-wrap: wrap;
+            width: 100%;
+            max-width: 900px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
         }
         .stat {
+            background: rgba(15, 23, 42, 0.9);
+            padding: 14px 18px;
+            border-radius: 12px;
+            border: 1px solid rgba(125, 211, 252, 0.3);
             display: flex;
             flex-direction: column;
-            align-items: center;
+            gap: 6px;
         }
-        .stat-label {
-            font-size: 12px;
-            color: #888;
-            text-transform: uppercase;
-        }
-        .stat-value {
-            font-size: 24px;
-            font-weight: bold;
-            color: #00d9ff;
-        }
+        .stat-label { font-size: 12px; letter-spacing: 0.08em; color: #9ca3af; }
+        .stat-value { font-size: 24px; font-weight: 600; color: #e0f2fe; }
         #canvas-container {
             position: relative;
-            background: #0f1419;
-            border-radius: 15px;
-            padding: 20px;
-            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+            background: radial-gradient(circle at center, #1e293b, #0f172a);
+            border-radius: 16px;
+            padding: 16px;
+            box-shadow: 0 20px 60px rgba(15, 23, 42, 0.8);
         }
         canvas {
             display: block;
-            border: 2px solid #00d9ff;
-            border-radius: 10px;
-            box-shadow: 0 0 20px rgba(0, 217, 255, 0.3);
+            border-radius: 12px;
+            border: 1px solid rgba(125, 211, 252, 0.4);
         }
         #status {
             position: absolute;
-            top: 30px;
-            right: 30px;
-            padding: 10px 20px;
-            background: rgba(0, 217, 255, 0.2);
-            border-radius: 5px;
-            font-size: 14px;
+            top: 24px;
+            right: 24px;
+            padding: 6px 14px;
+            border-radius: 999px;
+            background: rgba(252, 165, 3, 0.18);
+            border: 1px solid rgba(252, 165, 3, 0.4);
+            font-size: 12px;
+            letter-spacing: 0.05em;
         }
-        .connected { background: rgba(0, 255, 100, 0.2) !important; }
-        .disconnected { background: rgba(255, 50, 50, 0.2) !important; }
+        .connected { background: rgba(34, 197, 94, 0.2) !important; border-color: rgba(34, 197, 94, 0.5) !important; }
+        .disconnected { background: rgba(248, 113, 113, 0.2) !important; border-color: rgba(248, 113, 113, 0.5) !important; }
     </style>
 </head>
 <body>
-    <h1>🔄 LD19 LiDAR Live Visualization</h1>
-    
+    <h1>LD19 SLAM Live Map</h1>
     <div id="stats">
-        <div class="stat">
-            <span class="stat-label">Frame</span>
-            <span class="stat-value" id="frame">0</span>
-        </div>
-        <div class="stat">
-            <span class="stat-label">Speed (Hz)</span>
-            <span class="stat-value" id="speed">0.0</span>
-        </div>
-        <div class="stat">
-            <span class="stat-label">Points</span>
-            <span class="stat-value" id="points">0</span>
-        </div>
-        <div class="stat">
-            <span class="stat-label">FPS</span>
-            <span class="stat-value" id="fps">0.0</span>
-        </div>
+        <div class="stat"><span class="stat-label">FRAME</span><span class="stat-value" id="frame">0</span></div>
+        <div class="stat"><span class="stat-label">RPM</span><span class="stat-value" id="rpm">0.0</span></div>
+        <div class="stat"><span class="stat-label">POINTS</span><span class="stat-value" id="points">0</span></div>
+        <div class="stat"><span class="stat-label">POSE X / Y (m)</span><span class="stat-value" id="pose-xy">0.00 / 0.00</span></div>
+        <div class="stat"><span class="stat-label">POSE θ (deg)</span><span class="stat-value" id="pose-theta">0</span></div>
+        <div class="stat"><span class="stat-label">FPS</span><span class="stat-value" id="fps">0.0</span></div>
     </div>
-
     <div id="canvas-container">
-        <canvas id="lidar-canvas" width="800" height="800"></canvas>
-        <div id="status" class="disconnected">Connecting...</div>
+        <canvas id="lidar-canvas" width="900" height="900"></canvas>
+        <div id="status" class="disconnected">CONNECTING</div>
     </div>
-
     <script>
         const canvas = document.getElementById('lidar-canvas');
         const ctx = canvas.getContext('2d');
-        const centerX = canvas.width / 2;
-        const centerY = canvas.height / 2;
-        const maxRange = 4000; // 4 meters in mm
-        const scale = Math.min(centerX, centerY) / maxRange;
-
-        let frameCount = 0;
-        let lastFrameTime = Date.now();
         let ws = null;
+        let lastFrameTime = performance.now();
+        let mapData = null;
+        const mapCanvas = document.createElement('canvas');
+        const mapCtx = mapCanvas.getContext('2d');
 
-        function connectWebSocket() {
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
-            
-            ws.onopen = () => {
-                document.getElementById('status').textContent = 'Connected';
-                document.getElementById('status').className = 'connected';
-            };
-            
-            ws.onclose = () => {
-                document.getElementById('status').textContent = 'Disconnected';
-                document.getElementById('status').className = 'disconnected';
-                setTimeout(connectWebSocket, 2000);
-            };
-            
-            ws.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-                drawLidarData(data);
-                updateStats(data);
-            };
+        async function fetchMap() {
+            try {
+                const response = await fetch('/map');
+                if (!response.ok) return;
+                mapData = await response.json();
+                paintOccupancyMap();
+            } catch (err) {
+                console.warn('Map fetch failed', err);
+            }
         }
 
-        function drawLidarData(data) {
-            // Clear canvas with fade effect
-            ctx.fillStyle = 'rgba(15, 20, 25, 0.3)';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            // Draw grid
-            ctx.strokeStyle = 'rgba(0, 217, 255, 0.1)';
-            ctx.lineWidth = 1;
-            for (let i = 1; i <= 4; i++) {
-                const radius = (i * 1000) * scale;
+        function paintOccupancyMap() {
+            if (!mapData) return;
+            mapCanvas.width = mapData.width;
+            mapCanvas.height = mapData.height;
+            const image = mapCtx.createImageData(mapData.width, mapData.height);
+            for (let i = 0; i < mapData.cells.length; i++) {
+                const val = mapData.cells[i];
+                const norm = (val + 100) / 200;
+                const shade = Math.floor(norm * 255);
+                image.data[i * 4 + 0] = 20 + shade;
+                image.data[i * 4 + 1] = 30 + shade;
+                image.data[i * 4 + 2] = 40 + shade;
+                image.data[i * 4 + 3] = 255;
+            }
+            mapCtx.putImageData(image, 0, 0);
+        }
+
+        function worldToCanvas(x, y) {
+            if (!mapData) return null;
+            const gridX = (x - mapData.origin.x) / mapData.resolution;
+            const gridY = (y - mapData.origin.y) / mapData.resolution;
+            const canvasX = (gridX / mapData.width) * canvas.width;
+            const canvasY = (gridY / mapData.height) * canvas.height;
+            return { x: canvasX, y: canvasY };
+        }
+
+        function drawPose(pose) {
+            const coord = worldToCanvas(pose.x, pose.y);
+            if (!coord) return;
+            ctx.fillStyle = '#38bdf8';
+            ctx.strokeStyle = '#e0f2fe';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(coord.x, coord.y, 6, 0, Math.PI * 2);
+            ctx.fill();
+            const heading = worldToCanvas(
+                pose.x + Math.cos(pose.theta) * 0.3,
+                pose.y + Math.sin(pose.theta) * 0.3
+            );
+            if (heading) {
                 ctx.beginPath();
-                ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+                ctx.moveTo(coord.x, coord.y);
+                ctx.lineTo(heading.x, heading.y);
                 ctx.stroke();
             }
-            
-            // Draw cardinal directions
-            ctx.strokeStyle = 'rgba(0, 217, 255, 0.3)';
-            ctx.beginPath();
-            ctx.moveTo(centerX, 0);
-            ctx.lineTo(centerX, canvas.height);
-            ctx.moveTo(0, centerY);
-            ctx.lineTo(canvas.width, centerY);
-            ctx.stroke();
-            
-            // Draw sensor
-            ctx.fillStyle = '#00d9ff';
-            ctx.beginPath();
-            ctx.arc(centerX, centerY, 5, 0, Math.PI * 2);
-            ctx.fill();
-            
-            // Draw points
-            data.points.forEach(point => {
-                const angle = (point.angle - 90) * Math.PI / 180;
-                const distance = point.distance * scale;
-                const x = centerX + distance * Math.cos(angle);
-                const y = centerY + distance * Math.sin(angle);
-                
-                // Color based on intensity and distance
-                const intensity = point.intensity / 255;
-                const distanceFactor = Math.min(point.distance / maxRange, 1);
-                const hue = 120 - distanceFactor * 60; // Green to red
-                const alpha = 0.5 + intensity * 0.5;
-                
-                ctx.fillStyle = `hsla(${hue}, 100%, 50%, ${alpha})`;
+        }
+
+        function drawScan(pose, points) {
+            if (!mapData) return;
+            ctx.fillStyle = 'rgba(248, 113, 113, 0.8)';
+            points.forEach(point => {
+                const rangeM = point.distance_mm / 1000;
+                const worldX = pose.x + rangeM * Math.cos(point.angle_deg * Math.PI / 180 + pose.theta);
+                const worldY = pose.y + rangeM * Math.sin(point.angle_deg * Math.PI / 180 + pose.theta);
+                const coord = worldToCanvas(worldX, worldY);
+                if (!coord) return;
                 ctx.beginPath();
-                ctx.arc(x, y, 3, 0, Math.PI * 2);
+                ctx.arc(coord.x, coord.y, 2, 0, Math.PI * 2);
                 ctx.fill();
             });
         }
 
+        function drawFrame(data) {
+            ctx.fillStyle = '#020617';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            if (mapData) {
+                ctx.drawImage(mapCanvas, 0, 0, canvas.width, canvas.height);
+            }
+            drawPose(data.pose);
+            drawScan(data.pose, data.points);
+        }
+
         function updateStats(data) {
             document.getElementById('frame').textContent = data.frame;
-            document.getElementById('speed').textContent = data.speed.toFixed(2);
+            document.getElementById('rpm').textContent = data.rpm.toFixed(1);
             document.getElementById('points').textContent = data.points.length;
-            
-            const now = Date.now();
+            document.getElementById('pose-xy').textContent = `${data.pose.x.toFixed(2)} / ${data.pose.y.toFixed(2)}`;
+            document.getElementById('pose-theta').textContent = (data.pose.theta * 180 / Math.PI).toFixed(1);
+            const now = performance.now();
             const fps = 1000 / (now - lastFrameTime);
             document.getElementById('fps').textContent = fps.toFixed(1);
             lastFrameTime = now;
         }
 
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+            ws.onopen = () => {
+                const status = document.getElementById('status');
+                status.textContent = 'CONNECTED';
+                status.className = 'connected';
+            };
+            ws.onclose = () => {
+                const status = document.getElementById('status');
+                status.textContent = 'RECONNECTING...';
+                status.className = 'disconnected';
+                setTimeout(connectWebSocket, 2000);
+            };
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                drawFrame(data);
+                updateStats(data);
+            };
+        }
+
+        fetchMap();
+        setInterval(fetchMap, 2500);
         connectWebSocket();
     </script>
 </body>

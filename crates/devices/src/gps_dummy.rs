@@ -81,22 +81,23 @@ impl GpsController {
         // Simulate slight movement
         self.position.latitude += (rand::random::<f64>() - 0.5) * 0.00001; // ~1m drift
         self.position.longitude += (rand::random::<f64>() - 0.5) * 0.00001;
-        
+
         self.position.altitude += (rand::random::<f32>() - 0.5) * 0.1;
         self.position.altitude = self.position.altitude.clamp(200.0, 220.0);
-        
+
         // Simulate speed variation
         self.position.speed_kmh += (rand::random::<f32>() - 0.5) * 0.5;
         self.position.speed_kmh = self.position.speed_kmh.clamp(0.0, 2.0);
-        
+
         // Simulate heading if moving
         if self.position.speed_kmh > 0.1 {
             let heading = self.position.heading.unwrap_or(0.0);
-            self.position.heading = Some((heading + (rand::random::<f32>() - 0.5) * 10.0).rem_euclid(360.0));
+            self.position.heading =
+                Some((heading + (rand::random::<f32>() - 0.5) * 10.0).rem_euclid(360.0));
         }
-        
+
         self.position.last_update = Some(Instant::now());
-        
+
         // Print every 10 updates to reduce spam
         if self.update_count % 10 == 0 {
             println!(
@@ -109,7 +110,7 @@ impl GpsController {
                 self.position.fix_quality
             );
         }
-        
+
         true
     }
 
@@ -120,8 +121,7 @@ impl GpsController {
 
     /// Check if GPS has a valid fix
     pub fn has_fix(&self) -> bool {
-        self.position.fix_quality != FixQuality::NoFix
-            && self.position.satellites > 0
+        self.position.fix_quality != FixQuality::NoFix && self.position.satellites > 0
     }
 
     /// Check if UART connection is available
@@ -146,7 +146,7 @@ mod rand {
 
     pub fn random<T>() -> T
     where
-        T: From<f32> + From<f64>,
+        T: From<f32>,
     {
         SEED.with(|seed| {
             let mut s = seed.get();
@@ -154,17 +154,11 @@ mod rand {
             s ^= s >> 7;
             s ^= s << 17;
             seed.set(s);
-            
+
             // Generate a value between 0.0 and 1.0
             let val = (s as f64) / (u64::MAX as f64);
-            
-            // Try to convert to the target type
-            // This is a simplified approach - for production use proper traits
-            if std::mem::size_of::<T>() == std::mem::size_of::<f32>() {
-                T::from(val as f32)
-            } else {
-                T::from(val)
-            }
+
+            T::from(val as f32)
         })
     }
 }

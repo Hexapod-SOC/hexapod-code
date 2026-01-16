@@ -3,23 +3,25 @@
 //! This module provides a Rust implementation of the LDROBOT LD19 LiDAR driver.
 //! It handles serial communication, packet parsing, and data filtering for the LiDAR sensor.
 
-mod point;
+mod filter;
 mod packet;
 mod parser;
-mod filter;
+mod point;
 mod serial;
+mod slam;
 
-pub use point::{Point, PointCloud, LidarType};
-pub use packet::{LidarPacket, LidarFrame};
-pub use parser::PacketParser;
 pub use filter::NearRangeFilter;
+pub use packet::{LidarFrame, LidarPacket};
+pub use parser::PacketParser;
+pub use point::{LidarType, Point, PointCloud};
 pub use serial::SerialInterface;
+pub use slam::{LidarSlamConfig, LidarSlamHandle, SlamSnapshot};
 
-use std::sync::{Arc, Mutex};
+use anyhow::Result;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
-use anyhow::Result;
 
 /// Main LiDAR driver interface
 pub struct LidarDriver {
@@ -34,7 +36,7 @@ impl LidarDriver {
     pub fn new(port: &str) -> Result<Self> {
         let serial = Arc::new(Mutex::new(SerialInterface::new(port)?));
         let parser = Arc::new(Mutex::new(PacketParser::new()));
-        
+
         Ok(Self {
             serial,
             parser,
@@ -50,7 +52,7 @@ impl LidarDriver {
         }
 
         self.running.store(true, Ordering::SeqCst);
-        
+
         let serial = Arc::clone(&self.serial);
         let parser = Arc::clone(&self.parser);
         let running = Arc::clone(&self.running);
@@ -58,7 +60,7 @@ impl LidarDriver {
         let handle = thread::spawn(move || {
             let mut buffer = vec![0u8; 4096];
             let mut consecutive_empty = 0u32;
-            
+
             while running.load(Ordering::SeqCst) {
                 let mut serial = serial.lock().unwrap();
                 match serial.read(&mut buffer) {
@@ -104,7 +106,9 @@ impl LidarDriver {
         self.running.store(false, Ordering::SeqCst);
 
         if let Some(handle) = self.read_thread.take() {
-            handle.join().map_err(|_| anyhow::anyhow!("Failed to join read thread"))?;
+            handle
+                .join()
+                .map_err(|_| anyhow::anyhow!("Failed to join read thread"))?;
         }
 
         Ok(())

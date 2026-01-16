@@ -1,18 +1,15 @@
-use axum::{
-    extract::State,
-    http::StatusCode,
-    Json,
-};
-use serde::{Deserialize, Serialize};
-use movement::gaits::{GaitTemplate, LegCycleOffsets};
-use std::sync::Arc;
-use glam::Vec3;
 use crate::config::{CALIBRATION_LEG_STANCE_FILE, CALIBRATION_SERVO_TWEAKS_FILE};
+use axum::{Json, extract::State, http::StatusCode};
+use devices::lidar::SlamSnapshot;
+use glam::Vec3;
+use movement::gaits::{GaitTemplate, LegCycleOffsets};
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
 
 use super::state::AppState;
-use crate::hexapod::{ServoAngleTweaks, ServoAngleTriplet};
+use crate::hexapod::{ServoAngleTriplet, ServoAngleTweaks};
 
 // ============= Status Endpoints =============
 
@@ -37,20 +34,21 @@ pub async fn get_status(
 ) -> Result<Json<HexapodStatusResponse>, StatusCode> {
     let mut ubec = state.ubec_controller.lock().await;
     ubec.update();
-    
+
     let battery_status = ubec.get_battery_status();
     let power_state = ubec.get_power_state();
-    
+    let has_data = battery_status.last_update.is_some() || battery_status.voltage > 0.1;
+
     let gait = state.gait_controller.lock().await;
     let phase = gait.get_gait_phase();
     let template = gait.get_template();
-    
+
     Ok(Json(HexapodStatusResponse {
         battery: BatteryStatusResponse {
             voltage: battery_status.voltage,
             current: battery_status.current,
             power_state: format!("{:?}", power_state),
-            has_data: battery_status.last_update.is_some(),
+            has_data,
         },
         gait_phase: phase,
         gait_name: template.name.to_string(),
@@ -63,15 +61,16 @@ pub async fn get_battery(
 ) -> Result<Json<BatteryStatusResponse>, StatusCode> {
     let mut ubec = state.ubec_controller.lock().await;
     ubec.update();
-    
+
     let battery_status = ubec.get_battery_status();
     let power_state = ubec.get_power_state();
-    
+    let has_data = battery_status.last_update.is_some() || battery_status.voltage > 0.1;
+
     Ok(Json(BatteryStatusResponse {
         voltage: battery_status.voltage,
         current: battery_status.current,
         power_state: format!("{:?}", power_state),
-        has_data: battery_status.last_update.is_some(),
+        has_data,
     }))
 }
 
@@ -79,9 +78,9 @@ pub async fn get_battery(
 
 #[derive(Deserialize)]
 pub struct MoveRequest {
-    pub forward: f32,   // -100.0 to 100.0 (mm/s)
-    pub strafe: f32,    // -100.0 to 100.0 (mm/s)
-    pub rotation: f32,  // -1.0 to 1.0 (rad/s)
+    pub forward: f32,  // -100.0 to 100.0 (mm/s)
+    pub strafe: f32,   // -100.0 to 100.0 (mm/s)
+    pub rotation: f32, // -1.0 to 1.0 (rad/s)
 }
 
 #[derive(Serialize)]
@@ -100,7 +99,7 @@ pub async fn move_hexapod(
     // X=forward/back, Y=left/right (strafe), Z=up/down
     control.velocity = Vec3::new(payload.forward, payload.strafe, 0.0);
     control.rotation = payload.rotation;
-    
+
     Ok(Json(MoveResponse {
         success: true,
         message: format!(
@@ -121,7 +120,7 @@ pub async fn stop_hexapod(
     let mut control = state.control.lock().await;
     control.velocity = Vec3::ZERO;
     control.rotation = 0.0;
-    
+
     Ok(Json(MoveResponse {
         success: true,
         message: "Movement stopped".to_string(),
@@ -148,16 +147,17 @@ pub async fn set_gait(
     Json(payload): Json<SetGaitRequest>,
 ) -> Result<Json<GaitResponse>, StatusCode> {
     use movement::gaits::GAITS;
-    
+
     let mut gait_controller = state.gait_controller.lock().await;
-    
+
     // Find matching gait template
-    let template = GAITS.iter()
+    let template = GAITS
+        .iter()
         .find(|g| g.name == payload.gait_name)
         .ok_or(StatusCode::BAD_REQUEST)?;
-    
+
     gait_controller.set_gait(template);
-    
+
     Ok(Json(GaitResponse {
         success: true,
         message: format!("Gait changed to {}", template.name),
@@ -171,7 +171,7 @@ pub async fn get_gait(
 ) -> Result<Json<GaitResponse>, StatusCode> {
     let gait = state.gait_controller.lock().await;
     let template = gait.get_template();
-    
+
     Ok(Json(GaitResponse {
         success: true,
         message: "Current gait".to_string(),
@@ -249,9 +249,9 @@ pub async fn set_custom_gait(
 
 #[derive(Deserialize)]
 pub struct BodyPoseRequest {
-    pub roll: f32,   // degrees
-    pub pitch: f32,  // degrees
-    pub yaw: f32,    // degrees
+    pub roll: f32,  // degrees
+    pub pitch: f32, // degrees
+    pub yaw: f32,   // degrees
 }
 
 #[derive(Serialize)]
@@ -266,12 +266,12 @@ pub async fn set_body_pose(
     Json(payload): Json<BodyPoseRequest>,
 ) -> Result<Json<BodyPoseResponse>, StatusCode> {
     use movement::controller::BodyPose;
-    
+
     let pose = BodyPose::with_rotation(payload.roll, payload.pitch, payload.yaw);
-    
+
     let mut control = state.control.lock().await;
     control.body_pose = pose;
-    
+
     Ok(Json(BodyPoseResponse {
         success: true,
         message: format!(
@@ -297,27 +297,25 @@ pub struct TTSResponse {
 }
 
 /// POST /api/tts
-pub async fn speak_text(
-    Json(payload): Json<TTSRequest>,
-) -> Result<Json<TTSResponse>, StatusCode> {
+pub async fn speak_text(Json(payload): Json<TTSRequest>) -> Result<Json<TTSResponse>, StatusCode> {
     use audio::tts;
-    
+
     // Spawn TTS in a background task since it might take time
     let text = payload.text.clone();
     let voice = payload.voice.clone();
-    
+
     tokio::task::spawn_blocking(move || {
         let result = if let Some(v) = voice.as_deref() {
             tts::say(&text, Some(v))
         } else {
             tts::sayen(&text)
         };
-        
+
         if let Err(e) = result {
             eprintln!("TTS error: {}", e);
         }
     });
-    
+
     Ok(Json(TTSResponse {
         success: true,
         message: format!("Speaking: '{}'", payload.text),
@@ -328,7 +326,7 @@ pub async fn speak_text(
 
 #[derive(Deserialize)]
 pub struct SetLegStanceRequest {
-    pub left_front: [f32; 3],   // [x, y, z]
+    pub left_front: [f32; 3], // [x, y, z]
     pub left_middle: [f32; 3],
     pub left_back: [f32; 3],
     pub right_front: [f32; 3],
@@ -355,15 +353,51 @@ pub struct LegStancesData {
     pub right_back: [f32; 3],
 }
 
+// ============= LiDAR SLAM Endpoints =============
+
+#[derive(Serialize, Default, Clone, Copy)]
+pub struct PoseResponse {
+    pub x: f32,
+    pub y: f32,
+    pub theta: f32,
+}
+
+#[derive(Serialize, Clone, Copy)]
+pub struct LidarPointResponse {
+    pub angle_deg: f32,
+    pub distance_mm: u32,
+    pub intensity: u16,
+}
+
+#[derive(Serialize)]
+pub struct LidarFrameResponse {
+    pub frame: u64,
+    pub timestamp_ns: u64,
+    pub pose: PoseResponse,
+    pub rpm: f32,
+    pub points: Vec<LidarPointResponse>,
+}
+
+#[derive(Serialize)]
+pub struct LidarMapResponse {
+    pub frame: u64,
+    pub pose: PoseResponse,
+    pub width: usize,
+    pub height: usize,
+    pub resolution: f32,
+    pub origin: PoseResponse,
+    pub cells: Vec<i8>,
+}
+
 /// GET /api/leg_stance
 pub async fn get_leg_stance(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<LegStanceResponse>, StatusCode> {
     use movement::legs::Leg;
-    
+
     let gait = state.gait_controller.lock().await;
     let stance = gait.get_default_stance();
-    
+
     Ok(Json(LegStanceResponse {
         success: true,
         message: "Current leg stance".to_string(),
@@ -385,7 +419,7 @@ pub async fn set_leg_stance(
 ) -> Result<Json<LegStanceResponse>, StatusCode> {
     use movement::gait::LegStances;
     use movement::legs::Leg;
-    
+
     let new_stance = LegStances {
         left_front: Vec3::from_array(payload.left_front),
         left_middle: Vec3::from_array(payload.left_middle),
@@ -394,20 +428,38 @@ pub async fn set_leg_stance(
         right_middle: Vec3::from_array(payload.right_middle),
         right_back: Vec3::from_array(payload.right_back),
     };
-    
+
     let mut gait = state.gait_controller.lock().await;
     gait.set_default_stance(new_stance);
-    
+
     // Optional: Print Rust code format for easy copy-paste into config
     if payload.print_to_console.unwrap_or(false) {
         println!("\n=== Calibrated Leg Stance (copy to constants) ===");
         println!("LegStances {{");
-        println!("    left_front: Vec3::new({:.1}, {:.1}, {:.1}),", payload.left_front[0], payload.left_front[1], payload.left_front[2]);
-        println!("    left_middle: Vec3::new({:.1}, {:.1}, {:.1}),", payload.left_middle[0], payload.left_middle[1], payload.left_middle[2]);
-        println!("    left_back: Vec3::new({:.1}, {:.1}, {:.1}),", payload.left_back[0], payload.left_back[1], payload.left_back[2]);
-        println!("    right_front: Vec3::new({:.1}, {:.1}, {:.1}),", payload.right_front[0], payload.right_front[1], payload.right_front[2]);
-        println!("    right_middle: Vec3::new({:.1}, {:.1}, {:.1}),", payload.right_middle[0], payload.right_middle[1], payload.right_middle[2]);
-        println!("    right_back: Vec3::new({:.1}, {:.1}, {:.1}),", payload.right_back[0], payload.right_back[1], payload.right_back[2]);
+        println!(
+            "    left_front: Vec3::new({:.1}, {:.1}, {:.1}),",
+            payload.left_front[0], payload.left_front[1], payload.left_front[2]
+        );
+        println!(
+            "    left_middle: Vec3::new({:.1}, {:.1}, {:.1}),",
+            payload.left_middle[0], payload.left_middle[1], payload.left_middle[2]
+        );
+        println!(
+            "    left_back: Vec3::new({:.1}, {:.1}, {:.1}),",
+            payload.left_back[0], payload.left_back[1], payload.left_back[2]
+        );
+        println!(
+            "    right_front: Vec3::new({:.1}, {:.1}, {:.1}),",
+            payload.right_front[0], payload.right_front[1], payload.right_front[2]
+        );
+        println!(
+            "    right_middle: Vec3::new({:.1}, {:.1}, {:.1}),",
+            payload.right_middle[0], payload.right_middle[1], payload.right_middle[2]
+        );
+        println!(
+            "    right_back: Vec3::new({:.1}, {:.1}, {:.1}),",
+            payload.right_back[0], payload.right_back[1], payload.right_back[2]
+        );
         println!("}}");
         println!("==================================================\n");
     }
@@ -428,7 +480,10 @@ pub async fn set_leg_stance(
     });
     match fs::File::create(CALIBRATION_LEG_STANCE_FILE).await {
         Ok(mut file) => {
-            if let Err(e) = file.write_all(serde_json::to_string_pretty(&data).unwrap().as_bytes()).await {
+            if let Err(e) = file
+                .write_all(serde_json::to_string_pretty(&data).unwrap().as_bytes())
+                .await
+            {
                 eprintln!("Failed to write leg stance file: {}", e);
             }
         }
@@ -436,7 +491,7 @@ pub async fn set_leg_stance(
             eprintln!("Failed to open leg stance file: {}", e);
         }
     }
-    
+
     Ok(Json(LegStanceResponse {
         success: true,
         message: "Leg stance applied and saved".to_string(),
@@ -558,7 +613,7 @@ pub async fn get_saved_leg_stance() -> Result<Json<LegStanceResponse>, StatusCod
 
 #[derive(Serialize, Deserialize, Clone, Copy)]
 pub struct ServoTweaksData {
-    pub left_front: [f32; 3],   // [coxa, femur, tibia] in degrees
+    pub left_front: [f32; 3], // [coxa, femur, tibia] in degrees
     pub left_middle: [f32; 3],
     pub left_back: [f32; 3],
     pub right_front: [f32; 3],
@@ -583,7 +638,11 @@ pub async fn get_servo_tweaks(
         left_middle: [t.left_middle.coxa, t.left_middle.femur, t.left_middle.tibia],
         left_back: [t.left_back.coxa, t.left_back.femur, t.left_back.tibia],
         right_front: [t.right_front.coxa, t.right_front.femur, t.right_front.tibia],
-        right_middle: [t.right_middle.coxa, t.right_middle.femur, t.right_middle.tibia],
+        right_middle: [
+            t.right_middle.coxa,
+            t.right_middle.femur,
+            t.right_middle.tibia,
+        ],
         right_back: [t.right_back.coxa, t.right_back.femur, t.right_back.tibia],
     };
     Ok(Json(ServoTweaksResponse {
@@ -600,12 +659,36 @@ pub async fn set_servo_tweaks(
 ) -> Result<Json<ServoTweaksResponse>, StatusCode> {
     let mut t = state.servo_angle_tweaks.lock().await;
     *t = ServoAngleTweaks {
-        left_front: ServoAngleTriplet { coxa: payload.left_front[0], femur: payload.left_front[1], tibia: payload.left_front[2] },
-        left_middle: ServoAngleTriplet { coxa: payload.left_middle[0], femur: payload.left_middle[1], tibia: payload.left_middle[2] },
-        left_back: ServoAngleTriplet { coxa: payload.left_back[0], femur: payload.left_back[1], tibia: payload.left_back[2] },
-        right_front: ServoAngleTriplet { coxa: payload.right_front[0], femur: payload.right_front[1], tibia: payload.right_front[2] },
-        right_middle: ServoAngleTriplet { coxa: payload.right_middle[0], femur: payload.right_middle[1], tibia: payload.right_middle[2] },
-        right_back: ServoAngleTriplet { coxa: payload.right_back[0], femur: payload.right_back[1], tibia: payload.right_back[2] },
+        left_front: ServoAngleTriplet {
+            coxa: payload.left_front[0],
+            femur: payload.left_front[1],
+            tibia: payload.left_front[2],
+        },
+        left_middle: ServoAngleTriplet {
+            coxa: payload.left_middle[0],
+            femur: payload.left_middle[1],
+            tibia: payload.left_middle[2],
+        },
+        left_back: ServoAngleTriplet {
+            coxa: payload.left_back[0],
+            femur: payload.left_back[1],
+            tibia: payload.left_back[2],
+        },
+        right_front: ServoAngleTriplet {
+            coxa: payload.right_front[0],
+            femur: payload.right_front[1],
+            tibia: payload.right_front[2],
+        },
+        right_middle: ServoAngleTriplet {
+            coxa: payload.right_middle[0],
+            femur: payload.right_middle[1],
+            tibia: payload.right_middle[2],
+        },
+        right_back: ServoAngleTriplet {
+            coxa: payload.right_back[0],
+            femur: payload.right_back[1],
+            tibia: payload.right_back[2],
+        },
     };
     Ok(Json(ServoTweaksResponse {
         success: true,
@@ -680,6 +763,77 @@ pub async fn get_saved_servo_tweaks() -> Result<Json<ServoTweaksResponse>, Statu
         success: true,
         message: "Saved servo tweaks".to_string(),
         tweaks: parsed,
+    }))
+}
+
+fn snapshot_pose(snapshot: &SlamSnapshot) -> PoseResponse {
+    PoseResponse {
+        x: snapshot.pose.x,
+        y: snapshot.pose.y,
+        theta: snapshot.pose.theta,
+    }
+}
+
+/// GET /api/lidar/frame
+pub async fn get_lidar_frame(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<LidarFrameResponse>, StatusCode> {
+    let handle = state
+        .lidar
+        .as_ref()
+        .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
+    let snapshot = handle.latest();
+    if snapshot.frame == 0 {
+        return Err(StatusCode::NO_CONTENT);
+    }
+
+    let scan = snapshot
+        .last_scan
+        .as_ref()
+        .ok_or(StatusCode::NO_CONTENT)?;
+
+    let points = scan
+        .points
+        .iter()
+        .map(|p| LidarPointResponse {
+            angle_deg: p.angle_deg,
+            distance_mm: (p.distance_m.max(0.0) * 1000.0) as u32,
+            intensity: p.intensity,
+        })
+        .collect();
+
+    Ok(Json(LidarFrameResponse {
+        frame: snapshot.frame,
+        timestamp_ns: snapshot.timestamp_ns,
+        pose: snapshot_pose(&snapshot),
+        rpm: scan.rpm,
+        points,
+    }))
+}
+
+/// GET /api/lidar/map
+pub async fn get_lidar_map(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<LidarMapResponse>, StatusCode> {
+    let handle = state
+        .lidar
+        .as_ref()
+        .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
+    let snapshot = handle.latest();
+    let map = snapshot.map.as_ref().ok_or(StatusCode::NO_CONTENT)?;
+
+    Ok(Json(LidarMapResponse {
+        frame: snapshot.frame,
+        pose: snapshot_pose(&snapshot),
+        width: map.width(),
+        height: map.height(),
+        resolution: map.resolution(),
+        origin: PoseResponse {
+            x: map.origin().x,
+            y: map.origin().y,
+            theta: map.origin().theta,
+        },
+        cells: map.cells().to_vec(),
     }))
 }
 // ============= Health Check =============

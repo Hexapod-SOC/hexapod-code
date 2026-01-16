@@ -47,17 +47,17 @@ impl PicoUbecController {
         // Simulate voltage drift for testing
         self.battery_status.voltage += (rand::random::<f32>() - 0.5) * 0.01;
         self.battery_status.voltage = self.battery_status.voltage.clamp(6.0, 8.4);
-        
+
         self.battery_status.current += (rand::random::<f32>() - 0.5) * 0.05;
         self.battery_status.current = self.battery_status.current.clamp(0.5, 3.0);
-        
+
         self.battery_status.last_update = Some(Instant::now());
-        
+
         println!(
             "(Dummy) Battery: {:.2}V, {:.2}A - State: {:?}",
             self.battery_status.voltage, self.battery_status.current, self.power_state
         );
-        
+
         true
     }
 

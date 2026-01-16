@@ -1,6 +1,6 @@
-use devices::gps::{GpsController, FixQuality};
+use devices::gps::{FixQuality, GpsController};
 use std::fs::File;
-use std::io::{Write, BufWriter};
+use std::io::{BufWriter, Write};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -77,7 +77,10 @@ fn main() {
                 position.longitude,
                 position.altitude,
                 position.speed_kmh,
-                position.heading.map(|h| h.to_string()).unwrap_or_else(|| "".to_string()),
+                position
+                    .heading
+                    .map(|h| h.to_string())
+                    .unwrap_or_else(|| "".to_string()),
                 position.satellites,
                 fix_quality_str,
                 has_fix

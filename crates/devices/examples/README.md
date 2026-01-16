@@ -188,3 +188,42 @@ Command:
 - Angles shown are approximate, for reference only
 - **Always record the PWM value**, not the angle
 - Use this to find the "true center" for each servo, as manufacturing tolerances vary
+
+---
+
+## LiDAR SLAM Web Viewer (`lidar_web.rs`)
+
+Real-time visualizer that wires the LD19 LiDAR into the integrated SLAM pipeline and serves an interactive web UI displaying pose, map, and raw scan data.
+
+### Features
+
+- Threads raw LD19 packets into the `lidar-slam` crate for BreezySLAM-style mapping
+- Streams pose + scan updates over WebSockets and exposes the occupancy grid as JSON
+- Front-end overlays the occupancy map, robot pose arrow, and live laser hits
+
+### Usage
+
+On development machines (no hardware) using the dummy stack:
+
+```bash
+cargo run --example lidar_web --features "dummy,web"
+```
+
+On the robot with the real serial driver:
+
+```bash
+cargo run --example lidar_web --features "real,web"
+```
+
+Then open the dashboard in your browser (replace with your Pi's IP when needed):
+
+```
+http://localhost:3001
+```
+
+### API
+
+- `GET /map` – Returns the latest occupancy grid (`width`, `height`, `resolution`, `cells`) plus the robot pose
+- `WS /ws` – Streams JSON frames `{ frame, timestamp_ns, pose, rpm, points[] }`
+
+You can reuse these endpoints in other control surfaces to consume the SLAM data directly.

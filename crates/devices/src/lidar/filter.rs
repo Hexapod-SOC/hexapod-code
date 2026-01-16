@@ -141,8 +141,9 @@ impl NearRangeFilter {
 
         // Small groups need intensity validation
         if group.len() < 3 {
-            let avg_intensity: u32 = group.iter().map(|p| p.intensity as u32).sum::<u32>() / group.len() as u32;
-            
+            let avg_intensity: u32 =
+                group.iter().map(|p| p.intensity as u32).sum::<u32>() / group.len() as u32;
+
             if avg_intensity < INTENSITY_SINGLE as u32 {
                 // Mark as invalid
                 for point in &mut result {
@@ -151,7 +152,8 @@ impl NearRangeFilter {
             }
         } else {
             // Medium groups - check average intensity
-            let avg_intensity: u32 = group.iter().map(|p| p.intensity as u32).sum::<u32>() / group.len() as u32;
+            let avg_intensity: u32 =
+                group.iter().map(|p| p.intensity as u32).sum::<u32>() / group.len() as u32;
 
             if avg_intensity <= INTENSITY_LOW as u32 {
                 // Mark as invalid
@@ -184,10 +186,7 @@ mod tests {
     #[test]
     fn test_filter_far_points() {
         let filter = NearRangeFilter::new();
-        let points = vec![
-            Point::new(10.0, 6000, 128),
-            Point::new(20.0, 7000, 128),
-        ];
+        let points = vec![Point::new(10.0, 6000, 128), Point::new(20.0, 7000, 128)];
         let filtered = filter.filter(&points, 3600);
         assert_eq!(filtered.len(), 2);
     }

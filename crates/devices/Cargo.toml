@@ -11,6 +11,9 @@ linux-embedded-hal = { workspace = true, optional = true }
 pwm-pca9685 = { workspace = true, optional = true }
 libc = { version = "0.2", optional = true }
 anyhow = { workspace = true }
+lidar-slam = { path = "../lidar-slam" }
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
 
 # Web dependencies (for examples)
 tokio = { workspace = true, optional = true }

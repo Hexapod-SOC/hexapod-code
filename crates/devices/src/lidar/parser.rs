@@ -1,8 +1,8 @@
 //! Packet parser and frame assembler
 
+use super::filter::NearRangeFilter;
 use super::packet::{LidarPacket, PACKET_SIZE, POINTS_PER_PACKET};
 use super::point::{Point, PointCloud};
-use super::filter::NearRangeFilter;
 
 /// Packet parsing state machine
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -113,11 +113,7 @@ impl PacketParser {
                 angle -= 360.0;
             }
 
-            let point = Point::new(
-                angle,
-                packet.points[i].distance,
-                packet.points[i].intensity,
-            );
+            let point = Point::new(angle, packet.points[i].distance, packet.points[i].intensity);
 
             self.frame_buffer.push(point);
 
@@ -133,7 +129,7 @@ impl PacketParser {
     /// Try to assemble a complete frame from buffered points
     fn try_assemble_frame(&mut self) {
         let count = self.frame_buffer.len();
-        
+
         if count == 0 {
             return;
         }
@@ -214,11 +210,11 @@ mod tests {
     #[test]
     fn test_state_transitions() {
         let mut parser = PacketParser::new();
-        
+
         // Should accept header
         assert!(!parser.process_byte(0x54));
         assert_eq!(parser.state, ParserState::VerLen);
-        
+
         // Should accept version/length
         assert!(!parser.process_byte(0x2C));
         matches!(parser.state, ParserState::Data(_));

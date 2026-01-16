@@ -1,5 +1,5 @@
-pub mod legs;
-pub mod ik;
+pub mod controller;
 pub mod gait;
 pub mod gaits;
-pub mod controller;
+pub mod ik;
+pub mod legs;

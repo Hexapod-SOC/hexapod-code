@@ -15,7 +15,7 @@ pub struct ServoPins {
 /// WARNING: All servos were measured in one configuration. Left/right side servos
 /// are physically reversed/mirrored, so these offsets may need inversion for right side.
 pub struct ServoOffsets {
-    pub left_front: (f32, f32, f32),  // (Coxa, Femur, Tibia) in PWA units
+    pub left_front: (f32, f32, f32), // (Coxa, Femur, Tibia) in PWA units
     pub left_middle: (f32, f32, f32),
     pub left_back: (f32, f32, f32),
     pub right_front: (f32, f32, f32),

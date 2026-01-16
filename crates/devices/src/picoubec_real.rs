@@ -47,8 +47,13 @@ impl PicoUbecController {
                 (Some(r), Some(w), false)
             }
             Err(e) => {
-                eprintln!("Warning: Failed to open UBEC serial port {}: {}", port_path, e);
-                eprintln!("Continuing without battery monitoring (device will auto-disconnect if needed)");
+                eprintln!(
+                    "Warning: Failed to open UBEC serial port {}: {}",
+                    port_path, e
+                );
+                eprintln!(
+                    "Continuing without battery monitoring (device will auto-disconnect if needed)"
+                );
                 (None, None, true)
             }
         };
@@ -78,7 +83,7 @@ impl PicoUbecController {
         // Configure serial port using termios
         unsafe {
             let mut termios: libc::termios = std::mem::zeroed();
-            
+
             if libc::tcgetattr(fd, &mut termios) != 0 {
                 return Err(std::io::Error::last_os_error());
             }

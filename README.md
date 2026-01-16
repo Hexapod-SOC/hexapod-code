@@ -12,6 +12,7 @@ A Rust-based control system for a hexapod robot with 18 servos (3 per leg), feat
 - **Audio Playback**: WAV and ~~MP3~~ file playback capabilities
 - **Async Runtime**: Built on Tokio for efficient concurrent operations
 - **[WIP] Config.toml**: Move from hardcoded config.rs to Config.toml
+- **LiDAR SLAM**: Real-time LD19 pipeline with API + web visualization (see `/map`)
 
 ## Todo
 - [ ]  make the tts + audio run on separate thread bcose rn its blocking the main thread
@@ -115,6 +116,21 @@ cargo make pcrun
 ```bash
 cargo make pirunremote
 ```
+
+### LiDAR SLAM Web Map
+
+1. Ensure the LiDAR is connected (default port `/dev/ttyUSB0`) and build with the desired feature flag (`--features real` on the robot, `--features dummy` on dev machines).
+2. Start the main binary so the API (`config::API_PORT`, default `3000`) and web panel (`config::WEB_PANEL_PORT`, default `8080`) boot.
+3. Open the map page at `http://<host>:8080/map`. Append `?api=https://host:3000/api` to point at a custom API URL/port.
+
+Exposed API endpoints:
+
+```
+GET /api/lidar/frame  # latest pose, RPM, and point cloud
+GET /api/lidar/map    # occupancy grid (log-odds) + pose + metadata
+```
+
+The web page consumes those endpoints to render the live occupancy grid and scan overlays.
 
 ### Basic Movement Control
 
