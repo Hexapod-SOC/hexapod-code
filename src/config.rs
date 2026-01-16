@@ -13,6 +13,9 @@ pub const LIDAR_SLAM_ENABLE: bool = true;
 pub const LIDAR_SERIAL_PORT: &str = "/dev/ttyUSB0";
 pub const LIDAR_IDLE_SLEEP_MS: u64 = 5;
 
+pub const GPS_ENABLE: bool = true;
+pub const GPS_SERIAL_PORT: &str = "/dev/ttyACM5";
+
 pub const TMP_DIR: &str = "/tmp/hexapod/";
 pub const TTS_URL: &str = "http://127.0.0.1:5000";
 //pub const VOICE_ID: &str = "en_us_001";
