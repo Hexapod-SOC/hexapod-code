@@ -22,6 +22,9 @@ const ROT_DEADZONE: f32 = 0.01; // rad/s deadband for yaw rotation
 // Input smoothing (first-order low-pass) to make gait transitions gentler
 const VEL_SMOOTH_TAU: f32 = 0.25; // seconds, smaller = snappier
 const ROT_SMOOTH_TAU: f32 = 0.25;
+// Safer servo command range to avoid over-travel.
+const SERVO_ANGLE_MIN: f32 = -30.0;
+const SERVO_ANGLE_MAX: f32 = 210.0;
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ServoAngleTriplet {
     pub coxa: f32,
@@ -42,12 +45,36 @@ pub struct ServoAngleTweaks {
 impl Default for ServoAngleTweaks {
     fn default() -> Self {
         Self {
-            left_front: ServoAngleTriplet::default(),
-            left_middle: ServoAngleTriplet::default(),
-            left_back: ServoAngleTriplet::default(),
-            right_front: ServoAngleTriplet::default(),
-            right_middle: ServoAngleTriplet::default(),
-            right_back: ServoAngleTriplet::default(),
+            left_front: ServoAngleTriplet {
+                coxa: 93.0,
+                femur: 78.0,
+                tibia: 47.0,
+            },
+            left_middle: ServoAngleTriplet {
+                coxa: 38.0,
+                femur: 37.0,
+                tibia: 67.0,
+            },
+            left_back: ServoAngleTriplet {
+                coxa: 15.0,
+                femur: 81.0,
+                tibia: 45.0,
+            },
+            right_front: ServoAngleTriplet {
+                coxa: -26.0,
+                femur: -39.0,
+                tibia: -57.0,
+            },
+            right_middle: ServoAngleTriplet {
+                coxa: -65.0,
+                femur: -1.0,
+                tibia: -83.0,
+            },
+            right_back: ServoAngleTriplet {
+                coxa: -119.0,
+                femur: -21.0,
+                tibia: -63.0,
+            },
         }
     }
 }
@@ -180,15 +207,26 @@ impl Hexapod {
         self.smoothed_rotation =
             self.smoothed_rotation + (rotation - self.smoothed_rotation) * alpha_rot;
 
+        // Snap to zero when we've decayed below deadzones to prevent "walking in place".
+        if self.smoothed_velocity.length_squared() < VEL_DEADZONE * VEL_DEADZONE
+            && self.smoothed_rotation.abs() < ROT_DEADZONE
+        {
+            self.smoothed_velocity = Vec3::ZERO;
+            self.smoothed_rotation = 0.0;
+        }
+
         // Update gait phase
         {
             let mut gait = self.gait_controller.lock().await;
-            gait.update(dt);
+            if self.smoothed_velocity.length_squared() > 0.0 || self.smoothed_rotation != 0.0 {
+                gait.update(dt);
+            }
             gait.set_body_pose(control.body_pose);
         }
 
         // Calculate leg angles based on current control state
-        let is_moving = self.smoothed_velocity.length_squared() > 0.0 || self.smoothed_rotation != 0.0;
+        let is_moving =
+            self.smoothed_velocity.length_squared() > 0.0 || self.smoothed_rotation != 0.0;
 
         let angles = if is_moving {
             // Walking with body pose
@@ -212,9 +250,9 @@ impl Hexapod {
                 Leg::RightMiddle => tweaks.right_middle,
                 Leg::RightBack => tweaks.right_back,
             };
-            leg_angles.coxa = (leg_angles.coxa + t.coxa).clamp(0.0, 180.0);
-            leg_angles.femur = (leg_angles.femur + t.femur).clamp(0.0, 180.0);
-            leg_angles.tibia = (leg_angles.tibia + t.tibia).clamp(0.0, 180.0);
+            leg_angles.coxa = (leg_angles.coxa + t.coxa).clamp(SERVO_ANGLE_MIN, SERVO_ANGLE_MAX);
+            leg_angles.femur = (leg_angles.femur + t.femur).clamp(SERVO_ANGLE_MIN, SERVO_ANGLE_MAX);
+            leg_angles.tibia = (leg_angles.tibia + t.tibia).clamp(SERVO_ANGLE_MIN, SERVO_ANGLE_MAX);
         }
 
         // Smooth servo commands to avoid abrupt foot impacts

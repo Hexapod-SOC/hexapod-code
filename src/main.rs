@@ -12,7 +12,8 @@ use crate::hexapod::{ServoAngleTriplet, ServoAngleTweaks};
 use audio::tts;
 use config::CALIBRATION_LEG_STANCE_FILE;
 use config::{
-    CALIBRATION_SERVO_TWEAKS_FILE, CONSTRAINTS, SERVO_OFFSETS, SERVO_PINS, TMP_DIR, TTS_URL,
+    CALIBRATION_SERVO_TWEAKS_FILE, CONSTRAINTS, LOAD_SAVED_SERVO_TWEAKS, SERVO_OFFSETS,
+    SERVO_PINS, TMP_DIR, TTS_URL,
 };
 use glam::Vec3;
 use movement::gait::LegStances;
@@ -171,11 +172,13 @@ async fn main() {
         });
     }
 
-    // Load saved per-servo angle tweaks if available
-    if let Some(tweaks) = load_saved_servo_tweaks() {
-        let tweaks_arc = hexapod.get_servo_angle_tweaks();
-        let mut t = tweaks_arc.lock().await;
-        *t = tweaks;
+    // Load saved per-servo angle tweaks if enabled
+    if LOAD_SAVED_SERVO_TWEAKS {
+        if let Some(tweaks) = load_saved_servo_tweaks() {
+            let tweaks_arc = hexapod.get_servo_angle_tweaks();
+            let mut t = tweaks_arc.lock().await;
+            *t = tweaks;
+        }
     }
 
     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;

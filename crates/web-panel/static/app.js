@@ -910,9 +910,33 @@ function resetLegStance() {
 
 // ===== SERVO ANGLE TWEAKS =====
 
-const SERVO_TWEAK_MIN = -90;
-const SERVO_TWEAK_MAX = 90;
+const SERVO_TWEAK_MIN = -180;
+const SERVO_TWEAK_MAX = 180;
 const SERVO_TWEAK_STEP = 0.5;
+const LOCKABLE_PARTS = ['coxa', 'femur', 'tibia'];
+const LOCK_SERVO_TWEAKS_UI = true;
+
+function getAxisLockButton(legId, part) {
+    return document.getElementById(`${legId}-${part}-lock`);
+}
+
+function isAxisLocked(legId, part) {
+    const btn = getAxisLockButton(legId, part);
+    return !!btn && btn.dataset.locked === 'true';
+}
+
+function setAxisLocked(legId, part, locked) {
+    const btn = getAxisLockButton(legId, part);
+    const slider = document.getElementById(`${legId}-${part}`);
+    const numberInput = document.getElementById(`${legId}-${part}-input`);
+    if (!btn || !slider) return;
+
+    btn.dataset.locked = locked ? 'true' : 'false';
+    btn.textContent = locked ? '🔒' : '🔓';
+    btn.classList.toggle('locked', locked);
+    slider.disabled = locked;
+    if (numberInput) numberInput.disabled = locked;
+}
 
 function clampServoTweak(value) {
     const num = parseFloat(value);
@@ -969,6 +993,31 @@ function initServoTweaks() {
                 if (pushUpdate) applyServoTweaksLive();
             };
 
+            if (LOCKABLE_PARTS.includes(part)) {
+                if (LOCK_SERVO_TWEAKS_UI) {
+                    slider.disabled = true;
+                    numberInput.disabled = true;
+                } else {
+                    const group = slider.closest('.slider-group');
+                    const label = group ? group.querySelector('label') : null;
+                    if (label && !getAxisLockButton(legId, part)) {
+                        label.classList.add('servo-axis-label');
+                        const lockBtn = document.createElement('button');
+                        lockBtn.type = 'button';
+                        lockBtn.id = `${legId}-${part}-lock`;
+                        lockBtn.className = 'axis-lock-btn';
+                        lockBtn.dataset.locked = 'false';
+                        lockBtn.textContent = '🔓';
+                        lockBtn.addEventListener('click', () => {
+                            const nextLocked = !isAxisLocked(legId, part);
+                            setAxisLocked(legId, part, nextLocked);
+                            if (nextLocked) applyServoTweaksLive();
+                        });
+                        label.appendChild(lockBtn);
+                    }
+                }
+            }
+
             slider.addEventListener('input', () => updateValue(slider.value));
             numberInput.addEventListener('input', () => updateValue(numberInput.value));
 
@@ -980,11 +1029,31 @@ function initServoTweaks() {
     // Buttons
     const loadBtn = document.getElementById('load-servo-tweaks');
     if (loadBtn) loadBtn.addEventListener('click', loadCurrentServoTweaks);
+    const saveBtn = document.getElementById('save-servo-tweaks');
+    if (saveBtn) {
+        if (LOCK_SERVO_TWEAKS_UI) {
+            saveBtn.disabled = true;
+        } else {
+            saveBtn.addEventListener('click', saveServoTweaksNow);
+        }
+    }
     const resetBtn = document.getElementById('reset-servo-tweaks');
-    if (resetBtn) resetBtn.addEventListener('click', resetServoTweaks);
+    if (resetBtn) {
+        if (LOCK_SERVO_TWEAKS_UI) {
+            resetBtn.disabled = true;
+        } else {
+            resetBtn.addEventListener('click', resetServoTweaks);
+        }
+    }
 
     // Load current from server on init
     loadCurrentServoTweaks();
+
+    // Save on navigation to avoid losing recent tweaks.
+    window.addEventListener('beforeunload', () => {
+        const payload = collectServoTweaksPayload();
+        scheduleServoTweaksSave(payload);
+    });
 }
 
 function collectServoTweaksPayload() {
@@ -1011,6 +1080,7 @@ function setServoSliders(legId, values) {
         const val = document.getElementById(`${legId}-${part}-val`);
         const numberInput = document.getElementById(`${legId}-${part}-input`);
         if (!slider || !val) return;
+        if (LOCKABLE_PARTS.includes(part) && isAxisLocked(legId, part)) return;
 
         const normalized = normalizeServoTweak(values[index]);
         slider.value = normalized;
@@ -1050,15 +1120,29 @@ async function applyServoTweaksLive() {
             body: JSON.stringify(payload),
             signal: window.__servoTweaksAbortController.signal,
         });
-        // Best-effort save to disk too
-        await fetch(`${API_BASE}/servo_tweaks/save`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-        });
     } catch (_) {
         // ignore
     }
+
+    // Always schedule a save to disk (debounced) so we persist tweaks.
+    scheduleServoTweaksSave(payload);
+}
+
+function scheduleServoTweaksSave(payload) {
+    if (window.__servoTweaksSaveTimer) {
+        clearTimeout(window.__servoTweaksSaveTimer);
+    }
+    window.__servoTweaksSaveTimer = setTimeout(async () => {
+        try {
+            await fetch(`${API_BASE}/servo_tweaks/save`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+        } catch (_) {
+            // ignore
+        }
+    }, 250);
 }
 
 function resetServoTweaks() {
@@ -1069,4 +1153,17 @@ function resetServoTweaks() {
     setServoSliders('rm', [0.0, 0.0, 0.0]);
     setServoSliders('rb', [0.0, 0.0, 0.0]);
     applyServoTweaksLive();
+}
+
+async function saveServoTweaksNow() {
+    const payload = collectServoTweaksPayload();
+    try {
+        await fetch(`${API_BASE}/servo_tweaks/save`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+    } catch (_) {
+        // ignore
+    }
 }

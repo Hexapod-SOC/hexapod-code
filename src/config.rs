@@ -45,12 +45,12 @@ pub const CONSTRAINTS: ik::Constraints = ik::Constraints {
 
 //FIXME mirrored maybe reverse polarity?
 pub const SERVO_OFFSETS: ServoOffsets = ServoOffsets {
-    left_front: (-2.5, -4.5, 0.0),
-    left_middle: (-5.0, -4.0, -1.5),
-    left_back: (7.5, -10.0, -6.0),
-    right_front: (2.5, 5.0, -3.0),
-    right_middle: (2.5, -4.0, -5.0),
-    right_back: (5.0, -1.5, -2.5), // Fixed: was 5.0, should be -2.5 based on B1 data
+    left_front: (0.0, 0.0, 0.0),
+    left_middle: (0.0, 0.0, 0.0),
+    left_back: (0.0, 0.0, 0.0),
+    right_front: (0.0, 0.0, 0.0),
+    right_middle: (0.0, 0.0, 0.0),
+    right_back: (0.0, 0.0, 0.0),
 };
 
 // Persistent calibration storage (JSON). Relative to the working directory.
@@ -58,6 +58,8 @@ pub const SERVO_OFFSETS: ServoOffsets = ServoOffsets {
 pub const CALIBRATION_LEG_STANCE_FILE: &str = "calibration/leg_stance.json";
 /// Persistent per-servo angle tweaks (degrees), applied on top of IK outputs.
 pub const CALIBRATION_SERVO_TWEAKS_FILE: &str = "calibration/servo_angle_tweaks.json";
+/// Set to true to load saved servo tweaks on startup.
+pub const LOAD_SAVED_SERVO_TWEAKS: bool = false;
 
 /// Helper to build the configuration passed into the LiDAR SLAM thread.
 pub fn lidar_slam_config() -> LidarSlamConfig {

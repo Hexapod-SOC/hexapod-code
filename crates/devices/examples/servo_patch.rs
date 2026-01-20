@@ -4,11 +4,12 @@ use std::env;
 use std::thread;
 use std::time::Duration;
 
-// Servo pulse width constants for 60Hz (prescale 100)
-const SERVO_MIN: u16 = 246; // 0 degrees (1000µs)
-const SERVO_MAX: u16 = 492; // 180 degrees (2000µs)
+// Servo pulse width constants for 50Hz (prescale 121)
+// Safer range: 1.0ms..2.0ms to reduce over-travel risk.
+const SERVO_MIN: u16 = 204; // 0 degrees (1000µs)
+const SERVO_MAX: u16 = 410; // 180 degrees (2000µs)
 
-/// Convert angle (0-180 degrees) to PWM value (246-492)
+/// Convert angle (0-180 degrees) to PWM value (204-410)
 fn angle_to_pwm(angle: f32) -> u16 {
     let angle = angle.clamp(0.0, 180.0);
     let range = (SERVO_MAX - SERVO_MIN) as f32;
@@ -117,7 +118,7 @@ fn main() {
             Ok(i2c) => match Pca9685::new(i2c, Address::from(left_board_addr)) {
                 Ok(mut pca_left) => {
                     println!("✓ Initializing left board (0x{:02X})...", left_board_addr);
-                    pca_left.set_prescale(100).expect("Failed to set prescale");
+                    pca_left.set_prescale(121).expect("Failed to set prescale");
                     pca_left.enable().expect("Failed to enable PCA9685");
 
                     set_all_channels(&mut pca_left, default_pwm);
@@ -145,7 +146,7 @@ fn main() {
             Ok(i2c) => match Pca9685::new(i2c, Address::from(right_board_addr)) {
                 Ok(mut pca_right) => {
                     println!("✓ Initializing right board (0x{:02X})...", right_board_addr);
-                    pca_right.set_prescale(100).expect("Failed to set prescale");
+                    pca_right.set_prescale(121).expect("Failed to set prescale");
                     pca_right.enable().expect("Failed to enable PCA9685");
 
                     set_all_channels(&mut pca_right, default_pwm);

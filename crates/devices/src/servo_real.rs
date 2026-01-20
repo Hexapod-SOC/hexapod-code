@@ -10,10 +10,13 @@ use pwm_pca9685::{Address, Channel, Pca9685};
 // const SERVO_MAX: u16 = 492; // 180 degrees (2000µs)
 
 // for prescale 121 (50Hz)
-const SERVO_MIN: u16 = 204; // 0 degrees (1000µs)
+// Safer range: 1.0ms..2.0ms to reduce over-travel risk.
+const SERVO_MIN: u16 = 204; // 0 degrees in safe range (1000µs)
 #[allow(dead_code)]
 const SERVO_CENTER: u16 = 307; // 90 degrees (1500µs) 
-const SERVO_MAX: u16 = 410; // 180 degrees (2000µs)
+const SERVO_MAX: u16 = 410; // 180 degrees in safe range (2000µs)
+const SERVO_ANGLE_MIN: f32 = -30.0;
+const SERVO_ANGLE_MAX: f32 = 210.0;
 
 
 /// (Coxa, Femur, Tibia) pin configuration for each leg
@@ -27,7 +30,7 @@ pub struct ServoPins {
 }
 
 /// (Coxa, Femur, Tibia) PWA offsets for each leg servo
-/// These offsets are measured in PWA units relative to 369 PWA (center position)
+/// These offsets are measured in PWA units relative to 307 PWA (center position)
 /// WARNING: All servos were measured in one configuration. Left/right side servos
 /// are physically reversed/mirrored, so these offsets may need inversion for right side.
 pub struct ServoOffsets {
@@ -76,7 +79,7 @@ impl ServoController {
         self.pca_right.enable().unwrap();
     }
 
-    /// Set a single servo to a specific angle (0-180 degrees)
+    /// Set a single servo to a specific angle (expanded range)
     pub fn set_servo_angle(&mut self, leg: Leg, part: LegPart, angle: f32) {
         // Convert angle (0-180 degrees) to PWM value
         let pwm_value = self.angle_to_pwm(angle);
@@ -138,14 +141,15 @@ impl ServoController {
         self.set_leg_angles(Leg::RightBack, angles);
     }
 
-    /// Convert angle (0-180 degrees) to PWM value (246-492)
+    /// Convert angle (expanded range) to PWM value (SERVO_MIN..SERVO_MAX)
     fn angle_to_pwm(&self, angle: f32) -> u16 {
-        // Clamp angle to 0-180 range
-        let angle = angle.clamp(0.0, 180.0);
+        // Clamp angle to expanded range
+        let angle = angle.clamp(SERVO_ANGLE_MIN, SERVO_ANGLE_MAX);
 
         // Linear interpolation between SERVO_MIN and SERVO_MAX
         let range = (SERVO_MAX - SERVO_MIN) as f32;
-        let pwm = SERVO_MIN as f32 + (angle / 180.0) * range;
+        let normalized = (angle - SERVO_ANGLE_MIN) / (SERVO_ANGLE_MAX - SERVO_ANGLE_MIN);
+        let pwm = SERVO_MIN as f32 + normalized * range;
 
         pwm as u16
     }

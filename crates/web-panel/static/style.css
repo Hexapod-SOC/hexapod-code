@@ -156,6 +156,27 @@ h1 {
     border-radius: 10px;
 }
 
+.servo-axis-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.axis-lock-btn {
+    border: 1px solid #ddd;
+    background: #fff;
+    border-radius: 6px;
+    padding: 2px 6px;
+    font-size: 0.9em;
+    cursor: pointer;
+}
+
+.axis-lock-btn.locked {
+    border-color: #667eea;
+    background: #eef0ff;
+}
+
 .slider-input-row {
     display: flex;
     align-items: center;
