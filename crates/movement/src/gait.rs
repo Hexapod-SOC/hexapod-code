@@ -181,12 +181,20 @@ impl Gait {
             // Interpolate smoothly
             let horizontal_offset = start_offset.lerp(end_offset, ease_progress);
 
-            // Vertical Movement (Lift): Sinusoidal trajectory with zero derivative at endpoints
-            // We want a curve that goes 0 -> 1 -> 0
-            // Previous: sin(t * pi) has non-zero derivative at t=0 and t=1 (jerk)
-            // New: 0.5 * (1.0 - cos(2.0 * pi * swing_progress)) goes 0->1->0 and has 0 derivative at endpoints
-            let lift_height = self.template.lift_height_multiplier * 50.0; // Adjusted base height
-            let lift = 0.5 * (1.0 - (swing_progress * 2.0 * pi).cos()) * lift_height;
+            // Vertical Movement (Lift): Quintic Smoothstep (Smootherstep)
+            // Function: 6u^5 - 15u^4 + 10u^3 applied to a triangle wave u(t)
+            // t in [0.0, 1.0]
+            let t = swing_progress.clamp(0.0, 1.0);
+
+            // u goes 0 -> 1 -> 0 (triangle), smooth it with quintic
+            let u = 1.0 - (2.0 * t - 1.0).abs();
+
+            // Quintic smoothstep: 0 -> 1 with zero vel+acc at ends
+            let s = u*u*u * (u * (u * 6.0 - 15.0) + 10.0); // 10u^3 - 15u^4 + 6u^5
+
+            let lift_height = self.template.lift_height_multiplier * 50.0;
+            // Final lift: 0 -> lift_height -> 0, gentle liftoff & touchdown
+            let lift = s * lift_height;
 
             default_pos + horizontal_offset + Vec3::new(0.0, 0.0, lift)
         }
