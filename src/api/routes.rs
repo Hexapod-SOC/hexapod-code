@@ -1,8 +1,9 @@
-use crate::config::{CALIBRATION_LEG_STANCE_FILE, CALIBRATION_SERVO_TWEAKS_FILE};
+use crate::config::{CALIBRATION_LEG_STANCE_FILE, CALIBRATION_SERVO_TWEAKS_FILE, CONSTRAINTS};
 use axum::{Json, extract::State, http::StatusCode};
 use devices::lidar::SlamSnapshot;
 use glam::Vec3;
 use movement::gaits::{GaitTemplate, LegCycleOffsets};
+use movement::legs::Leg;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::fs;
@@ -10,6 +11,82 @@ use tokio::io::AsyncWriteExt;
 
 use super::state::AppState;
 use crate::hexapod::{ServoAngleTriplet, ServoAngleTweaks};
+
+#[derive(Serialize, Clone, Copy)]
+pub struct BodyPoseData {
+    pub roll: f32,
+    pub pitch: f32,
+    pub yaw: f32,
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
+}
+
+#[derive(Serialize, Clone, Copy)]
+pub struct LegKinematicsData {
+    pub position: [f32; 3],
+    pub angles_deg: [f32; 3],
+    pub angles_tweaked_deg: [f32; 3],
+    pub angles_rad: [f32; 3],
+}
+
+#[derive(Serialize, Clone)]
+pub struct LegKinematicsResponse {
+    pub gait_phase: f32,
+    pub gait_name: String,
+    pub velocity: [f32; 3],
+    pub rotation: f32,
+    pub body_pose: BodyPoseData,
+    pub legs: LegsKinematicsBlock,
+}
+
+#[derive(Serialize, Clone, Copy)]
+pub struct LegsKinematicsBlock {
+    pub left_front: LegKinematicsData,
+    pub left_middle: LegKinematicsData,
+    pub left_back: LegKinematicsData,
+    pub right_front: LegKinematicsData,
+    pub right_middle: LegKinematicsData,
+    pub right_back: LegKinematicsData,
+}
+
+fn vec3_to_array(v: Vec3) -> [f32; 3] {
+    [v.x, v.y, v.z]
+}
+
+fn tweak_for_leg(tweaks: &ServoAngleTweaks, leg: Leg) -> ServoAngleTriplet {
+    match leg {
+        Leg::LeftFront => tweaks.left_front,
+        Leg::LeftMiddle => tweaks.left_middle,
+        Leg::LeftBack => tweaks.left_back,
+        Leg::RightFront => tweaks.right_front,
+        Leg::RightMiddle => tweaks.right_middle,
+        Leg::RightBack => tweaks.right_back,
+    }
+}
+
+fn to_visualizer_angles(leg: Leg, angles_deg: ServoAngleTriplet) -> [f32; 3] {
+    let mut coxa = (angles_deg.coxa);
+    let mut femur = (angles_deg.femur);
+    let mut tibia = -(angles_deg.tibia);
+
+    if matches!(leg, Leg::RightFront | Leg::RightMiddle | Leg::RightBack) {
+        coxa = 180.0 + -180.0 - coxa;
+        femur = 45.0 + femur;
+        tibia = 180.0 - tibia;
+    }
+
+    if matches!(leg, Leg::LeftFront | Leg::LeftMiddle | Leg::LeftBack) {
+        coxa = 135.0 - coxa;
+        femur = -45.0 - femur;
+    }
+
+    let coxa = coxa.to_radians();
+    let femur = femur.to_radians();
+    let tibia = tibia.to_radians();
+
+    [coxa, femur, tibia]
+}
 
 // ============= Status Endpoints =============
 
@@ -52,6 +129,113 @@ pub async fn get_status(
         },
         gait_phase: phase,
         gait_name: template.name.to_string(),
+    }))
+}
+
+/// GET /api/legs
+pub async fn get_leg_kinematics(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<LegKinematicsResponse>, StatusCode> {
+    let control = state.control.lock().await;
+    let velocity = control.velocity;
+    let rotation = control.rotation;
+
+    let gait = state.gait_controller.lock().await;
+    let body_pose = gait.get_body_pose();
+    let phase = gait.get_gait_phase();
+    let template = gait.get_template();
+
+    let is_moving = velocity.length_squared() > 0.0 || rotation != 0.0;
+
+    let mut positions = if is_moving {
+        gait.gait.calculate_all_leg_positions(velocity, rotation)
+    } else {
+        let base = gait.get_default_stance();
+        movement::gait::LegStances {
+            left_front: base.left_front,
+            left_middle: base.left_middle,
+            left_back: base.left_back,
+            right_front: base.right_front,
+            right_middle: base.right_middle,
+            right_back: base.right_back,
+        }
+    };
+
+    let legs = [
+        Leg::LeftFront,
+        Leg::LeftMiddle,
+        Leg::LeftBack,
+        Leg::RightFront,
+        Leg::RightMiddle,
+        Leg::RightBack,
+    ];
+
+    for leg in legs.iter() {
+        let pos = positions.get(*leg);
+        let transformed = body_pose.transform_position(pos);
+        positions.set(*leg, transformed);
+    }
+
+    let angles = if is_moving {
+        gait.calculate_walking_with_pose_angles(velocity, rotation)
+    } else {
+        gait.calculate_pose_angles()
+    };
+
+    let tweaks = state.servo_angle_tweaks.lock().await.clone();
+
+    let angle_for = |leg: Leg| -> ServoAngleTriplet {
+        let (_, found) = angles
+            .iter()
+            .find(|(l, _)| *l == leg)
+            .expect("Missing leg angles");
+        ServoAngleTriplet {
+            coxa: found.coxa,
+            femur: found.femur,
+            tibia: found.tibia,
+        }
+    };
+
+    let build_leg = |leg: Leg, pos: Vec3| -> LegKinematicsData {
+        let raw = angle_for(leg);
+        let tweak = tweak_for_leg(&tweaks, leg);
+        let tweaked = ServoAngleTriplet {
+            coxa: raw.coxa + tweak.coxa,
+            femur: raw.femur + tweak.femur,
+            tibia: raw.tibia + tweak.tibia,
+        };
+
+        LegKinematicsData {
+            position: vec3_to_array(pos),
+            angles_deg: [raw.coxa, raw.femur, raw.tibia],
+            angles_tweaked_deg: [tweaked.coxa, tweaked.femur, tweaked.tibia],
+            angles_rad: to_visualizer_angles(leg, tweaked),
+        }
+    };
+
+    let legs_block = LegsKinematicsBlock {
+        left_front: build_leg(Leg::LeftFront, positions.left_front),
+        left_middle: build_leg(Leg::LeftMiddle, positions.left_middle),
+        left_back: build_leg(Leg::LeftBack, positions.left_back),
+        right_front: build_leg(Leg::RightFront, positions.right_front),
+        right_middle: build_leg(Leg::RightMiddle, positions.right_middle),
+        right_back: build_leg(Leg::RightBack, positions.right_back),
+    };
+
+    Ok(Json(LegKinematicsResponse {
+        gait_phase: phase,
+        gait_name: template.name.to_string(),
+        velocity: [velocity.x, velocity.y, velocity.z],
+        rotation,
+        body_pose: BodyPoseData {
+            roll: body_pose.rotation.x,
+            pitch: body_pose.rotation.y,
+            yaw: body_pose.rotation.z,
+            x: body_pose.translation.x,
+            y: body_pose.translation.y,
+            z: body_pose.translation.z,
+        },
+        legs: legs_block,
     }))
 }
 

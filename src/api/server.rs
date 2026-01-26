@@ -24,6 +24,7 @@ pub async fn run_server(state: AppState, port: u16) -> Result<(), Box<dyn std::e
         // Status endpoints
         .route("/api/status", get(routes::get_status))
         .route("/api/battery", get(routes::get_battery))
+        .route("/api/legs", get(routes::get_leg_kinematics))
         // Movement control
         .route("/api/move", post(routes::move_hexapod))
         .route("/api/stop", post(routes::stop_hexapod))
