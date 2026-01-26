@@ -130,12 +130,9 @@ if (!container) {
 
 	let pose = { roll: 0, pitch: 0, yaw: 0 };
 	let movement = { forward: 0, strafe: 0, rotation: 0 };
-	let gaitPhase = 0;
 	let gaitName = '--';
 	let lastStatusAt = 0;
-	let lastPhaseAt = 0;
-	let lastPhaseValue = 0;
-	let speedEstimate = 0;
+	let kinematics = null;
 
 	const API_BASE = `${window.location.protocol}//${window.location.hostname}:3000/api`;
 
@@ -171,38 +168,38 @@ if (!container) {
 
 	window.addEventListener('hexapod:status', (event) => {
 		if (!event.detail) return;
-		gaitPhase = typeof event.detail.gait_phase === 'number' ? event.detail.gait_phase : gaitPhase;
 		gaitName = event.detail.gait_name || gaitName;
 		lastStatusAt = performance.now();
 	});
 
-	async function pollStatus() {
+	async function pollKinematics() {
 		try {
-			const res = await fetch(`${API_BASE}/status`);
+			const res = await fetch(`${API_BASE}/legs`);
 			if (!res.ok) return;
-			const status = await res.json();
-			if (typeof status.gait_phase === 'number') {
-				const now = performance.now();
-				const phase = status.gait_phase;
-				if (lastPhaseAt > 0) {
-					let delta = phase - lastPhaseValue;
-					if (delta < -0.5) delta += 1.0;
-					if (delta > 0.5) delta -= 1.0;
-					const dt = Math.max(0.001, (now - lastPhaseAt) / 1000);
-					speedEstimate = Math.min(200, Math.abs(delta / dt) * 120);
-				}
-				lastPhaseValue = phase;
-				lastPhaseAt = now;
-				gaitPhase = phase;
+			const data = await res.json();
+			kinematics = data;
+			if (data.gait_name) gaitName = data.gait_name;
+			if (data.body_pose) {
+				pose = {
+					roll: data.body_pose.roll || 0,
+					pitch: data.body_pose.pitch || 0,
+					yaw: data.body_pose.yaw || 0
+				};
 			}
-			if (status.gait_name) gaitName = status.gait_name;
+			if (data.velocity) {
+				movement = {
+					forward: data.velocity[0] || 0,
+					strafe: data.velocity[1] || 0,
+					rotation: data.rotation || 0
+				};
+			}
 			lastStatusAt = performance.now();
 		} catch (_) {
 			// ignore
 		}
 	}
 
-	setInterval(pollStatus, 200);
+	setInterval(pollKinematics, 120);
 
 	function updateBadges(speed) {
 		if (gaitBadge) gaitBadge.textContent = `Gait: ${gaitName}`;
@@ -212,13 +209,7 @@ if (!container) {
 	function animate(time) {
 		requestAnimationFrame(animate);
 
-		const commandSpeed = Math.min(120, Math.hypot(movement.forward, movement.strafe));
-		const speed = Math.max(commandSpeed, speedEstimate);
-		const normalizedSpeed = Math.min(1, speed / 120);
-
-		if (performance.now() - lastStatusAt > 1500) {
-			gaitPhase = (gaitPhase + 0.01 + normalizedSpeed * 0.06) % 1.0;
-		}
+		const speed = Math.min(120, Math.hypot(movement.forward, movement.strafe));
 
 		const rollRad = THREE.MathUtils.degToRad(pose.roll || 0);
 		const pitchRad = THREE.MathUtils.degToRad(pose.pitch || 0);
@@ -226,25 +217,26 @@ if (!container) {
 
 		hexapod.rotation.set(pitchRad, yawRad, rollRad);
 
-		const heading = Math.atan2(movement.strafe, movement.forward || 1e-5);
-		const yawInfluence = movement.rotation || 0;
+		if (kinematics && kinematics.legs) {
+			const data = kinematics.legs;
+			const lookup = {
+				left_front: data.left_front,
+				left_middle: data.left_middle,
+				left_back: data.left_back,
+				right_front: data.right_front,
+				right_middle: data.right_middle,
+				right_back: data.right_back
+			};
 
-		legs.forEach((leg) => {
-			const phase = (gaitPhase + leg.config.phase) % 1.0;
-			const swing = Math.sin(phase * Math.PI * 2);
-			const lift = Math.max(0, swing);
-
-			const baseFemur = -2.0;
-			const baseTibia = 2.0;
-			const stride = normalizedSpeed * 0.6;
-
-			const coxaSwing = swing * 0.35 * (0.4 + normalizedSpeed);
-			leg.coxaPivot.rotation.y =
-				heading * 0.4 + yawInfluence * 0.3 * leg.config.side + coxaSwing * leg.config.side;
-			const bendSign = leg.config.side < 0 ? -1 : 1;
-			leg.femurPivot.rotation.x = (baseFemur + lift * stride) * bendSign;
-			leg.tibiaPivot.rotation.x = (baseTibia - lift * stride * 0.6) * bendSign;
-		});
+			legs.forEach((leg) => {
+				const entry = lookup[leg.config.name];
+				if (!entry || !entry.angles_rad) return;
+				const [coxa, femur, tibia] = entry.angles_rad;
+				leg.coxaPivot.rotation.y = coxa;
+				leg.femurPivot.rotation.x = femur;
+				leg.tibiaPivot.rotation.x = tibia;
+			});
+		}
 
 		updateBadges(speed);
 		controls.update();
