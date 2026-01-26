@@ -13,6 +13,9 @@
     </div>
     
     <div class="container">
+        <div class="page-links">
+            <a class="link-button" href="/visualizer">Open 3D Visualizer</a>
+        </div>
         <h1>🦾 Hexapod Control</h1>
         <p class="subtitle">Real-time Robot Control Interface</p>
         
@@ -33,6 +36,25 @@
             <div class="status-card">
                 <div class="status-label">State</div>
                 <div class="status-value" id="state-status">---</div>
+            </div>
+        </div>
+
+        <!-- 3D Visualizer -->
+        <div class="control-section">
+            <h2 class="section-title">🧭 3D Visualizer</h2>
+            <div class="visualizer-card">
+                <div class="visualizer-toolbar">
+                    <div class="visualizer-title">Live Hexapod View</div>
+                    <div class="visualizer-badges">
+                        <span class="viz-badge" id="viz-gait">Gait: --</span>
+                        <span class="viz-badge" id="viz-speed">Speed: 0</span>
+                    </div>
+                    <div class="visualizer-actions">
+                        <button class="btn btn-secondary" id="viz-reset">Reset View</button>
+                    </div>
+                </div>
+                <div id="hexapod-visualizer" class="visualizer-canvas"></div>
+                <div class="visualizer-hint">Drag to orbit • Scroll to zoom • Shift+drag to pan</div>
             </div>
         </div>
         
@@ -435,5 +457,6 @@
     </div>
     
     <script src="/app.js"></script>
+    <script type="module" src="/hexapod.js"></script>
 </body>
 </html>
