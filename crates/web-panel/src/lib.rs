@@ -14,6 +14,8 @@ const FAVICON_SVG: &str = include_str!("../static/favicon.svg");
 const MAP_HTML: &str = include_str!("../static/map.html");
 const MAP_JS: &str = include_str!("../static/map.js");
 const MAP_CSS: &str = include_str!("../static/map.css");
+const VISUALIZER_HTML: &str = include_str!("../static/visualizer.html");
+const HEXAPOD_JS: &str = include_str!("../static/hexapod.js");
 
 async fn serve_index() -> Html<&'static str> {
     Html(INDEX_HTML)
@@ -43,6 +45,14 @@ async fn serve_map_css() -> Response {
     ([(header::CONTENT_TYPE, "text/css")], MAP_CSS).into_response()
 }
 
+async fn serve_visualizer_html() -> Html<&'static str> {
+    Html(VISUALIZER_HTML)
+}
+
+async fn serve_hexapod_js() -> Response {
+    ([(header::CONTENT_TYPE, "application/javascript")], HEXAPOD_JS).into_response()
+}
+
 pub async fn run_panel(port: u16) -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("Starting web panel on port {}", port);
 
@@ -52,9 +62,12 @@ pub async fn run_panel(port: u16) -> Result<(), Box<dyn std::error::Error>> {
         .route("/app.js", axum::routing::get(serve_js))
         .route("/style.css", axum::routing::get(serve_css))
         .route("/favicon.svg", axum::routing::get(serve_favicon))
-    .route("/map", axum::routing::get(serve_map_html))
-    .route("/map.js", axum::routing::get(serve_map_js))
-    .route("/map.css", axum::routing::get(serve_map_css))
+        .route("/map", axum::routing::get(serve_map_html))
+        .route("/map.js", axum::routing::get(serve_map_js))
+        .route("/map.css", axum::routing::get(serve_map_css))
+        .route("/visualizer", axum::routing::get(serve_visualizer_html))
+        .route("/visualizer.html", axum::routing::get(serve_visualizer_html))
+        .route("/hexapod.js", axum::routing::get(serve_hexapod_js))
         .layer(CorsLayer::permissive());
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));

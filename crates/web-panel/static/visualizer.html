@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hexapod 3D Visualizer</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body class="visualizer-page">
+    <div class="container container-wide">
+        <div class="page-links">
+            <a class="link-button" href="/">← Back to Control Panel</a>
+        </div>
+        <h1>🧭 Hexapod 3D Visualizer</h1>
+        <p class="subtitle">Live pose and gait preview</p>
+
+        <div class="visualizer-card">
+            <div class="visualizer-toolbar">
+                <div class="visualizer-title">Live Hexapod View</div>
+                <div class="visualizer-badges">
+                    <span class="viz-badge" id="viz-gait">Gait: --</span>
+                    <span class="viz-badge" id="viz-speed">Speed: 0</span>
+                </div>
+                <div class="visualizer-actions">
+                    <button class="btn btn-secondary" id="viz-reset">Reset View</button>
+                </div>
+            </div>
+            <div id="hexapod-visualizer" class="visualizer-canvas"></div>
+            <div class="visualizer-hint">Drag to orbit • Scroll to zoom • Shift+drag to pan</div>
+        </div>
+    </div>
+
+    <script src="/app.js"></script>
+    <script type="module" src="/hexapod.js"></script>
+</body>
+</html>
