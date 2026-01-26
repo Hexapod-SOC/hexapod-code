@@ -181,11 +181,12 @@ impl Gait {
             // Interpolate smoothly
             let horizontal_offset = start_offset.lerp(end_offset, ease_progress);
 
-            // Vertical Movement (Lift): Sinusoidal trajectory
+            // Vertical Movement (Lift): Sinusoidal trajectory with zero derivative at endpoints
             // We want a curve that goes 0 -> 1 -> 0
-            // sin(t * pi) gives us exactly that for t in 0..1
+            // Previous: sin(t * pi) has non-zero derivative at t=0 and t=1 (jerk)
+            // New: 0.5 * (1.0 - cos(2.0 * pi * swing_progress)) goes 0->1->0 and has 0 derivative at endpoints
             let lift_height = self.template.lift_height_multiplier * 50.0; // Adjusted base height
-            let lift = (swing_progress * pi).sin() * lift_height;
+            let lift = 0.5 * (1.0 - (swing_progress * 2.0 * pi).cos()) * lift_height;
 
             default_pos + horizontal_offset + Vec3::new(0.0, 0.0, lift)
         }

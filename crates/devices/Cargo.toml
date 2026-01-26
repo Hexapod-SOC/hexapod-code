@@ -19,6 +19,8 @@ glam = { workspace = true }
 # Web dependencies (for examples)
 tokio = { workspace = true, optional = true }
 axum = { version = "0.7", features = ["ws"], optional = true }
+embedded-hal = "1.0.0"
+bno055 = "0.4.0"
 
 [features]
 dummy = []  # PC/testing mode without hardware
