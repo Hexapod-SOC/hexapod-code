@@ -609,6 +609,44 @@ pub async fn get_saved_leg_stance() -> Result<Json<LegStanceResponse>, StatusCod
     }))
 }
 
+// ============= IMU Endpoints =============
+
+#[derive(Serialize)]
+pub struct ImuResponse {
+    pub success: bool,
+    pub message: String,
+    pub euler: [f32; 3], // Roll, Pitch, Yaw
+    pub quat: [f32; 4], // X, Y, Z, W
+    pub calibration: u8,
+}
+
+/// GET /api/imu
+pub async fn get_imu_data(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<ImuResponse>, StatusCode> {
+    if let Some(imu_arc) = &state.imu {
+        let mut imu = imu_arc.lock().await;
+        match imu.read_data() {
+            Ok(data) => Ok(Json(ImuResponse {
+                success: true,
+                message: "IMU data".to_string(),
+                euler: [data.euler.x, data.euler.y, data.euler.z],
+                quat: [data.quat.x, data.quat.y, data.quat.z, data.quat.w],
+                calibration: data.calibration,
+            })),
+            Err(e) => Ok(Json(ImuResponse {
+                success: false,
+                message: format!("Failed to read IMU: {}", e),
+                euler: [0.0; 3],
+                quat: [0.0; 4],
+                calibration: 0,
+            })),
+        }
+    } else {
+        Err(StatusCode::SERVICE_UNAVAILABLE)
+    }
+}
+
 // ============= Servo Angle Tweaks (Per-Servo) =============
 
 #[derive(Serialize, Deserialize, Clone, Copy)]

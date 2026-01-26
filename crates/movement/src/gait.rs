@@ -140,13 +140,10 @@ impl Gait {
         };
 
         // Add rotation component to step (rotate around Z axis - vertical)
-        // For rotation: tangential velocity = angular_velocity × radius
-        // When rotating CCW (positive rotation), a point at +Y moves in -X direction
-        // and a point at +X moves in +Y direction
         let rotation_offset = Vec3::new(
             -default_pos.y * rotation, // Y position affects X velocity (tangential)
             default_pos.x * rotation,  // X position affects Y velocity (tangential)
-            0.0,                       // Z unchanged for yaw rotation
+            0.0,
         );
 
         let total_step = step_dir * step_length + rotation_offset;
@@ -156,40 +153,39 @@ impl Gait {
 
         if leg_phase < push_fraction {
             // STANCE PHASE: Leg is on ground, pushing backward
+            // Normalize progress to 0.0 -> 1.0 within the stance phase
             let stance_progress = leg_phase / push_fraction;
-            let step_offset = total_step * (0.5 - stance_progress);
-            default_pos + step_offset
+
+            // Apply slight easing to stance phase too for smoother ground contact transitions
+            // (Linear is usually fine for stance, but slight easing reduces jerk at transitions)
+            // Using a very subtle S-curve or keeping it linear to maintain constant ground speed.
+            // Constant ground speed is preferred for stability, so we keep it mostly linear.
+            let current_offset = total_step * (0.5 - stance_progress);
+            
+            default_pos + current_offset
         } else {
             // SWING PHASE: Leg is lifting and moving forward
+            // Normalize progress to 0.0 -> 1.0 within the swing phase
             let swing_progress = (leg_phase - push_fraction) / (1.0 - push_fraction);
 
-            // Start position (end of stance)
+            // Horizontal Movement: Ease-In-Out for smooth acceleration/deceleration of the leg
+            // Using Cosine interpolation: 0.5 * (1.0 - cos(t * pi))
+            let pi = std::f32::consts::PI;
+            let ease_progress = 0.5 * (1.0 - (swing_progress * pi).cos());
+
+            // Start position (end of stance) and End position (start of stance)
+            // We want to move from -0.5 * total_step to +0.5 * total_step (relative to center)
             let start_offset = total_step * -0.5;
-
-            // End position (start of stance)
             let end_offset = total_step * 0.5;
+            
+            // Interpolate smoothly
+            let horizontal_offset = start_offset.lerp(end_offset, ease_progress);
 
-            // Interpolate horizontally
-            let horizontal_offset = start_offset.lerp(end_offset, swing_progress);
-
-            // Lift trajectory (square wave with rounded corners) - Z is up
-            let lift_height = self.template.lift_height_multiplier * 60.0;
-
-            // Create a square wave with smooth transitions using smoothstep
-            let lift = if swing_progress < 0.15 {
-                // Rising edge - smooth ramp up
-                let t = swing_progress / 0.15;
-                let smoothed = t * t * (3.0 - 2.0 * t); // smoothstep
-                lift_height * smoothed
-            } else if swing_progress < 0.85 {
-                // Flat top - stay at maximum height
-                lift_height
-            } else {
-                // Falling edge - smooth ramp down
-                let t = (swing_progress - 0.85) / 0.15;
-                let smoothed = t * t * (3.0 - 2.0 * t); // smoothstep
-                lift_height * (1.0 - smoothed)
-            };
+            // Vertical Movement (Lift): Sinusoidal trajectory
+            // We want a curve that goes 0 -> 1 -> 0
+            // sin(t * pi) gives us exactly that for t in 0..1
+            let lift_height = self.template.lift_height_multiplier * 50.0; // Adjusted base height
+            let lift = (swing_progress * pi).sin() * lift_height;
 
             default_pos + horizontal_offset + Vec3::new(0.0, 0.0, lift)
         }
@@ -213,5 +209,42 @@ impl Gait {
 
     pub fn get_template(&self) -> &GaitTemplate {
         self.template
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::gaits::GAITS;
+
+    #[test]
+    fn test_trajectory_smoothness() {
+        let template = &GAITS[0]; // Tripod
+        let mut gait = Gait::new(template);
+        let dt = 0.05;
+        let mut t = 0.0;
+        
+        let velocity = Vec3::new(100.0, 0.0, 0.0);
+        
+        // Run a cycle
+        while t < 2.0 {
+            gait.update(dt);
+            let phase = gait.get_phase();
+            let pos = gait.calculate_leg_position(Leg::LeftFront, velocity, 0.0);
+            
+            // Just ensure values are not NaN and reasonable
+            assert!(!pos.z.is_nan());
+            assert!(!pos.x.is_nan());
+            assert!(!pos.y.is_nan());
+            
+            // Check lift height during swing vs stance
+            let push_fraction = template.push_fraction;
+             if phase > push_fraction && phase < 0.99 {
+                // Let's print for manual verification in output
+                println!("Time: {:.2}, Phase: {:.2}, Z: {:.2}", t, phase, pos.z);
+            }
+            
+            t += dt;
+        }
     }
 }

@@ -16,6 +16,10 @@ pub const LIDAR_IDLE_SLEEP_MS: u64 = 5;
 pub const GPS_ENABLE: bool = true;
 pub const GPS_SERIAL_PORT: &str = "/dev/ttyACM5";
 
+pub const IMU_ENABLE: bool = true;
+pub const IMU_I2C_BUS: u8 = 1;
+pub const IMU_I2C_ADR: u16 = 0x28;
+
 pub const TMP_DIR: &str = "/tmp/hexapod/";
 pub const TTS_URL: &str = "http://127.0.0.1:5000";
 //pub const VOICE_ID: &str = "en_us_001";

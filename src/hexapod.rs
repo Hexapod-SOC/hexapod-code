@@ -1,4 +1,6 @@
-use crate::config::UBEC_PORT;
+use crate::config::{IMU_ENABLE, IMU_I2C_ADR, IMU_I2C_BUS, UBEC_PORT};
+use devices::imu::{self, Imu};
+use devices::imu_driver;
 use devices::picoubec::{BatteryStatus, PicoUbecController, PowerState};
 use devices::servo::{ServoController, ServoOffsets, ServoPins};
 /// High-level Hexapod robot controller
@@ -109,6 +111,7 @@ pub struct Hexapod {
     ubec_controller: Arc<Mutex<PicoUbecController>>,
     control: Arc<Mutex<HexapodControl>>, // Shared control state
     servo_angle_tweaks: Arc<Mutex<ServoAngleTweaks>>,
+    imu: Option<Arc<Mutex<Box<dyn Imu>>>>,
     smoothed_velocity: Vec3,
     smoothed_rotation: f32,
 }
@@ -139,12 +142,29 @@ impl Hexapod {
         // Enable servos on startup
         ubec_controller.enable_servos();
 
+        // Initialize IMU
+        let imu: Option<Arc<Mutex<Box<dyn Imu>>>> = if IMU_ENABLE {
+            match imu_driver::new(IMU_I2C_BUS, IMU_I2C_ADR) {
+                Ok(driver) => {
+                    println!("IMU initialized successfully");
+                    Some(Arc::new(Mutex::new(Box::new(driver))))
+                }
+                Err(e) => {
+                    eprintln!("Failed to initialize IMU: {}", e);
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
         Self {
             servo_controller: Arc::new(Mutex::new(servo_controller)),
             gait_controller: Arc::new(Mutex::new(gait_controller)),
             ubec_controller: Arc::new(Mutex::new(ubec_controller)),
             control: Arc::new(Mutex::new(HexapodControl::default())),
             servo_angle_tweaks: Arc::new(Mutex::new(ServoAngleTweaks::default())),
+            imu,
             smoothed_velocity: Vec3::ZERO,
             smoothed_rotation: 0.0,
         }
@@ -168,6 +188,11 @@ impl Hexapod {
     /// Get shared reference to UBEC controller (for battery status)
     pub fn get_ubec_controller(&self) -> Arc<Mutex<PicoUbecController>> {
         self.ubec_controller.clone()
+    }
+
+    /// Get shared reference to IMU (if available)
+    pub fn get_imu(&self) -> Option<Arc<Mutex<Box<dyn Imu>>>> {
+        self.imu.clone()
     }
 
     /// Main update loop - reads control state and updates servos

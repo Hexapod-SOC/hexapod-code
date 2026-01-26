@@ -210,6 +210,7 @@ async fn main() {
             hexapod.get_ubec_controller(),
             hexapod.get_servo_angle_tweaks(),
             lidar_handle.clone(),
+            hexapod.get_imu(),
         );
 
         // Spawn API server in background task
