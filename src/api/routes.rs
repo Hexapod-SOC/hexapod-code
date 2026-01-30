@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use movement::gaits::{GaitTemplate, LegCycleOffsets};
 use std::sync::Arc;
 use glam::Vec3;
+use devices::servo::ServoOffsets;
 
 use super::state::AppState;
 
@@ -415,6 +416,70 @@ pub async fn set_leg_stance(
             right_middle: payload.right_middle,
             right_back: payload.right_back,
         },
+    }))
+}
+
+// ============= Servo Offset Calibration Endpoints =============
+
+#[derive(Serialize, Deserialize)]
+pub struct ServoOffsetsPayload {
+    pub left_front: [f32; 3],
+    pub left_middle: [f32; 3],
+    pub left_back: [f32; 3],
+    pub right_front: [f32; 3],
+    pub right_middle: [f32; 3],
+    pub right_back: [f32; 3],
+}
+
+#[derive(Serialize)]
+pub struct ServoOffsetsResponse {
+    pub success: bool,
+    pub message: String,
+    pub offsets: ServoOffsetsPayload,
+}
+
+/// GET /api/servo_offsets
+pub async fn get_servo_offsets(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<ServoOffsetsResponse>, StatusCode> {
+    let servo = state.servo_controller.lock().await;
+    let offsets = servo.get_offsets();
+
+    Ok(Json(ServoOffsetsResponse {
+        success: true,
+        message: "Current servo offsets".to_string(),
+        offsets: ServoOffsetsPayload {
+            left_front: [offsets.left_front.0, offsets.left_front.1, offsets.left_front.2],
+            left_middle: [offsets.left_middle.0, offsets.left_middle.1, offsets.left_middle.2],
+            left_back: [offsets.left_back.0, offsets.left_back.1, offsets.left_back.2],
+            right_front: [offsets.right_front.0, offsets.right_front.1, offsets.right_front.2],
+            right_middle: [offsets.right_middle.0, offsets.right_middle.1, offsets.right_middle.2],
+            right_back: [offsets.right_back.0, offsets.right_back.1, offsets.right_back.2],
+        },
+    }))
+}
+
+/// POST /api/servo_offsets
+pub async fn set_servo_offsets(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<ServoOffsetsPayload>,
+) -> Result<Json<ServoOffsetsResponse>, StatusCode> {
+    let mut servo = state.servo_controller.lock().await;
+    let new_offsets = ServoOffsets {
+        left_front: (payload.left_front[0], payload.left_front[1], payload.left_front[2]),
+        left_middle: (payload.left_middle[0], payload.left_middle[1], payload.left_middle[2]),
+        left_back: (payload.left_back[0], payload.left_back[1], payload.left_back[2]),
+        right_front: (payload.right_front[0], payload.right_front[1], payload.right_front[2]),
+        right_middle: (payload.right_middle[0], payload.right_middle[1], payload.right_middle[2]),
+        right_back: (payload.right_back[0], payload.right_back[1], payload.right_back[2]),
+    };
+
+    servo.set_offsets(new_offsets);
+
+    Ok(Json(ServoOffsetsResponse {
+        success: true,
+        message: "Servo offsets updated".to_string(),
+        offsets: payload,
     }))
 }
 

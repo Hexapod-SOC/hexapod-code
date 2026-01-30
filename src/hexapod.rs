@@ -92,6 +92,11 @@ impl Hexapod {
         self.ubec_controller.clone()
     }
 
+    /// Get shared reference to servo controller (for calibration)
+    pub fn get_servo_controller(&self) -> Arc<Mutex<ServoController>> {
+        self.servo_controller.clone()
+    }
+
     /// Main update loop - reads control state and updates servos
     /// 
     /// This should be called periodically (e.g., 20-50Hz) in a tokio task.

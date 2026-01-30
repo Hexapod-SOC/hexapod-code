@@ -134,6 +134,123 @@
                 <button class="gait-btn" id="apply-custom-gait">Apply Custom Gait</button>
             </div>
         </div>
+
+        <!-- Servo Offset Calibration -->
+        <div class="control-section">
+            <h2 class="section-title">🛠️ Servo Offset Calibration</h2>
+            <p class="subtitle">Adjust per-servo PWA offsets (applies in real time)</p>
+
+            <div class="offset-grid">
+                <!-- Left Front -->
+                <div class="offset-card">
+                    <h4>Left Front</h4>
+                    <div class="slider-group">
+                        <label>Coxa <span id="lf-coxa-val">0.0</span></label>
+                        <input type="range" id="lf-coxa" min="-80" max="80" step="0.5" value="0">
+                    </div>
+                    <div class="slider-group">
+                        <label>Femur <span id="lf-femur-val">0.0</span></label>
+                        <input type="range" id="lf-femur" min="-80" max="80" step="0.5" value="0">
+                    </div>
+                    <div class="slider-group">
+                        <label>Tibia <span id="lf-tibia-val">0.0</span></label>
+                        <input type="range" id="lf-tibia" min="-80" max="80" step="0.5" value="0">
+                    </div>
+                </div>
+
+                <!-- Left Middle -->
+                <div class="offset-card">
+                    <h4>Left Middle</h4>
+                    <div class="slider-group">
+                        <label>Coxa <span id="lm-coxa-val">0.0</span></label>
+                        <input type="range" id="lm-coxa" min="-80" max="80" step="0.5" value="0">
+                    </div>
+                    <div class="slider-group">
+                        <label>Femur <span id="lm-femur-val">0.0</span></label>
+                        <input type="range" id="lm-femur" min="-80" max="80" step="0.5" value="0">
+                    </div>
+                    <div class="slider-group">
+                        <label>Tibia <span id="lm-tibia-val">0.0</span></label>
+                        <input type="range" id="lm-tibia" min="-80" max="80" step="0.5" value="0">
+                    </div>
+                </div>
+
+                <!-- Left Back -->
+                <div class="offset-card">
+                    <h4>Left Back</h4>
+                    <div class="slider-group">
+                        <label>Coxa <span id="lb-coxa-val">0.0</span></label>
+                        <input type="range" id="lb-coxa" min="-80" max="80" step="0.5" value="0">
+                    </div>
+                    <div class="slider-group">
+                        <label>Femur <span id="lb-femur-val">0.0</span></label>
+                        <input type="range" id="lb-femur" min="-80" max="80" step="0.5" value="0">
+                    </div>
+                    <div class="slider-group">
+                        <label>Tibia <span id="lb-tibia-val">0.0</span></label>
+                        <input type="range" id="lb-tibia" min="-80" max="80" step="0.5" value="0">
+                    </div>
+                </div>
+
+                <!-- Right Front -->
+                <div class="offset-card">
+                    <h4>Right Front</h4>
+                    <div class="slider-group">
+                        <label>Coxa <span id="rf-coxa-val">0.0</span></label>
+                        <input type="range" id="rf-coxa" min="-80" max="80" step="0.5" value="0">
+                    </div>
+                    <div class="slider-group">
+                        <label>Femur <span id="rf-femur-val">0.0</span></label>
+                        <input type="range" id="rf-femur" min="-80" max="80" step="0.5" value="0">
+                    </div>
+                    <div class="slider-group">
+                        <label>Tibia <span id="rf-tibia-val">0.0</span></label>
+                        <input type="range" id="rf-tibia" min="-80" max="80" step="0.5" value="0">
+                    </div>
+                </div>
+
+                <!-- Right Middle -->
+                <div class="offset-card">
+                    <h4>Right Middle</h4>
+                    <div class="slider-group">
+                        <label>Coxa <span id="rm-coxa-val">0.0</span></label>
+                        <input type="range" id="rm-coxa" min="-80" max="80" step="0.5" value="0">
+                    </div>
+                    <div class="slider-group">
+                        <label>Femur <span id="rm-femur-val">0.0</span></label>
+                        <input type="range" id="rm-femur" min="-80" max="80" step="0.5" value="0">
+                    </div>
+                    <div class="slider-group">
+                        <label>Tibia <span id="rm-tibia-val">0.0</span></label>
+                        <input type="range" id="rm-tibia" min="-80" max="80" step="0.5" value="0">
+                    </div>
+                </div>
+
+                <!-- Right Back -->
+                <div class="offset-card">
+                    <h4>Right Back</h4>
+                    <div class="slider-group">
+                        <label>Coxa <span id="rb-coxa-val">0.0</span></label>
+                        <input type="range" id="rb-coxa" min="-80" max="80" step="0.5" value="0">
+                    </div>
+                    <div class="slider-group">
+                        <label>Femur <span id="rb-femur-val">0.0</span></label>
+                        <input type="range" id="rb-femur" min="-80" max="80" step="0.5" value="0">
+                    </div>
+                    <div class="slider-group">
+                        <label>Tibia <span id="rb-tibia-val">0.0</span></label>
+                        <input type="range" id="rb-tibia" min="-80" max="80" step="0.5" value="0">
+                    </div>
+                </div>
+            </div>
+
+            <div class="calibration-controls">
+                <button class="btn btn-secondary" id="load-servo-offsets">Load Current Offsets</button>
+                <button class="btn btn-primary" id="apply-servo-offsets">Apply Offsets</button>
+                <button class="btn btn-secondary" id="reset-servo-offsets">Reset to Loaded</button>
+            </div>
+            <div class="offset-status" id="servo-offsets-status"></div>
+        </div>
         
         <!-- Leg Calibration -->
         <div class="control-section">

@@ -9,6 +9,8 @@ let gamepadConnected = false;
 let gamepadLayout = 'xbox'; // 'xbox' or 'playstation'
 let gamepadIndex = null;
 let gamepadAnimationFrame = null;
+let servoOffsetsBaseline = null;
+let servoOffsetsUpdateTimeout = null;
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
@@ -19,6 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initTTS();
     initGamepad();
     initCustomGaitControls();
+    initServoOffsetControls();
     initLegCalibration();
     startStatusUpdates();
 });
@@ -752,6 +755,175 @@ function initLegCalibration() {
     if (resetBtn) {
         resetBtn.addEventListener('click', resetLegStance);
     }
+}
+
+// ===== SERVO OFFSETS =====
+
+function initServoOffsetControls() {
+    const legIds = ['lf', 'lm', 'lb', 'rf', 'rm', 'rb'];
+    const parts = ['coxa', 'femur', 'tibia'];
+
+    legIds.forEach(legId => {
+        parts.forEach(part => {
+            const slider = document.getElementById(`${legId}-${part}`);
+            const valueDisplay = document.getElementById(`${legId}-${part}-val`);
+
+            if (slider && valueDisplay) {
+                slider.addEventListener('input', () => {
+                    valueDisplay.textContent = parseFloat(slider.value).toFixed(1);
+                    scheduleServoOffsetsUpdate();
+                });
+            }
+        });
+    });
+
+    const loadBtn = document.getElementById('load-servo-offsets');
+    if (loadBtn) {
+        loadBtn.addEventListener('click', loadServoOffsets);
+    }
+
+    const applyBtn = document.getElementById('apply-servo-offsets');
+    if (applyBtn) {
+        applyBtn.addEventListener('click', applyServoOffsets);
+    }
+
+    const resetBtn = document.getElementById('reset-servo-offsets');
+    if (resetBtn) {
+        resetBtn.addEventListener('click', resetServoOffsets);
+    }
+
+    loadServoOffsets();
+}
+
+function scheduleServoOffsetsUpdate() {
+    if (servoOffsetsUpdateTimeout) {
+        clearTimeout(servoOffsetsUpdateTimeout);
+    }
+    servoOffsetsUpdateTimeout = setTimeout(() => {
+        applyServoOffsets(true);
+    }, 120);
+}
+
+function getServoOffsetsPayload() {
+    return {
+        left_front: [
+            parseFloat(document.getElementById('lf-coxa').value),
+            parseFloat(document.getElementById('lf-femur').value),
+            parseFloat(document.getElementById('lf-tibia').value)
+        ],
+        left_middle: [
+            parseFloat(document.getElementById('lm-coxa').value),
+            parseFloat(document.getElementById('lm-femur').value),
+            parseFloat(document.getElementById('lm-tibia').value)
+        ],
+        left_back: [
+            parseFloat(document.getElementById('lb-coxa').value),
+            parseFloat(document.getElementById('lb-femur').value),
+            parseFloat(document.getElementById('lb-tibia').value)
+        ],
+        right_front: [
+            parseFloat(document.getElementById('rf-coxa').value),
+            parseFloat(document.getElementById('rf-femur').value),
+            parseFloat(document.getElementById('rf-tibia').value)
+        ],
+        right_middle: [
+            parseFloat(document.getElementById('rm-coxa').value),
+            parseFloat(document.getElementById('rm-femur').value),
+            parseFloat(document.getElementById('rm-tibia').value)
+        ],
+        right_back: [
+            parseFloat(document.getElementById('rb-coxa').value),
+            parseFloat(document.getElementById('rb-femur').value),
+            parseFloat(document.getElementById('rb-tibia').value)
+        ]
+    };
+}
+
+function setServoOffsetSliders(legId, values) {
+    const parts = ['coxa', 'femur', 'tibia'];
+    parts.forEach((part, index) => {
+        const slider = document.getElementById(`${legId}-${part}`);
+        const valueDisplay = document.getElementById(`${legId}-${part}-val`);
+
+        if (slider && valueDisplay) {
+            slider.value = values[index];
+            valueDisplay.textContent = parseFloat(values[index]).toFixed(1);
+        }
+    });
+}
+
+function showServoOffsetStatus(message) {
+    const status = document.getElementById('servo-offsets-status');
+    if (status) {
+        status.textContent = message;
+    }
+}
+
+async function loadServoOffsets() {
+    try {
+        const response = await fetch(`${API_BASE}/servo_offsets`);
+        if (response.ok) {
+            const data = await response.json();
+            const offsets = data.offsets;
+
+            setServoOffsetSliders('lf', offsets.left_front);
+            setServoOffsetSliders('lm', offsets.left_middle);
+            setServoOffsetSliders('lb', offsets.left_back);
+            setServoOffsetSliders('rf', offsets.right_front);
+            setServoOffsetSliders('rm', offsets.right_middle);
+            setServoOffsetSliders('rb', offsets.right_back);
+
+            servoOffsetsBaseline = offsets;
+            showServoOffsetStatus('Loaded current offsets');
+        } else {
+            showServoOffsetStatus('Failed to load offsets');
+            updateConnectionStatus(false);
+        }
+    } catch (error) {
+        console.error('Error loading servo offsets:', error);
+        showServoOffsetStatus('Connection error');
+        updateConnectionStatus(false);
+    }
+}
+
+async function applyServoOffsets(isRealtime = false) {
+    const payload = getServoOffsetsPayload();
+
+    try {
+        const response = await fetch(`${API_BASE}/servo_offsets`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (response.ok) {
+            if (!isRealtime) {
+                showServoOffsetStatus('Offsets applied');
+            }
+        } else {
+            showServoOffsetStatus('Failed to apply offsets');
+            updateConnectionStatus(false);
+        }
+    } catch (error) {
+        console.error('Error applying servo offsets:', error);
+        showServoOffsetStatus('Connection error');
+        updateConnectionStatus(false);
+    }
+}
+
+function resetServoOffsets() {
+    if (!servoOffsetsBaseline) {
+        showServoOffsetStatus('No baseline to reset to');
+        return;
+    }
+
+    setServoOffsetSliders('lf', servoOffsetsBaseline.left_front);
+    setServoOffsetSliders('lm', servoOffsetsBaseline.left_middle);
+    setServoOffsetSliders('lb', servoOffsetsBaseline.left_back);
+    setServoOffsetSliders('rf', servoOffsetsBaseline.right_front);
+    setServoOffsetSliders('rm', servoOffsetsBaseline.right_middle);
+    setServoOffsetSliders('rb', servoOffsetsBaseline.right_back);
+    applyServoOffsets();
 }
 
 async function loadCurrentStance() {

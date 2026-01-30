@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use devices::picoubec::PicoUbecController;
+use devices::servo::ServoController;
 use movement::controller::GaitController;
 use crate::hexapod::HexapodControl;
 
@@ -12,6 +13,7 @@ pub struct AppState {
     pub control: Arc<Mutex<HexapodControl>>,
     pub gait_controller: Arc<Mutex<GaitController>>,
     pub ubec_controller: Arc<Mutex<PicoUbecController>>,
+    pub servo_controller: Arc<Mutex<ServoController>>,
 }
 
 impl AppState {
@@ -19,11 +21,13 @@ impl AppState {
         control: Arc<Mutex<HexapodControl>>,
         gait_controller: Arc<Mutex<GaitController>>,
         ubec_controller: Arc<Mutex<PicoUbecController>>,
+        servo_controller: Arc<Mutex<ServoController>>,
     ) -> Self {
         Self {
             control,
             gait_controller,
             ubec_controller,
+            servo_controller,
         }
     }
 }

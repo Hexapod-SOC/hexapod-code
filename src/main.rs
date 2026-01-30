@@ -55,6 +55,7 @@ async fn main() {
             hexapod.get_control(),
             hexapod.get_gait_controller(),
             hexapod.get_ubec_controller(),
+            hexapod.get_servo_controller(),
         );
         
         // Spawn API server in background task

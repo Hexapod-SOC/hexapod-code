@@ -39,6 +39,10 @@ pub async fn run_server(state: AppState, port: u16) -> Result<(), Box<dyn std::e
         // Leg calibration
         .route("/api/leg_stance", get(routes::get_leg_stance))
         .route("/api/leg_stance", post(routes::set_leg_stance))
+
+        // Servo offset calibration
+        .route("/api/servo_offsets", get(routes::get_servo_offsets))
+        .route("/api/servo_offsets", post(routes::set_servo_offsets))
         
         // Body pose
         .route("/api/pose", post(routes::set_body_pose))

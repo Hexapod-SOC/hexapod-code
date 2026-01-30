@@ -393,6 +393,48 @@ input[type="range"]::-moz-range-thumb {
     margin-bottom: 20px;
 }
 
+/* Servo Offset Calibration Styles */
+.offset-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.offset-card {
+    background: #f9f9f9;
+    padding: 15px;
+    border-radius: 10px;
+    border: 2px solid #ddd;
+}
+
+.offset-card h4 {
+    margin: 0 0 10px 0;
+    color: #667eea;
+    font-size: 1.1em;
+    text-align: center;
+}
+
+.offset-card .slider-group {
+    margin-bottom: 10px;
+}
+
+.offset-card .slider-group label {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 5px;
+    font-size: 0.9em;
+    color: #555;
+}
+
+.offset-status {
+    margin-top: 10px;
+    text-align: center;
+    font-weight: bold;
+    color: #667eea;
+    min-height: 20px;
+}
+
 .leg-calibration {
     background: #f9f9f9;
     padding: 15px;

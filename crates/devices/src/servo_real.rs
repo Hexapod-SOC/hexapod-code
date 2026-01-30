@@ -10,6 +10,7 @@ const SERVO_CENTER: u16 = 369; // 90 degrees (1500µs)
 const SERVO_MAX: u16 = 492; // 180 degrees (2000µs)
 
 /// (Coxa, Femur, Tibia) pin configuration for each leg
+#[derive(Debug, Clone, Copy)]
 pub struct ServoPins {
     pub left_front: (u8, u8, u8), // (Coxa, Femur, Tibia)
     pub left_middle: (u8, u8, u8),
@@ -23,6 +24,7 @@ pub struct ServoPins {
 /// These offsets are measured in PWA units relative to 369 PWA (center position)
 /// WARNING: All servos were measured in one configuration. Left/right side servos
 /// are physically reversed/mirrored, so these offsets may need inversion for right side.
+#[derive(Debug, Clone, Copy)]
 pub struct ServoOffsets {
     pub left_front: (f32, f32, f32),  // (Coxa, Femur, Tibia) in PWA units
     pub left_middle: (f32, f32, f32),
@@ -113,6 +115,16 @@ impl ServoController {
         self.set_leg_angles(Leg::RightFront, angles);
         self.set_leg_angles(Leg::RightMiddle, angles);
         self.set_leg_angles(Leg::RightBack, angles);
+    }
+
+    /// Update servo offsets (applies on next set_* call)
+    pub fn set_offsets(&mut self, offsets: ServoOffsets) {
+        self.servo_offsets = offsets;
+    }
+
+    /// Get current servo offsets
+    pub fn get_offsets(&self) -> ServoOffsets {
+        self.servo_offsets
     }
 
     /// Convert angle (0-180 degrees) to PWM value (246-492)
