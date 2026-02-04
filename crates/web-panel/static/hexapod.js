@@ -133,6 +133,21 @@ if (!container) {
 	let gaitName = '--';
 	let lastStatusAt = 0;
 	let kinematics = null;
+	let lastFrameTime = performance.now();
+	let fetchInFlight = false;
+	const legAngles = new Map();
+	const OFFSET = {
+		left: {
+			coxa: Math.PI / 4,
+			femur: Math.PI / 4,
+			tibia: -Math.PI
+		},
+		right: {
+			coxa: Math.PI / 2,
+			femur: Math.PI - Math.PI / 4,
+			tibia: -Math.PI + Math.PI / 4
+		}
+	};
 
 	const API_BASE = `${window.location.protocol}//${window.location.hostname}:3000/api`;
 
@@ -173,8 +188,13 @@ if (!container) {
 	});
 
 	async function pollKinematics() {
+		if (fetchInFlight) return;
+		fetchInFlight = true;
 		try {
-			const res = await fetch(`${API_BASE}/legs`);
+			const controller = new AbortController();
+			const timeout = setTimeout(() => controller.abort(), 500);
+			const res = await fetch(`${API_BASE}/legs`, { signal: controller.signal });
+			clearTimeout(timeout);
 			if (!res.ok) return;
 			const data = await res.json();
 			kinematics = data;
@@ -196,10 +216,17 @@ if (!container) {
 			lastStatusAt = performance.now();
 		} catch (_) {
 			// ignore
+		} finally {
+			fetchInFlight = false;
 		}
 	}
 
-	setInterval(pollKinematics, 120);
+	(async function kinematicsLoop() {
+		while (true) {
+			await pollKinematics();
+			await new Promise((resolve) => setTimeout(resolve, 100));
+		}
+	})();
 
 	function updateBadges(speed) {
 		if (gaitBadge) gaitBadge.textContent = `Gait: ${gaitName}`;
@@ -208,6 +235,8 @@ if (!container) {
 
 	function animate(time) {
 		requestAnimationFrame(animate);
+		const dt = Math.min(0.05, (time - lastFrameTime) / 1000);
+		lastFrameTime = time;
 
 		const speed = Math.min(120, Math.hypot(movement.forward, movement.strafe));
 
@@ -227,23 +256,50 @@ if (!container) {
 				right_middle: data.right_middle,
 				right_back: data.right_back
 			};
-			console.log(lookup);	
 
 			legs.forEach((leg) => {
 				const entry = lookup[leg.config.name];
 				if (!entry || !entry.angles_rad) return;
+
+				const target = legAngles.get(leg.config.name) || {
+					coxa: 0,
+					femur: 0,
+					tibia: 0
+				};
+
 				const [coxa, femur, tibia] = entry.angles_rad;
-				if (leg.config.name === 'left_front' || leg.config.name === 'left_middle' || leg.config.name === 'left_back') {
-					leg.coxaPivot.rotation.y = -coxa + (Math.PI / 4);
-					leg.femurPivot.rotation.x = -femur + (Math.PI / 4); //+ (Math.PI / 2);
-					leg.tibiaPivot.rotation.x = -tibia - Math.PI;
-				} else {
-					leg.coxaPivot.rotation.y = coxa + (Math.PI / 2);
-					leg.femurPivot.rotation.x = femur + Math.PI - (Math.PI / 4);
-					leg.tibiaPivot.rotation.x = tibia - Math.PI + (Math.PI / 4);
-				}	
+				const sideOffsets = leg.config.side === -1 ? OFFSET.left : OFFSET.right;
+				const coxaSign = leg.config.side === -1 ? -1 : 1;
+				const femurSign = leg.config.side === -1 ? -1 : 1;
+				const tibiaSign = leg.config.side === -1 ? -1 : 1;
+				target.coxa = coxaSign * coxa + sideOffsets.coxa;
+				target.femur = femurSign * femur + sideOffsets.femur;
+				target.tibia = tibiaSign * tibia + sideOffsets.tibia;
+				legAngles.set(leg.config.name, target);
 			});
 		}
+
+		const lerpFactor = 1.0 - Math.exp(-dt * 12.0);
+		legs.forEach((leg) => {
+			const target = legAngles.get(leg.config.name);
+			if (!target) return;
+
+			leg.coxaPivot.rotation.y = THREE.MathUtils.lerp(
+				leg.coxaPivot.rotation.y,
+				target.coxa,
+				lerpFactor
+			);
+			leg.femurPivot.rotation.x = THREE.MathUtils.lerp(
+				leg.femurPivot.rotation.x,
+				target.femur,
+				lerpFactor
+			);
+			leg.tibiaPivot.rotation.x = THREE.MathUtils.lerp(
+				leg.tibiaPivot.rotation.x,
+				target.tibia,
+				lerpFactor
+			);
+		});
 
 		updateBadges(speed);
 		controls.update();
