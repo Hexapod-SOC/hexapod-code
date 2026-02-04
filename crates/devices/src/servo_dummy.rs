@@ -1,4 +1,5 @@
-use movement::legs::{Leg, LegAngles, LegPart};
+use hexmath::hexapod::{Joint as LegPart, LegId as Leg};
+use hexmath::ik::LegAngles;
 
 /// (Coxa, Femur, Tibia) pin configuration for each leg
 pub struct ServoPins {

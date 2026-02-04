@@ -3,7 +3,7 @@ use crate::hexapod::ServoAngleTweaks;
 use devices::lidar::LidarSlamHandle;
 use devices::picoubec::PicoUbecController;
 use devices::imu::Imu;
-use movement::controller::GaitController;
+use crate::hexapod::GaitController;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 

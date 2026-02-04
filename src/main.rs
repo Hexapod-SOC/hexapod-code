@@ -8,7 +8,7 @@ pub mod demos;
 pub mod hexapod;
 
 // Workspace imports
-use crate::hexapod::{ServoAngleTriplet, ServoAngleTweaks};
+use crate::hexapod::{LegStances, ServoAngleTriplet, ServoAngleTweaks};
 use audio::tts;
 use config::CALIBRATION_LEG_STANCE_FILE;
 use config::{
@@ -16,8 +16,7 @@ use config::{
     SERVO_PINS, TMP_DIR, TTS_URL,
 };
 use glam::Vec3;
-use movement::gait::LegStances;
-use movement::gaits::GAITS;
+use hexmath::GaitType;
 use std::sync::Arc;
 
 fn load_saved_servo_tweaks() -> Option<ServoAngleTweaks> {
@@ -116,7 +115,7 @@ async fn main() {
         SERVO_PINS,
         SERVO_OFFSETS,
         CONSTRAINTS,
-        &GAITS[0],    // Tripod gait
+        GaitType::Tripod, // Tripod gait
         saved_stance, // Use saved stance if present
     );
 

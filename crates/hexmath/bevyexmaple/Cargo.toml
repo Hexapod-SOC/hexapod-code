@@ -1,0 +1,18 @@
+[workspace]
+resolver = "2"
+members = ["hexmath"]
+
+
+[package]
+name = "hexapod_sim"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+hexmath = { path = "./hexmath" }
+bevy = { version = "0.17.3" }
+bevy_asset = "0.17.3"
+glam = "0.30.10"
+bevy_rapier3d = { version = "0.32.0", features = ["simd-stable"] }
+
+[workspace.dependencies]

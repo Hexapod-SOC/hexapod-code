@@ -6,7 +6,7 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-movement = { path = "../movement" }
+hexmath = { path = "../hexmath" }
 linux-embedded-hal = { workspace = true, optional = true }
 pwm-pca9685 = { workspace = true, optional = true }
 libc = { version = "0.2", optional = true }

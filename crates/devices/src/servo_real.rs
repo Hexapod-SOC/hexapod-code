@@ -1,5 +1,6 @@
+use hexmath::hexapod::{Joint as LegPart, LegId as Leg};
+use hexmath::ik::LegAngles;
 use linux_embedded_hal::I2cdev;
-use movement::legs::{Leg, LegAngles, LegPart};
 use pwm_pca9685::{Address, Channel, Pca9685};
 
 // Servo pulse width constants for 60Hz (prescale 100)

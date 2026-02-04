@@ -1,16 +1,16 @@
-use crate::config::{CALIBRATION_LEG_STANCE_FILE, CALIBRATION_SERVO_TWEAKS_FILE, CONSTRAINTS};
+use crate::config::{CALIBRATION_LEG_STANCE_FILE, CALIBRATION_SERVO_TWEAKS_FILE};
 use axum::{Json, extract::State, http::StatusCode};
 use devices::lidar::SlamSnapshot;
 use glam::Vec3;
-use movement::gaits::{GaitTemplate, LegCycleOffsets};
-use movement::legs::Leg;
+use hexmath::hexapod::LegId;
+use hexmath::{GaitType, WalkState};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
 
 use super::state::AppState;
-use crate::hexapod::{ServoAngleTriplet, ServoAngleTweaks};
+use crate::hexapod::{BodyPose, LegStances, ServoAngleTriplet, ServoAngleTweaks};
 
 #[derive(Serialize, Clone, Copy)]
 pub struct BodyPoseData {
@@ -54,29 +54,29 @@ fn vec3_to_array(v: Vec3) -> [f32; 3] {
     [v.x, v.y, v.z]
 }
 
-fn tweak_for_leg(tweaks: &ServoAngleTweaks, leg: Leg) -> ServoAngleTriplet {
+fn tweak_for_leg(tweaks: &ServoAngleTweaks, leg: LegId) -> ServoAngleTriplet {
     match leg {
-        Leg::LeftFront => tweaks.left_front,
-        Leg::LeftMiddle => tweaks.left_middle,
-        Leg::LeftBack => tweaks.left_back,
-        Leg::RightFront => tweaks.right_front,
-        Leg::RightMiddle => tweaks.right_middle,
-        Leg::RightBack => tweaks.right_back,
+        LegId::LeftFront => tweaks.left_front,
+        LegId::LeftMiddle => tweaks.left_middle,
+        LegId::LeftBack => tweaks.left_back,
+        LegId::RightFront => tweaks.right_front,
+        LegId::RightMiddle => tweaks.right_middle,
+        LegId::RightBack => tweaks.right_back,
     }
 }
 
-fn to_visualizer_angles(leg: Leg, angles_deg: ServoAngleTriplet) -> [f32; 3] {
-    let mut coxa = (angles_deg.coxa);
-    let mut femur = (angles_deg.femur);
+fn to_visualizer_angles(leg: LegId, angles_deg: ServoAngleTriplet) -> [f32; 3] {
+    let mut coxa = angles_deg.coxa;
+    let mut femur = angles_deg.femur;
     let mut tibia = -(angles_deg.tibia);
 
-    if matches!(leg, Leg::RightFront | Leg::RightMiddle | Leg::RightBack) {
+    if matches!(leg, LegId::RightFront | LegId::RightMiddle | LegId::RightBack) {
         coxa = 180.0 + -180.0 - coxa;
         femur = 45.0 + femur;
         tibia = 180.0 - tibia;
     }
 
-    if matches!(leg, Leg::LeftFront | Leg::LeftMiddle | Leg::LeftBack) {
+    if matches!(leg, LegId::LeftFront | LegId::LeftMiddle | LegId::LeftBack) {
         coxa = 135.0 - coxa;
         femur = -45.0 - femur;
     }
@@ -118,7 +118,7 @@ pub async fn get_status(
 
     let gait = state.gait_controller.lock().await;
     let phase = gait.get_gait_phase();
-    let template = gait.get_template();
+    let gait_name = gait.get_gait_name();
 
     Ok(Json(HexapodStatusResponse {
         battery: BatteryStatusResponse {
@@ -128,7 +128,7 @@ pub async fn get_status(
             has_data,
         },
         gait_phase: phase,
-        gait_name: template.name.to_string(),
+        gait_name,
     }))
 }
 
@@ -143,48 +143,43 @@ pub async fn get_leg_kinematics(
     let gait = state.gait_controller.lock().await;
     let body_pose = gait.get_body_pose();
     let phase = gait.get_gait_phase();
-    let template = gait.get_template();
+    let gait_name = gait.get_gait_name();
 
     let is_moving = velocity.length_squared() > 0.0 || rotation != 0.0;
+    let input_state = crate::hexapod::control_to_input(velocity, rotation);
 
-    let mut positions = if is_moving {
-        gait.gait.calculate_all_leg_positions(velocity, rotation)
+    let (sim_hexapod, sim_walk) = if is_moving {
+        gait.simulate_hexapod(&input_state, 0.0)
     } else {
-        let base = gait.get_default_stance();
-        movement::gait::LegStances {
-            left_front: base.left_front,
-            left_middle: base.left_middle,
-            left_back: base.left_back,
-            right_front: base.right_front,
-            right_middle: base.right_middle,
-            right_back: base.right_back,
-        }
+        (gait.pose_hexapod(), WalkState::default())
     };
 
+    let mut positions = gait.leg_positions_from_hexapod(&sim_hexapod);
+
     let legs = [
-        Leg::LeftFront,
-        Leg::LeftMiddle,
-        Leg::LeftBack,
-        Leg::RightFront,
-        Leg::RightMiddle,
-        Leg::RightBack,
+        LegId::LeftFront,
+        LegId::LeftMiddle,
+        LegId::LeftBack,
+        LegId::RightFront,
+        LegId::RightMiddle,
+        LegId::RightBack,
     ];
 
-    for leg in legs.iter() {
-        let pos = positions.get(*leg);
-        let transformed = body_pose.transform_position(pos);
-        positions.set(*leg, transformed);
+    for leg in legs {
+        let pos = positions.get(leg);
+        let transformed = body_pose.transform_position(pos) + Vec3::new(sim_walk.body_pos.x, 0.0, sim_walk.body_pos.z);
+        positions.set(leg, transformed);
     }
 
     let angles = if is_moving {
-        gait.calculate_walking_with_pose_angles(velocity, rotation)
+        gait.current_leg_angles_from_hexapod(&sim_hexapod)
     } else {
         gait.calculate_pose_angles()
     };
 
     let tweaks = state.servo_angle_tweaks.lock().await.clone();
 
-    let angle_for = |leg: Leg| -> ServoAngleTriplet {
+    let angle_for = |leg: LegId| -> ServoAngleTriplet {
         let (_, found) = angles
             .iter()
             .find(|(l, _)| *l == leg)
@@ -196,7 +191,7 @@ pub async fn get_leg_kinematics(
         }
     };
 
-    let build_leg = |leg: Leg, pos: Vec3| -> LegKinematicsData {
+    let build_leg = |leg: LegId, pos: Vec3| -> LegKinematicsData {
         let raw = angle_for(leg);
         let tweak = tweak_for_leg(&tweaks, leg);
         let tweaked = ServoAngleTriplet {
@@ -214,17 +209,17 @@ pub async fn get_leg_kinematics(
     };
 
     let legs_block = LegsKinematicsBlock {
-        left_front: build_leg(Leg::LeftFront, positions.left_front),
-        left_middle: build_leg(Leg::LeftMiddle, positions.left_middle),
-        left_back: build_leg(Leg::LeftBack, positions.left_back),
-        right_front: build_leg(Leg::RightFront, positions.right_front),
-        right_middle: build_leg(Leg::RightMiddle, positions.right_middle),
-        right_back: build_leg(Leg::RightBack, positions.right_back),
+        left_front: build_leg(LegId::LeftFront, positions.left_front),
+        left_middle: build_leg(LegId::LeftMiddle, positions.left_middle),
+        left_back: build_leg(LegId::LeftBack, positions.left_back),
+        right_front: build_leg(LegId::RightFront, positions.right_front),
+        right_middle: build_leg(LegId::RightMiddle, positions.right_middle),
+        right_back: build_leg(LegId::RightBack, positions.right_back),
     };
 
     Ok(Json(LegKinematicsResponse {
         gait_phase: phase,
-        gait_name: template.name.to_string(),
+        gait_name,
         velocity: [velocity.x, velocity.y, velocity.z],
         rotation,
         body_pose: BodyPoseData {
@@ -325,27 +320,29 @@ pub struct GaitResponse {
     pub current_gait: String,
 }
 
+fn parse_gait_name(name: &str) -> Option<GaitType> {
+    match name.to_lowercase().as_str() {
+        "tripod" | "tri" | "t" => Some(GaitType::Tripod),
+        "tetrapod" | "quad" | "bi" => Some(GaitType::Tetrapod),
+        "wave" | "w" => Some(GaitType::Wave),
+        "ripple" | "r" => Some(GaitType::Ripple),
+        _ => None,
+    }
+}
+
 /// POST /api/gait
 pub async fn set_gait(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<SetGaitRequest>,
 ) -> Result<Json<GaitResponse>, StatusCode> {
-    use movement::gaits::GAITS;
-
+    let gait_type = parse_gait_name(&payload.gait_name).ok_or(StatusCode::BAD_REQUEST)?;
     let mut gait_controller = state.gait_controller.lock().await;
-
-    // Find matching gait template
-    let template = GAITS
-        .iter()
-        .find(|g| g.name == payload.gait_name)
-        .ok_or(StatusCode::BAD_REQUEST)?;
-
-    gait_controller.set_gait(template);
+    gait_controller.set_gait(gait_type);
 
     Ok(Json(GaitResponse {
         success: true,
-        message: format!("Gait changed to {}", template.name),
-        current_gait: template.name.to_string(),
+        message: format!("Gait changed to {}", gait_type.name()),
+        current_gait: gait_type.name().to_string(),
     }))
 }
 
@@ -354,12 +351,12 @@ pub async fn get_gait(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<GaitResponse>, StatusCode> {
     let gait = state.gait_controller.lock().await;
-    let template = gait.get_template();
+    let gait_name = gait.get_gait_name();
 
     Ok(Json(GaitResponse {
         success: true,
         message: "Current gait".to_string(),
-        current_gait: template.name.to_string(),
+        current_gait: gait_name,
     }))
 }
 
@@ -392,40 +389,31 @@ pub async fn set_custom_gait(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<SetCustomGaitRequest>,
 ) -> Result<Json<GaitResponse>, StatusCode> {
-    // Convert name to 'static str by leaking the String (acceptable for tuning/dev)
-    let name_static: &'static str = Box::leak(payload.name.into_boxed_str());
+    let offsets = [
+        payload.leg_cycle_offsets.left_front,
+        payload.leg_cycle_offsets.left_middle,
+        payload.leg_cycle_offsets.left_back,
+        payload.leg_cycle_offsets.right_front,
+        payload.leg_cycle_offsets.right_middle,
+        payload.leg_cycle_offsets.right_back,
+    ];
 
-    let offsets = LegCycleOffsets {
-        left_front: payload.leg_cycle_offsets.left_front,
-        left_middle: payload.leg_cycle_offsets.left_middle,
-        left_back: payload.leg_cycle_offsets.left_back,
-        right_front: payload.leg_cycle_offsets.right_front,
-        right_middle: payload.leg_cycle_offsets.right_middle,
-        right_back: payload.leg_cycle_offsets.right_back,
-    };
-
-    // Build a GaitTemplate and leak it to get a 'static reference quickly for runtime switching
-    let template_box = Box::new(GaitTemplate {
-        name: name_static,
-        leg_cycle_offsets: offsets,
-        push_fraction: payload.push_fraction,
-        speed_multiplier: payload.speed_multiplier,
-        step_length_multiplier: payload.step_length_multiplier,
-        lift_height_multiplier: payload.lift_height_multiplier,
-        max_step_length: payload.max_step_length,
-        max_speed: payload.max_speed,
-    });
-
-    let static_template: &'static GaitTemplate = Box::leak(template_box);
-
-    // Apply new gait
     let mut gait_controller = state.gait_controller.lock().await;
-    gait_controller.set_gait(static_template);
+    gait_controller.set_custom_gait(
+        payload.name.clone(),
+        offsets,
+        payload.push_fraction,
+        payload.speed_multiplier,
+        payload.step_length_multiplier,
+        payload.lift_height_multiplier,
+        payload.max_step_length,
+        payload.max_speed,
+    );
 
     Ok(Json(GaitResponse {
         success: true,
-        message: format!("Custom gait applied: {}", static_template.name),
-        current_gait: static_template.name.to_string(),
+        message: format!("Custom gait applied: {}", payload.name),
+        current_gait: payload.name,
     }))
 }
 
@@ -449,8 +437,6 @@ pub async fn set_body_pose(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<BodyPoseRequest>,
 ) -> Result<Json<BodyPoseResponse>, StatusCode> {
-    use movement::controller::BodyPose;
-
     let pose = BodyPose::with_rotation(payload.roll, payload.pitch, payload.yaw);
 
     let mut control = state.control.lock().await;
@@ -577,8 +563,6 @@ pub struct LidarMapResponse {
 pub async fn get_leg_stance(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<LegStanceResponse>, StatusCode> {
-    use movement::legs::Leg;
-
     let gait = state.gait_controller.lock().await;
     let stance = gait.get_default_stance();
 
@@ -586,12 +570,12 @@ pub async fn get_leg_stance(
         success: true,
         message: "Current leg stance".to_string(),
         current_stance: LegStancesData {
-            left_front: stance.to_array(Leg::LeftFront),
-            left_middle: stance.to_array(Leg::LeftMiddle),
-            left_back: stance.to_array(Leg::LeftBack),
-            right_front: stance.to_array(Leg::RightFront),
-            right_middle: stance.to_array(Leg::RightMiddle),
-            right_back: stance.to_array(Leg::RightBack),
+            left_front: stance.to_array(LegId::LeftFront),
+            left_middle: stance.to_array(LegId::LeftMiddle),
+            left_back: stance.to_array(LegId::LeftBack),
+            right_front: stance.to_array(LegId::RightFront),
+            right_middle: stance.to_array(LegId::RightMiddle),
+            right_back: stance.to_array(LegId::RightBack),
         },
     }))
 }
@@ -601,9 +585,6 @@ pub async fn set_leg_stance(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<SetLegStanceRequest>,
 ) -> Result<Json<LegStanceResponse>, StatusCode> {
-    use movement::gait::LegStances;
-    use movement::legs::Leg;
-
     let new_stance = LegStances {
         left_front: Vec3::from_array(payload.left_front),
         left_middle: Vec3::from_array(payload.left_middle),
