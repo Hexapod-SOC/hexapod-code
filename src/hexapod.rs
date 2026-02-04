@@ -410,8 +410,8 @@ fn target_angles_with_offsets(hexapod: &MathHexapod, leg_id: LegId, constraints:
 
     LegAngles {
         coxa: leg.target_coxa_angle + 90.0 + constraints.coxa_soffset,
-        femur: leg.target_femur_angle + 90.0 + constraints.femur_soffset,
-        tibia: leg.target_tibia_angle + constraints.tibia_soffset,
+        femur: leg.target_femur_angle + constraints.femur_soffset,
+        tibia: 180.0 - leg.target_tibia_angle + constraints.tibia_soffset,
     }
 }
 

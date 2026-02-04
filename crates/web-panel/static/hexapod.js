@@ -227,14 +227,21 @@ if (!container) {
 				right_middle: data.right_middle,
 				right_back: data.right_back
 			};
+			console.log(lookup);	
 
 			legs.forEach((leg) => {
 				const entry = lookup[leg.config.name];
 				if (!entry || !entry.angles_rad) return;
 				const [coxa, femur, tibia] = entry.angles_rad;
-				leg.coxaPivot.rotation.y = coxa;
-				leg.femurPivot.rotation.x = femur;
-				leg.tibiaPivot.rotation.x = tibia;
+				if (leg.config.name === 'left_front' || leg.config.name === 'left_middle' || leg.config.name === 'left_back') {
+					leg.coxaPivot.rotation.y = -coxa + (Math.PI / 4);
+					leg.femurPivot.rotation.x = -femur + (Math.PI / 4); //+ (Math.PI / 2);
+					leg.tibiaPivot.rotation.x = -tibia - Math.PI;
+				} else {
+					leg.coxaPivot.rotation.y = coxa + (Math.PI / 2);
+					leg.femurPivot.rotation.x = femur + Math.PI - (Math.PI / 4);
+					leg.tibiaPivot.rotation.x = tibia - Math.PI + (Math.PI / 4);
+				}	
 			});
 		}
 

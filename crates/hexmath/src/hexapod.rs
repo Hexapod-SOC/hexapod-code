@@ -63,7 +63,9 @@ pub struct Hexapod {
 impl Hexapod {
     pub fn new() -> Self {
         // Body dimensions
+        #[allow(unused_variables)]
         let body_half_width = 50.0;  // Half of body width (X axis)
+        #[allow(unused_variables)]
         let body_half_length = 70.0; // Half of body length (Y axis)
         
         // Front/back legs attach at corners (45° from center)
