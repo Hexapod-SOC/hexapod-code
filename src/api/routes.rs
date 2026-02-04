@@ -70,6 +70,7 @@ fn to_visualizer_angles(leg: LegId, angles_deg: ServoAngleTriplet) -> [f32; 3] {
     let mut femur = angles_deg.femur;
     let mut tibia = -(angles_deg.tibia);
 
+
     if matches!(leg, LegId::RightFront | LegId::RightMiddle | LegId::RightBack) {
         coxa = 180.0 + -180.0 - coxa;
         femur = 45.0 + femur;

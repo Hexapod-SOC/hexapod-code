@@ -81,17 +81,23 @@ if (!container) {
 	const tibiaLength = 70;
 
 	const legConfigs = [
-		{ id: 'lf', name: 'left_front', x: 55, z: -40, side: -1, phase: 0.0 },
-		{ id: 'lm', name: 'left_middle', x: 0, z: -48, side: -1, phase: 0.5 },
-		{ id: 'lb', name: 'left_back', x: -55, z: -40, side: -1, phase: 0.0 },
-		{ id: 'rf', name: 'right_front', x: 55, z: 40, side: 1, phase: 0.5 },
-		{ id: 'rm', name: 'right_middle', x: 0, z: 48, side: 1, phase: 0.0 },
-		{ id: 'rb', name: 'right_back', x: -55, z: 40, side: 1, phase: 0.5 }
+		{ id: 'lf', name: 'left_front', x: 55, z: -40, side: -1, phase: 0.0, coxaDir: -1 },
+		{ id: 'lm', name: 'left_middle', x: 0, z: -48, side: -1, phase: 0.5, coxaDir: 1 },
+		{ id: 'lb', name: 'left_back', x: -55, z: -40, side: -1, phase: 0.0, coxaDir: -1 },
+		{ id: 'rf', name: 'right_front', x: 55, z: 40, side: 1, phase: 0.5, coxaDir: -1 },
+		{ id: 'rm', name: 'right_middle', x: 0, z: 48, side: 1, phase: 0.0, coxaDir: 1 },
+		{ id: 'rb', name: 'right_back', x: -55, z: 40, side: 1, phase: 0.5, coxaDir: -1 }
 	];
 
 	function createLeg(config) {
 		const legRoot = new THREE.Group();
-		legRoot.position.set(config.x, 40, config.z);
+		const coxaOutX = 10;
+		const coxaOutZ = 8;
+		legRoot.position.set(
+			config.x + Math.sign(config.x) * coxaOutX,
+			40,
+			config.z + Math.sign(config.z) * coxaOutZ
+		);
 
 		const coxaPivot = new THREE.Group();
 		legRoot.add(coxaPivot);
@@ -136,17 +142,13 @@ if (!container) {
 	let lastFrameTime = performance.now();
 	let fetchInFlight = false;
 	const legAngles = new Map();
-	const OFFSET = {
-		left: {
-			coxa: Math.PI / 4,
-			femur: Math.PI / 4,
-			tibia: -Math.PI
-		},
-		right: {
-			coxa: Math.PI / 2,
-			femur: Math.PI - Math.PI / 4,
-			tibia: -Math.PI + Math.PI / 4
-		}
+	const COXA_OFFSETS = {
+		left_front: Math.PI / 4,
+		left_middle: Math.PI / 2,
+		left_back: -Math.PI / 4,
+		right_front: -Math.PI / 4 - Math.PI / 2,
+		right_middle: -Math.PI / 2,
+		right_back: Math.PI / 4 - Math.PI / 2
 	};
 
 	const API_BASE = `${window.location.protocol}//${window.location.hostname}:3000/api`;
@@ -268,13 +270,9 @@ if (!container) {
 				};
 
 				const [coxa, femur, tibia] = entry.angles_rad;
-				const sideOffsets = leg.config.side === -1 ? OFFSET.left : OFFSET.right;
-				const coxaSign = leg.config.side === -1 ? -1 : 1;
-				const femurSign = leg.config.side === -1 ? -1 : 1;
-				const tibiaSign = leg.config.side === -1 ? -1 : 1;
-				target.coxa = coxaSign * coxa + sideOffsets.coxa;
-				target.femur = femurSign * femur + sideOffsets.femur;
-				target.tibia = tibiaSign * tibia + sideOffsets.tibia;
+				target.coxa = (leg.config.coxaDir || 1) * coxa + (COXA_OFFSETS[leg.config.name] || 0);
+				target.femur = femur;
+				target.tibia = tibia;
 				legAngles.set(leg.config.name, target);
 			});
 		}
