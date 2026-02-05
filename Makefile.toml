@@ -24,6 +24,11 @@ command = "cargo"
 args = ["run", "--features", "dummy", "--release"]
 workspace = false
 
+[tasks.pcrunsim]
+command = "cargo"
+args = ["run", "-p", "hexapod_sim"]
+workspace = false
+
 # RASPBERRY PI BUILDS
 [tasks.picheck]
 command = "cross"

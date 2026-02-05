@@ -84,9 +84,9 @@ if (!container) {
 		{ id: 'lf', name: 'left_front', x: 55, z: -40, side: -1, phase: 0.0, coxaDir: -1 },
 		{ id: 'lm', name: 'left_middle', x: 0, z: -48, side: -1, phase: 0.5, coxaDir: 1 },
 		{ id: 'lb', name: 'left_back', x: -55, z: -40, side: -1, phase: 0.0, coxaDir: -1 },
-		{ id: 'rf', name: 'right_front', x: 55, z: 40, side: 1, phase: 0.5, coxaDir: -1 },
+		{ id: 'rf', name: 'right_front', x: 55, z: 40, side: 1, phase: 0.5, coxaDir: 1 },
 		{ id: 'rm', name: 'right_middle', x: 0, z: 48, side: 1, phase: 0.0, coxaDir: 1 },
-		{ id: 'rb', name: 'right_back', x: -55, z: 40, side: 1, phase: 0.5, coxaDir: -1 }
+		{ id: 'rb', name: 'right_back', x: -55, z: 40, side: 1, phase: 0.5, coxaDir: 1 }
 	];
 
 	function createLeg(config) {
@@ -142,13 +142,15 @@ if (!container) {
 	let lastFrameTime = performance.now();
 	let fetchInFlight = false;
 	const legAngles = new Map();
+	const RIGHT_FLIP = Math.PI;
+	const RIGHT_FB = Math.PI / 2;
 	const COXA_OFFSETS = {
 		left_front: Math.PI / 4,
 		left_middle: Math.PI / 2,
 		left_back: -Math.PI / 4,
-		right_front: -Math.PI / 4 - Math.PI / 2,
-		right_middle: -Math.PI / 2,
-		right_back: Math.PI / 4 - Math.PI / 2
+		right_front: -Math.PI / 4 - Math.PI / 2 + RIGHT_FLIP + RIGHT_FB,
+		right_middle: -Math.PI / 2 + RIGHT_FLIP,
+		right_back: Math.PI / 4 - Math.PI / 2 + RIGHT_FLIP + RIGHT_FB
 	};
 
 	const API_BASE = `${window.location.protocol}//${window.location.hostname}:3000/api`;
@@ -271,8 +273,8 @@ if (!container) {
 
 				const [coxa, femur, tibia] = entry.angles_rad;
 				target.coxa = (leg.config.coxaDir || 1) * coxa + (COXA_OFFSETS[leg.config.name] || 0);
-				target.femur = femur;
-				target.tibia = tibia;
+				target.femur = -femur;
+				target.tibia = -tibia;
 				legAngles.set(leg.config.name, target);
 			});
 		}

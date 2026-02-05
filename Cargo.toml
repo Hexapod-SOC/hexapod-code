@@ -10,6 +10,7 @@ members = [
     "crates/audio",
     "crates/devices", 
     "crates/hexmath",
+    "crates/hexmath/bevyexmaple",
     "crates/lidar-slam",
     "crates/web-panel",
 ]
