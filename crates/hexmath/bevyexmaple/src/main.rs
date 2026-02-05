@@ -487,7 +487,7 @@ fn handle_input_system(
     input_state.0.turn = turn;
     
     // Update body yaw based on turn input
-    let turn_speed = 1.5; // radians per second
+    let turn_speed = 0.5; // radians per second
     input_state.0.body_yaw += turn * turn_speed * dt;
 }
 
