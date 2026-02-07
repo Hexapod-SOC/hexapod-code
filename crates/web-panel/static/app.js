@@ -2,7 +2,7 @@
 const API_BASE = `${window.location.protocol}//${window.location.hostname}:3000/api`;
 
 // State
-let currentGait = 'tri';
+let currentGait = 'ripple';
 let isDragging = false;
 let currentJoystick = null;
 let gamepadConnected = false;
@@ -141,7 +141,7 @@ function initGaitSelector() {
     });
 
     // Set default active
-    const defaultGait = document.querySelector('[data-gait="tri"]');
+    const defaultGait = document.querySelector('[data-gait="ripple"]');
     if (defaultGait) {
         defaultGait.classList.add('active');
     }
@@ -373,7 +373,7 @@ async function emergencyStop() {
 // Custom Gait UI
 function initCustomGaitControls() {
     const ids = [
-        'push-fraction','speed-mult','step-mult','lift-mult','max-step','max-speed',
+        'push-fraction','gait-speed','step-length','step-height','base-height','push-gain','max-step','max-speed',
         'off-lf','off-lm','off-lb','off-rf','off-rm','off-rb'
     ];
     ids.forEach(id => {
@@ -381,7 +381,15 @@ function initCustomGaitControls() {
         const val = document.getElementById(id + '-val');
         if (el && val) {
             el.addEventListener('input', () => {
-                val.textContent = el.value;
+                const raw = parseFloat(el.value);
+                let precision = 2;
+                if (id.startsWith('off-') || id === 'push-fraction') {
+                    precision = 3;
+                }
+                if (['step-length', 'step-height', 'base-height', 'max-step', 'max-speed'].includes(id)) {
+                    precision = 0;
+                }
+                val.textContent = Number.isFinite(raw) ? raw.toFixed(precision) : el.value;
             });
         }
     });
@@ -401,9 +409,15 @@ function initCustomGaitControls() {
                 right_back: parseFloat(document.getElementById('off-rb').value),
             },
             push_fraction: parseFloat(document.getElementById('push-fraction').value),
-            speed_multiplier: parseFloat(document.getElementById('speed-mult').value),
-            step_length_multiplier: parseFloat(document.getElementById('step-mult').value),
-            lift_height_multiplier: parseFloat(document.getElementById('lift-mult').value),
+            duty_factor: parseFloat(document.getElementById('push-fraction').value),
+            speed: parseFloat(document.getElementById('gait-speed').value),
+            step_length_mm: parseFloat(document.getElementById('step-length').value),
+            step_height_mm: parseFloat(document.getElementById('step-height').value),
+            base_height_mm: parseFloat(document.getElementById('base-height').value),
+            body_push_gain: parseFloat(document.getElementById('push-gain').value),
+            speed_multiplier: 1.0,
+            step_length_multiplier: 1.0,
+            lift_height_multiplier: 1.0,
             max_step_length: parseFloat(document.getElementById('max-step').value),
             max_speed: parseFloat(document.getElementById('max-speed').value)
         };

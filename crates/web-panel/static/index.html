@@ -102,12 +102,10 @@
         <div class="control-section">
             <h2 class="section-title">Gait Selection</h2>
             <div class="gait-selector">
-                <button class="gait-btn" data-gait="tri">Tripod</button>
-                <button class="gait-btn" data-gait="wave">Wave</button>
                 <button class="gait-btn" data-gait="ripple">Ripple</button>
-                <button class="gait-btn" data-gait="bi">Bipod</button>
-                <button class="gait-btn" data-gait="quad">Quad</button>
-                <button class="gait-btn" data-gait="hop">Hop</button>
+                <button class="gait-btn" data-gait="wave">Wave</button>
+                <button class="gait-btn" data-gait="tri">Tripod</button>
+                <button class="gait-btn" data-gait="tetrapod">Tetrapod</button>
             </div>
         </div>
 
@@ -229,25 +227,33 @@
 
         <!-- Custom Gait Fine-tuning -->
         <div class="control-section">
-            <h2 class="section-title">Custom Gait (Fine-tune)</h2>
+            <h2 class="section-title">Custom Gait (Hexmath)</h2>
             <div class="slider-group">
                 <label>Name: <input type="text" id="custom-gait-name" value="custom"></label>
             </div>
             <div class="slider-group">
-                <label>Push Fraction <span id="push-fraction-val">0.50</span></label>
-                <input type="range" id="push-fraction" min="0.1" max="0.9" step="0.01" value="0.5">
+                <label>Duty Factor (Stance) <span id="push-fraction-val">0.50</span></label>
+                <input type="range" id="push-fraction" min="0.1" max="0.9" step="0.005" value="0.5">
             </div>
             <div class="slider-group">
-                <label>Speed Multiplier <span id="speed-mult-val">1.0</span></label>
-                <input type="range" id="speed-mult" min="0.1" max="5.0" step="0.05" value="1.0">
+                <label>Speed <span id="gait-speed-val">1.00</span></label>
+                <input type="range" id="gait-speed" min="0.1" max="5.0" step="0.01" value="1.0">
             </div>
             <div class="slider-group">
-                <label>Step Length Mult <span id="step-mult-val">1.1</span></label>
-                <input type="range" id="step-mult" min="0.1" max="3.0" step="0.05" value="1.1">
+                <label>Step Length (mm) <span id="step-length-val">80</span></label>
+                <input type="range" id="step-length" min="0" max="200" step="1" value="80">
             </div>
             <div class="slider-group">
-                <label>Lift Height Mult <span id="lift-mult-val">0.6</span></label>
-                <input type="range" id="lift-mult" min="0.0" max="3.0" step="0.05" value="0.6">
+                <label>Step Height (mm) <span id="step-height-val">40</span></label>
+                <input type="range" id="step-height" min="0" max="120" step="1" value="40">
+            </div>
+            <div class="slider-group">
+                <label>Base Height (mm) <span id="base-height-val">-70</span></label>
+                <input type="range" id="base-height" min="-140" max="-20" step="1" value="-70">
+            </div>
+            <div class="slider-group">
+                <label>Body Push Gain <span id="push-gain-val">2.50</span></label>
+                <input type="range" id="push-gain" min="0" max="5" step="0.05" value="2.5">
             </div>
             <div class="slider-group">
                 <label>Max Step Length <span id="max-step-val">250</span> mm</label>
@@ -259,13 +265,13 @@
             </div>
 
             <div class="slider-group">
-                <h4>Leg Cycle Offsets (0.0 - 1.0)</h4>
-                <label>LF <span id="off-lf-val">0.00</span><input type="range" id="off-lf" min="0" max="1" step="0.01" value="0.00"></label>
-                <label>LM <span id="off-lm-val">0.50</span><input type="range" id="off-lm" min="0" max="1" step="0.01" value="0.50"></label>
-                <label>LB <span id="off-lb-val">0.00</span><input type="range" id="off-lb" min="0" max="1" step="0.01" value="0.00"></label>
-                <label>RF <span id="off-rf-val">0.50</span><input type="range" id="off-rf" min="0" max="1" step="0.01" value="0.50"></label>
-                <label>RM <span id="off-rm-val">0.00</span><input type="range" id="off-rm" min="0" max="1" step="0.01" value="0.00"></label>
-                <label>RB <span id="off-rb-val">0.50</span><input type="range" id="off-rb" min="0" max="1" step="0.01" value="0.50"></label>
+                <h4>Leg Phase Offsets (0.0 - 1.0)</h4>
+                <label>LF <span id="off-lf-val">0.00</span><input type="range" id="off-lf" min="0" max="1" step="0.005" value="0.00"></label>
+                <label>LM <span id="off-lm-val">0.50</span><input type="range" id="off-lm" min="0" max="1" step="0.005" value="0.50"></label>
+                <label>LB <span id="off-lb-val">0.00</span><input type="range" id="off-lb" min="0" max="1" step="0.005" value="0.00"></label>
+                <label>RF <span id="off-rf-val">0.50</span><input type="range" id="off-rf" min="0" max="1" step="0.005" value="0.50"></label>
+                <label>RM <span id="off-rm-val">0.00</span><input type="range" id="off-rm" min="0" max="1" step="0.005" value="0.00"></label>
+                <label>RB <span id="off-rb-val">0.50</span><input type="range" id="off-rb" min="0" max="1" step="0.005" value="0.50"></label>
             </div>
 
             <div class="slider-group">

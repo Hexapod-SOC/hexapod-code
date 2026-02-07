@@ -271,6 +271,30 @@ impl GaitController {
         self.gait_config.speed = (base.speed * speed_multiplier).clamp(0.1, max_speed.max(0.1));
     }
 
+    pub fn set_custom_gait_absolute(
+        &mut self,
+        name: String,
+        offsets: [f32; 6],
+        duty_factor: f32,
+        speed: f32,
+        step_length: f32,
+        step_height: f32,
+        base_height: f32,
+        body_push_gain: f32,
+        max_step_length: f32,
+        max_speed: f32,
+    ) {
+        let base = GaitConfig::default();
+        self.custom_gait_name = Some(name);
+        self.gait_config.phase_offsets_override = Some(offsets);
+        self.gait_config.duty_factor = duty_factor.clamp(0.05, 0.95);
+        self.gait_config.step_length = step_length.clamp(0.0, max_step_length.max(0.0));
+        self.gait_config.step_height = step_height.max(0.0);
+        self.gait_config.speed = speed.clamp(0.1, max_speed.max(0.1));
+        self.gait_config.base_height = base_height.clamp(-300.0, 0.0);
+        self.gait_config.body_push_gain = body_push_gain.clamp(0.0, 10.0);
+    }
+
     pub fn get_body_pose(&self) -> BodyPose {
         self.body_pose
     }

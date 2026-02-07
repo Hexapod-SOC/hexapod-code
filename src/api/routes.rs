@@ -3,7 +3,7 @@ use axum::{Json, extract::State, http::StatusCode};
 use devices::lidar::SlamSnapshot;
 use glam::Vec3;
 use hexmath::hexapod::LegId;
-use hexmath::{GaitType, WalkState};
+use hexmath::{GaitConfig, GaitType, WalkState};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::fs;
@@ -377,12 +377,30 @@ pub struct CustomLegOffsetsPayload {
 pub struct SetCustomGaitRequest {
     pub name: String,
     pub leg_cycle_offsets: CustomLegOffsetsPayload,
+    #[serde(default)]
     pub push_fraction: f32,
+    #[serde(default)]
     pub speed_multiplier: f32,
+    #[serde(default)]
     pub step_length_multiplier: f32,
+    #[serde(default)]
     pub lift_height_multiplier: f32,
+    #[serde(default)]
     pub max_step_length: f32,
+    #[serde(default)]
     pub max_speed: f32,
+    #[serde(default)]
+    pub duty_factor: Option<f32>,
+    #[serde(default)]
+    pub speed: Option<f32>,
+    #[serde(default)]
+    pub step_length_mm: Option<f32>,
+    #[serde(default)]
+    pub step_height_mm: Option<f32>,
+    #[serde(default)]
+    pub base_height_mm: Option<f32>,
+    #[serde(default)]
+    pub body_push_gain: Option<f32>,
 }
 
 /// POST /api/custom_gait
@@ -390,6 +408,7 @@ pub async fn set_custom_gait(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<SetCustomGaitRequest>,
 ) -> Result<Json<GaitResponse>, StatusCode> {
+    let base = GaitConfig::default();
     let offsets = [
         payload.leg_cycle_offsets.left_front,
         payload.leg_cycle_offsets.left_middle,
@@ -400,16 +419,58 @@ pub async fn set_custom_gait(
     ];
 
     let mut gait_controller = state.gait_controller.lock().await;
-    gait_controller.set_custom_gait(
-        payload.name.clone(),
-        offsets,
-        payload.push_fraction,
-        payload.speed_multiplier,
-        payload.step_length_multiplier,
-        payload.lift_height_multiplier,
-        payload.max_step_length,
-        payload.max_speed,
-    );
+    let use_absolute = payload.duty_factor.is_some()
+        || payload.speed.is_some()
+        || payload.step_length_mm.is_some()
+        || payload.step_height_mm.is_some()
+        || payload.base_height_mm.is_some()
+        || payload.body_push_gain.is_some();
+
+    let max_step_length = if payload.max_step_length > 0.0 {
+        payload.max_step_length
+    } else {
+        base.step_length * 3.0
+    };
+    let max_speed = if payload.max_speed > 0.0 {
+        payload.max_speed
+    } else {
+        base.speed * 5.0
+    };
+
+    if use_absolute {
+        let duty = payload.duty_factor.unwrap_or(payload.push_fraction.max(0.0));
+        let speed = payload.speed.unwrap_or(base.speed * payload.speed_multiplier.max(0.0));
+        let step_length =
+            payload.step_length_mm.unwrap_or(base.step_length * payload.step_length_multiplier.max(0.0));
+        let step_height =
+            payload.step_height_mm.unwrap_or(base.step_height * payload.lift_height_multiplier.max(0.0));
+        let base_height = payload.base_height_mm.unwrap_or(base.base_height);
+        let body_push_gain = payload.body_push_gain.unwrap_or(base.body_push_gain);
+
+        gait_controller.set_custom_gait_absolute(
+            payload.name.clone(),
+            offsets,
+            duty,
+            speed,
+            step_length,
+            step_height,
+            base_height,
+            body_push_gain,
+            max_step_length,
+            max_speed,
+        );
+    } else {
+        gait_controller.set_custom_gait(
+            payload.name.clone(),
+            offsets,
+            payload.push_fraction,
+            payload.speed_multiplier,
+            payload.step_length_multiplier,
+            payload.lift_height_multiplier,
+            max_step_length,
+            max_speed,
+        );
+    }
 
     Ok(Json(GaitResponse {
         success: true,
