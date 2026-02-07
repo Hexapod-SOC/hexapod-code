@@ -4,6 +4,8 @@ use crate::ik::{ik_solve_leg, Geometry};
 use glam::Vec3;
 use std::collections::HashMap;
 
+const COXA_YAW_GAIN: f32 = 1.0;
+
 #[derive(Clone, Debug, Default)]
 pub struct InputState {
     /// Forward/backward movement (-1 to 1)
@@ -151,7 +153,8 @@ pub fn step_hexapod(
             tibia_attach_angle: 0.0,
         };
 
-        let angles = ik_solve_leg(geom, foot);
+        let mut angles = ik_solve_leg(geom, foot);
+        angles.coxa *= COXA_YAW_GAIN;
         leg.set_target_angles(angles.coxa, angles.femur, angles.tibia);
 
         if !leg_state.is_swing && is_enabled && is_moving {

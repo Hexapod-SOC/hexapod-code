@@ -90,10 +90,10 @@ impl Default for GaitConfig {
     fn default() -> Self {
         Self {
             gait_type: GaitType::Tripod,
-            step_length: 70.0,
-            step_height: 50.0,
-            speed: 1.5,
-            base_height: -70.0,
+            step_length: 125.0,
+            step_height: 40.0,
+            speed: 1.0,
+            base_height: 50.0, //-70.0,
             disabled_legs: HashSet::new(),
             duty_factor: 0.5,
             body_push_gain: 2.5,

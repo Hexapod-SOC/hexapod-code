@@ -23,9 +23,9 @@ const ROT_SMOOTH_TAU: f32 = 0.25;
 // Normalize velocity/rotation inputs into [-1, 1] for hexmath
 const MAX_SPEED_MM_S: f32 = 100.0;
 const MAX_TURN_RATE: f32 = 1.0;
-// Safer servo command range to avoid over-travel.
-const SERVO_ANGLE_MIN: f32 = -30.0;
-const SERVO_ANGLE_MAX: f32 = 210.0;
+// Servo command range (aligned to 0..180 mapping).
+const SERVO_ANGLE_MIN: f32 = 0.0;
+const SERVO_ANGLE_MAX: f32 = 180.0;
 
 pub type Leg = LegId;
 

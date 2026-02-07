@@ -5,19 +5,13 @@ use pwm_pca9685::{Address, Channel, Pca9685};
 
 // Servo pulse width constants for 60Hz (prescale 100)
 // MG996R servos: 1000µs (1ms) = 0°, 1500µs (1.5ms) = 90°, 2000µs (2ms) = 180°
-// const SERVO_MIN: u16 = 246; // 0 degrees (1000µs)
-// #[allow(dead_code)]
-// const SERVO_CENTER: u16 = 369; // 90 degrees (1500µs) 
-// const SERVO_MAX: u16 = 492; // 180 degrees (2000µs)
-
-// for prescale 121 (50Hz)
 // Safer range: 1.0ms..2.0ms to reduce over-travel risk.
-const SERVO_MIN: u16 = 204; // 0 degrees in safe range (1000µs)
+const SERVO_MIN: u16 = 246; // 0 degrees (1000µs)
 #[allow(dead_code)]
-const SERVO_CENTER: u16 = 307; // 90 degrees (1500µs) 
-const SERVO_MAX: u16 = 410; // 180 degrees in safe range (2000µs)
-const SERVO_ANGLE_MIN: f32 = -30.0;
-const SERVO_ANGLE_MAX: f32 = 210.0;
+const SERVO_CENTER: u16 = 369; // 90 degrees (1500µs)
+const SERVO_MAX: u16 = 492; // 180 degrees (2000µs)
+const SERVO_ANGLE_MIN: f32 = 0.0;
+const SERVO_ANGLE_MAX: f32 = 180.0;
 
 
 /// (Coxa, Femur, Tibia) pin configuration for each leg
@@ -72,15 +66,15 @@ impl ServoController {
     }
 
     pub fn init_servos(&mut self) {
-        self.pca_left.set_prescale(121).unwrap();
-        self.pca_right.set_prescale(121).unwrap();
+        self.pca_left.set_prescale(100).unwrap();
+        self.pca_right.set_prescale(100).unwrap();
 
         // It is necessary to enable the device.
         self.pca_left.enable().unwrap();
         self.pca_right.enable().unwrap();
     }
 
-    /// Set a single servo to a specific angle (expanded range)
+    /// Set a single servo to a specific angle (0-180 degrees)
     pub fn set_servo_angle(&mut self, leg: Leg, part: LegPart, angle: f32) {
         // Convert angle (0-180 degrees) to PWM value
         let pwm_value = self.angle_to_pwm(angle);
@@ -125,6 +119,10 @@ impl ServoController {
 
     /// Set all three servos for a leg
     pub fn set_leg_angles(&mut self, leg: Leg, angles: LegAngles) {
+        println!(
+            "(REAL) Setting {:?} to angles: Coxa {:.2}, Femur {:.2}, Tibia {:.2}",
+            leg, angles.coxa, angles.femur, angles.tibia
+        );
         self.set_servo_angle(leg, LegPart::Coxa, angles.coxa);
         self.set_servo_angle(leg, LegPart::Femur, angles.femur);
         self.set_servo_angle(leg, LegPart::Tibia, angles.tibia);
@@ -142,7 +140,7 @@ impl ServoController {
         self.set_leg_angles(Leg::RightBack, angles);
     }
 
-    /// Convert angle (expanded range) to PWM value (SERVO_MIN..SERVO_MAX)
+    /// Convert angle (0-180 degrees) to PWM value (SERVO_MIN..SERVO_MAX)
     fn angle_to_pwm(&self, angle: f32) -> u16 {
         // Clamp angle to expanded range
         let angle = angle.clamp(SERVO_ANGLE_MIN, SERVO_ANGLE_MAX);
