@@ -123,21 +123,13 @@ pub fn step_hexapod(
         let effective_stride = stride_offset * (move_dir_forward + turn_differential * 0.5);
         let strafe_stride = stride_offset * move_dir_strafe;
 
-        let effective_stride = if is_left {
-            -effective_stride
-        } else {
-            effective_stride
-        };
+
         let strafe_stride = if is_left { strafe_stride } else { -strafe_stride };
 
         let leg = get_leg_mut(hexapod, leg_id);
         let reach = leg.femur_length * 0.6 + leg.tibia_length * 0.4;
 
-        let mount_rad = if is_left {
-            (-leg.mount_angle).to_radians()
-        } else {
-            leg.mount_angle.to_radians()
-        };
+        let mount_rad = leg.mount_angle.to_radians();
 
         let stride_local_x = effective_stride * mount_rad.sin() + strafe_stride * mount_rad.cos();
         let stride_local_y = effective_stride * mount_rad.cos() - strafe_stride * mount_rad.sin();
