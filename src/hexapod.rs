@@ -7,9 +7,9 @@ use devices::servo::{ServoController, ServoOffsets, ServoPins};
 ///
 /// This module provides a unified interface for controlling the hexapod robot,
 /// combining servo control, inverse kinematics, and gait generation.
-use glam::{EulerRot, Quat, Vec3};
+use glam::{EulerRot, Mat2, Quat, Vec3};
 use hexmath::hexapod::{Hexapod as MathHexapod, LegId};
-use hexmath::ik::{Constraints, LegAngles, SimpleIk};
+use hexmath::ik::{ik_solve_leg, Constraints, Geometry, LegAngles};
 use hexmath::{compute_leg_joints, step_hexapod, GaitConfig, GaitType, InputState, WalkState};
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -288,15 +288,8 @@ impl GaitController {
     }
 
     pub fn calculate_pose_angles(&self) -> Vec<(LegId, LegAngles)> {
-        let ik = SimpleIk::new(self.constraints);
-        all_legs()
-            .into_iter()
-            .map(|leg| {
-                let pos = self.body_pose.transform_position(self.default_stance.get(leg));
-                let angles = ik.calc_pos_leg_angles(leg, pos);
-                (leg, angles)
-            })
-            .collect()
+        let posed = self.pose_hexapod();
+        self.current_leg_angles_from_hexapod(&posed)
     }
 
     pub fn current_leg_angles(&self) -> Vec<(LegId, LegAngles)> {
@@ -331,12 +324,40 @@ impl GaitController {
 
     pub fn pose_hexapod(&self) -> MathHexapod {
         let mut hexapod = self.math_hexapod.clone();
-        let ik = SimpleIk::new(self.constraints);
-
         for leg_id in all_legs() {
             let pos = self.body_pose.transform_position(self.default_stance.get(leg_id));
-            let angles = ik.calc_pos_leg_angles(leg_id, pos);
-            set_leg_targets(&mut hexapod, leg_id, angles);
+            let leg = match leg_id {
+                LegId::LeftFront => &hexapod.legs.left_front,
+                LegId::LeftMiddle => &hexapod.legs.left_middle,
+                LegId::LeftBack => &hexapod.legs.left_back,
+                LegId::RightFront => &hexapod.legs.right_front,
+                LegId::RightMiddle => &hexapod.legs.right_middle,
+                LegId::RightBack => &hexapod.legs.right_back,
+            };
+
+            let rot = Mat2::from_angle(leg.mount_angle.to_radians());
+            let xy = rot.transpose() * glam::vec2(pos.x, pos.y);
+            let foot = Vec3::new(xy.x, xy.y, pos.z);
+
+            let geom = Geometry {
+                coxa_len: leg.coxa_length,
+                femur_len: leg.femur_length,
+                tibia_len: leg.tibia_length,
+                coxa_attach_angle: 0.0,
+                femur_attach_angle: 0.0,
+                tibia_attach_angle: 0.0,
+            };
+
+            let angles = ik_solve_leg(geom, foot);
+            set_leg_targets(
+                &mut hexapod,
+                leg_id,
+                LegAngles {
+                    coxa: angles.coxa,
+                    femur: angles.femur,
+                    tibia: angles.tibia,
+                },
+            );
         }
 
         hexapod
@@ -410,8 +431,8 @@ fn target_angles_with_offsets(hexapod: &MathHexapod, leg_id: LegId, constraints:
 
     LegAngles {
         coxa: leg.target_coxa_angle + 90.0 + constraints.coxa_soffset,
-        femur: leg.target_femur_angle + constraints.femur_soffset,
-        tibia: 180.0 - leg.target_tibia_angle + constraints.tibia_soffset,
+        femur: 180.0 - (leg.target_femur_angle + constraints.femur_soffset),
+        tibia: 180.0 - (leg.target_tibia_angle + constraints.tibia_soffset),
     }
 }
 

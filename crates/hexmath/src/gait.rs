@@ -93,7 +93,7 @@ impl Default for GaitConfig {
             step_length: 125.0,
             step_height: 40.0,
             speed: 1.0,
-            base_height: 50.0, //-70.0,
+            base_height: -70.0,
             disabled_legs: HashSet::new(),
             duty_factor: 0.5,
             body_push_gain: 2.5,
