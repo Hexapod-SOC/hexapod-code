@@ -335,7 +335,11 @@ impl GaitController {
                 LegId::RightBack => &hexapod.legs.right_back,
             };
 
-            let rot = Mat2::from_angle(leg.mount_angle.to_radians());
+            let mount_angle = match leg_id {
+                LegId::LeftFront | LegId::LeftMiddle | LegId::LeftBack => -leg.mount_angle,
+                _ => leg.mount_angle,
+            };
+            let rot = Mat2::from_angle(mount_angle.to_radians());
             let xy = rot.transpose() * glam::vec2(pos.x, pos.y);
             let foot = Vec3::new(xy.x, xy.y, pos.z);
 
