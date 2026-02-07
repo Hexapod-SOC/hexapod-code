@@ -8,24 +8,22 @@ pub mod demos;
 pub mod hexapod;
 
 // Workspace imports
-use crate::hexapod::{ServoAngleTriplet, ServoAngleTweaks};
+use crate::hexapod::{LegStances, ServoAngleTriplet, ServoAngleTweaks};
 use audio::tts;
-use config::CALIBRATION_LEG_STANCE_FILE;
 use config::{
-    CALIBRATION_SERVO_TWEAKS_FILE, CONSTRAINTS, LOAD_SAVED_SERVO_TWEAKS, SERVO_OFFSETS,
-    SERVO_PINS, TMP_DIR, TTS_URL,
+    calibration_leg_stance_path, calibration_servo_tweaks_path, CONSTRAINTS,
+    LOAD_SAVED_SERVO_TWEAKS, SERVO_OFFSETS, SERVO_PINS, TMP_DIR, TTS_URL,
 };
 use glam::Vec3;
-use movement::gait::LegStances;
-use movement::gaits::GAITS;
+use hexmath::GaitType;
 use std::sync::Arc;
 
 fn load_saved_servo_tweaks() -> Option<ServoAngleTweaks> {
-    let path = std::path::Path::new(CALIBRATION_SERVO_TWEAKS_FILE);
+    let path = calibration_servo_tweaks_path();
     if !path.exists() {
         return None;
     }
-    let content = std::fs::read_to_string(path).ok()?;
+    let content = std::fs::read_to_string(&path).ok()?;
     #[derive(serde::Deserialize)]
     struct FileTweaks {
         left_front: [f32; 3],
@@ -70,11 +68,11 @@ fn load_saved_servo_tweaks() -> Option<ServoAngleTweaks> {
     })
 }
 fn load_saved_leg_stance() -> Option<LegStances> {
-    let path = std::path::Path::new(CALIBRATION_LEG_STANCE_FILE);
+    let path = calibration_leg_stance_path();
     if !path.exists() {
         return None;
     }
-    let content = std::fs::read_to_string(path).ok()?;
+    let content = std::fs::read_to_string(&path).ok()?;
     #[derive(serde::Deserialize)]
     struct FileStance {
         left_front: [f32; 3],
@@ -107,7 +105,7 @@ async fn main() {
     tts::cleanup_cache(7).unwrap();
     tts::sayen("Hexapod initializing...").unwrap();
 
-    // Create hexapod controller with tripod gait
+    // Create hexapod controller with ripple gait
     println!("Creating hexapod controller...");
     // Load saved default stance if available
     let saved_stance = load_saved_leg_stance();
@@ -116,7 +114,7 @@ async fn main() {
         SERVO_PINS,
         SERVO_OFFSETS,
         CONSTRAINTS,
-        &GAITS[0],    // Tripod gait
+        GaitType::Tripod, // Tripod gait
         saved_stance, // Use saved stance if present
     );
 
@@ -210,6 +208,7 @@ async fn main() {
             hexapod.get_ubec_controller(),
             hexapod.get_servo_angle_tweaks(),
             lidar_handle.clone(),
+            hexapod.get_imu(),
         );
 
         // Spawn API server in background task

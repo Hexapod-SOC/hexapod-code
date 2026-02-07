@@ -33,3 +33,10 @@ pub use gps_real as gps;
 
 // LiDAR module (works with both dummy and real features)
 pub mod lidar;
+
+pub mod imu;
+
+#[cfg(feature = "dummy")]
+pub use imu::dummy::Bno055Dummy as imu_driver;
+#[cfg(feature = "real")]
+pub use imu::bno055::Bno055 as imu_driver;

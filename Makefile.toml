@@ -24,6 +24,11 @@ command = "cargo"
 args = ["run", "--features", "dummy", "--release"]
 workspace = false
 
+[tasks.pcrunsim]
+command = "cargo"
+args = ["run", "-p", "hexapod_sim"]
+workspace = false
+
 # RASPBERRY PI BUILDS
 [tasks.picheck]
 command = "cross"
@@ -42,7 +47,7 @@ workspace = false
 
 [tasks.pirunremote]
 command = "cargo"
-args = ["hexapod-devkit", "remoterun", "--local"]
+args = ["hexapod-devkit", "remoterun"]
 workspace = false
 
 # Adam nix shell wrappers for Pi builds

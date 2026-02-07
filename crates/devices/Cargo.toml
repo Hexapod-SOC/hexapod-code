@@ -6,7 +6,7 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-movement = { path = "../movement" }
+hexmath = { path = "../hexmath" }
 linux-embedded-hal = { workspace = true, optional = true }
 pwm-pca9685 = { workspace = true, optional = true }
 libc = { version = "0.2", optional = true }
@@ -14,10 +14,13 @@ anyhow = { workspace = true }
 lidar-slam = { path = "../lidar-slam" }
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
+glam = { workspace = true }
 
 # Web dependencies (for examples)
 tokio = { workspace = true, optional = true }
 axum = { version = "0.7", features = ["ws"], optional = true }
+embedded-hal = "1.0.0"
+bno055 = "0.4.0"
 
 [features]
 dummy = []  # PC/testing mode without hardware

@@ -2,7 +2,8 @@ use crate::hexapod::HexapodControl;
 use crate::hexapod::ServoAngleTweaks;
 use devices::lidar::LidarSlamHandle;
 use devices::picoubec::PicoUbecController;
-use movement::controller::GaitController;
+use devices::imu::Imu;
+use crate::hexapod::GaitController;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -16,6 +17,7 @@ pub struct AppState {
     pub ubec_controller: Arc<Mutex<PicoUbecController>>,
     pub servo_angle_tweaks: Arc<Mutex<ServoAngleTweaks>>,
     pub lidar: Option<Arc<LidarSlamHandle>>,
+    pub imu: Option<Arc<Mutex<Box<dyn Imu>>>>,
 }
 
 impl AppState {
@@ -25,6 +27,7 @@ impl AppState {
         ubec_controller: Arc<Mutex<PicoUbecController>>,
         servo_angle_tweaks: Arc<Mutex<ServoAngleTweaks>>,
         lidar: Option<Arc<LidarSlamHandle>>,
+        imu: Option<Arc<Mutex<Box<dyn Imu>>>>,
     ) -> Self {
         Self {
             control,
@@ -32,6 +35,7 @@ impl AppState {
             ubec_controller,
             servo_angle_tweaks,
             lidar,
+            imu,
         }
     }
 }

@@ -9,8 +9,9 @@ edition.workspace = true
 members = [
     "crates/audio",
     "crates/devices", 
+    "crates/hexmath",
+    "crates/hexmath/bevyexmaple",
     "crates/lidar-slam",
-    "crates/movement",
     "crates/web-panel",
 ]
 
@@ -28,7 +29,7 @@ dummyslamreal = ["devices/dummy", "audio/dummy", "lidar-slam/real"] # devices du
 [dependencies]
 # Workspace crates
 devices = { path = "crates/devices" }
-movement = { path = "crates/movement" }
+hexmath = { path = "crates/hexmath" }
 audio = { path = "crates/audio" }
 web-panel = { path = "crates/web-panel" }
 lidar-slam = { path = "crates/lidar-slam" }
@@ -47,7 +48,7 @@ tracing = "0.1"
 tracing-subscriber = "0.3"
 
 [dev-dependencies]
-#bevy = "0.17.2"
+bevy = "0.17.2"
 pwm-pca9685 = "1.0.0"
 linux-embedded-hal = "0.4.0"
 

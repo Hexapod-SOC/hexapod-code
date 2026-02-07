@@ -2,9 +2,8 @@
 ///
 /// This module contains various demonstration routines showcasing
 /// different capabilities of the hexapod robot.
-use crate::hexapod::Hexapod;
+use crate::hexapod::{BodyPose, Hexapod};
 use glam::Vec3;
-use movement::controller::BodyPose;
 
 /// Demo: Body tilt/rotation without walking
 ///
