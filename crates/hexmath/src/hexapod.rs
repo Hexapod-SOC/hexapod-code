@@ -82,7 +82,7 @@ impl Hexapod {
             legs: Legs {
                 left_front: Leg {
                     location: glam::Vec3::new(-corner_offset_x, corner_offset_y, 10.0),
-                    mount_angle: 45.0,  // Angled 45° forward-outward
+                    mount_angle: -45.0,  // Angled 45° forward-outward
                     coxa_length: 45.0,
                     femur_length: 60.0,
                     tibia_length: 105.0,
@@ -134,7 +134,7 @@ impl Hexapod {
                 },
                 left_back: Leg {
                     location: glam::Vec3::new(-corner_offset_x, -corner_offset_y, 10.0),
-                    mount_angle: -45.0,  // Angled 45° backward-outward
+                    mount_angle: 45.0,  // Angled 45° backward-outward
                     coxa_length: 45.0,
                     femur_length: 60.0,
                     tibia_length: 105.0,

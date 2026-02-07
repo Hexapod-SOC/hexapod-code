@@ -106,7 +106,7 @@ async fn main() {
     tts::cleanup_cache(7).unwrap();
     tts::sayen("Hexapod initializing...").unwrap();
 
-    // Create hexapod controller with tripod gait
+    // Create hexapod controller with ripple gait
     println!("Creating hexapod controller...");
     // Load saved default stance if available
     let saved_stance = load_saved_leg_stance();

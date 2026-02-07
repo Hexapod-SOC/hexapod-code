@@ -119,10 +119,10 @@ impl ServoController {
 
     /// Set all three servos for a leg
     pub fn set_leg_angles(&mut self, leg: Leg, angles: LegAngles) {
-        println!(
-            "(REAL) Setting {:?} to angles: Coxa {:.2}, Femur {:.2}, Tibia {:.2}",
-            leg, angles.coxa, angles.femur, angles.tibia
-        );
+        // println!(
+        //     "(REAL) Setting {:?} to angles: Coxa {:.2}, Femur {:.2}, Tibia {:.2}",
+        //     leg, angles.coxa, angles.femur, angles.tibia
+        // );
         self.set_servo_angle(leg, LegPart::Coxa, angles.coxa);
         self.set_servo_angle(leg, LegPart::Femur, angles.femur);
         self.set_servo_angle(leg, LegPart::Tibia, angles.tibia);
