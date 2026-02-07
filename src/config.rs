@@ -3,6 +3,7 @@ use devices::lidar::LidarSlamConfig;
 use devices::servo::{ServoOffsets, ServoPins};
 use lidar_slam::SlamParams;
 use hexmath::ik;
+use std::path::PathBuf;
 use std::time::Duration;
 
 pub const WEB_API_ENABLE: bool = true;
@@ -57,13 +58,30 @@ pub const SERVO_OFFSETS: ServoOffsets = ServoOffsets {
     right_back: (0.0, 0.0, 0.0),
 };
 
-// Persistent calibration storage (JSON). Relative to the working directory.
-// Example path: ./calibration/leg_stance.json
-pub const CALIBRATION_LEG_STANCE_FILE: &str = "calibration/leg_stance.json";
+// Persistent calibration storage (JSON). Stored under $HEXAPOD_HOME/config by default.
+pub const CALIBRATION_LEG_STANCE_FILE_NAME: &str = "leg_stance.json";
 /// Persistent per-servo angle tweaks (degrees), applied on top of IK outputs.
-pub const CALIBRATION_SERVO_TWEAKS_FILE: &str = "calibration/servo_angle_tweaks.json";
+pub const CALIBRATION_SERVO_TWEAKS_FILE_NAME: &str = "servo_angle_tweaks.json";
 /// Set to true to load saved servo tweaks on startup.
 pub const LOAD_SAVED_SERVO_TWEAKS: bool = false;
+
+pub fn config_dir() -> PathBuf {
+    let path = if let Ok(home) = std::env::var("HEXAPOD_HOME") {
+        PathBuf::from(home).join("config")
+    } else {
+        PathBuf::from("config")
+    };
+    println!("Using config directory: {:?}", path);
+    path
+}
+
+pub fn calibration_leg_stance_path() -> PathBuf {
+    config_dir().join(CALIBRATION_LEG_STANCE_FILE_NAME)
+}
+
+pub fn calibration_servo_tweaks_path() -> PathBuf {
+    config_dir().join(CALIBRATION_SERVO_TWEAKS_FILE_NAME)
+}
 
 /// Helper to build the configuration passed into the LiDAR SLAM thread.
 pub fn lidar_slam_config() -> LidarSlamConfig {

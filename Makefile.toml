@@ -47,7 +47,7 @@ workspace = false
 
 [tasks.pirunremote]
 command = "cargo"
-args = ["hexapod-devkit", "remoterun", "--local"]
+args = ["hexapod-devkit", "remoterun"]
 workspace = false
 
 # Adam nix shell wrappers for Pi builds

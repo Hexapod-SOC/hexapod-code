@@ -1,4 +1,4 @@
-use crate::config::{CALIBRATION_LEG_STANCE_FILE, CALIBRATION_SERVO_TWEAKS_FILE};
+use crate::config::{calibration_leg_stance_path, calibration_servo_tweaks_path};
 use axum::{Json, extract::State, http::StatusCode};
 use devices::lidar::SlamSnapshot;
 use glam::Vec3;
@@ -692,7 +692,8 @@ pub async fn set_leg_stance(
     }
 
     // Also persist immediately so no manual copy/paste is needed
-    if let Some(dir) = std::path::Path::new(CALIBRATION_LEG_STANCE_FILE).parent() {
+    let stance_path = calibration_leg_stance_path();
+    if let Some(dir) = stance_path.parent() {
         if let Err(e) = fs::create_dir_all(dir).await {
             eprintln!("Failed to create calibration dir: {}", e);
         }
@@ -705,7 +706,7 @@ pub async fn set_leg_stance(
         "right_middle": payload.right_middle,
         "right_back": payload.right_back,
     });
-    match fs::File::create(CALIBRATION_LEG_STANCE_FILE).await {
+    match fs::File::create(&stance_path).await {
         Ok(mut file) => {
             if let Err(e) = file
                 .write_all(serde_json::to_string_pretty(&data).unwrap().as_bytes())
@@ -756,7 +757,8 @@ pub async fn save_leg_stance(
     Json(payload): Json<SetLegStanceRequest>,
 ) -> Result<Json<SaveResponse>, StatusCode> {
     // Ensure directory exists
-    if let Some(dir) = std::path::Path::new(CALIBRATION_LEG_STANCE_FILE).parent() {
+    let stance_path = calibration_leg_stance_path();
+    if let Some(dir) = stance_path.parent() {
         if let Err(e) = fs::create_dir_all(dir).await {
             eprintln!("Failed to create calibration dir: {}", e);
             return Err(StatusCode::INTERNAL_SERVER_ERROR);
@@ -780,7 +782,7 @@ pub async fn save_leg_stance(
         }
     };
 
-    match fs::File::create(CALIBRATION_LEG_STANCE_FILE).await {
+    match fs::File::create(&stance_path).await {
         Ok(mut file) => {
             if let Err(e) = file.write_all(json.as_bytes()).await {
                 eprintln!("Failed to write leg stance file: {}", e);
@@ -801,12 +803,12 @@ pub async fn save_leg_stance(
 
 /// GET /api/leg_stance/saved
 pub async fn get_saved_leg_stance() -> Result<Json<LegStanceResponse>, StatusCode> {
-    let path = std::path::Path::new(CALIBRATION_LEG_STANCE_FILE);
+    let path = calibration_leg_stance_path();
     if !path.exists() {
         return Err(StatusCode::NOT_FOUND);
     }
 
-    let content = match fs::read_to_string(path).await {
+    let content = match fs::read_to_string(&path).await {
         Ok(c) => c,
         Err(e) => {
             eprintln!("Failed to read leg stance file: {}", e);
@@ -967,7 +969,8 @@ pub async fn save_servo_tweaks(
     Json(payload): Json<ServoTweaksData>,
 ) -> Result<Json<SaveResponse>, StatusCode> {
     // Ensure directory exists
-    if let Some(dir) = std::path::Path::new(CALIBRATION_SERVO_TWEAKS_FILE).parent() {
+    let tweaks_path = calibration_servo_tweaks_path();
+    if let Some(dir) = tweaks_path.parent() {
         if let Err(e) = fs::create_dir_all(dir).await {
             eprintln!("Failed to create calibration dir: {}", e);
             return Err(StatusCode::INTERNAL_SERVER_ERROR);
@@ -982,7 +985,7 @@ pub async fn save_servo_tweaks(
         }
     };
 
-    match fs::File::create(CALIBRATION_SERVO_TWEAKS_FILE).await {
+    match fs::File::create(&tweaks_path).await {
         Ok(mut file) => {
             if let Err(e) = file.write_all(json.as_bytes()).await {
                 eprintln!("Failed to write servo tweaks file: {}", e);
@@ -1003,12 +1006,12 @@ pub async fn save_servo_tweaks(
 
 /// GET /api/servo_tweaks/saved
 pub async fn get_saved_servo_tweaks() -> Result<Json<ServoTweaksResponse>, StatusCode> {
-    let path = std::path::Path::new(CALIBRATION_SERVO_TWEAKS_FILE);
+    let path = calibration_servo_tweaks_path();
     if !path.exists() {
         return Err(StatusCode::NOT_FOUND);
     }
 
-    let content = match fs::read_to_string(path).await {
+    let content = match fs::read_to_string(&path).await {
         Ok(c) => c,
         Err(e) => {
             eprintln!("Failed to read servo tweaks file: {}", e);
