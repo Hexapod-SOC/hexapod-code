@@ -50,7 +50,7 @@ workspace = false
 
 [tasks.pirunremote.linux]
 command = "cargo"
-args = ["hexapod-devkit", "remoterun"]
+args = ["hexapod-devkit", "remoterun", "--local"]
 
 [tasks.pirunremote.windows]
 command = "powershell"
