@@ -76,7 +76,7 @@ nix-shell -p cargo-cross --run "cargo make pirunremote"
 - `crates/` - Workspace crates
   - `audio/` - Text-to-speech and audio playback
   - `devices/` - Hardware abstraction (servo, PicoUBEC)
-  - `movement/` - Inverse kinematics and gait patterns
+  - `hexmath/` - Inverse kinematics and gait patterns
   - `web-panel/` - Web control interface
 - `examples/` - Example programs and utilities
 - `target/` - Build artifacts (gitignored)
