@@ -28,6 +28,7 @@ if ($LASTEXITCODE -ne 0) { exit 1 }
 
 # Remove existing binary
 Write-Host "Removing existing binary on Raspberry Pi..." -ForegroundColor Cyan
+ssh "$($config.user)@$piHost" "sudo pkill hexapod-code"
 ssh "$($config.user)@$piHost" "rm -f $($config.remote_path)$binaryName"
 
 # Copy binary
@@ -39,7 +40,7 @@ if ($shouldRun) {
     # Run on Pi
     Write-Host "Running binary on Raspberry Pi..." -ForegroundColor Yellow
     Write-Host "*********************************" -ForegroundColor Yellow
-    ssh "$($config.user)@$piHost" "chmod +x $($config.remote_path)$binaryName && sudo $($config.remote_path)$binaryName"
+    ssh "$($config.user)@$piHost" "chmod +x $($config.remote_path)$binaryName && sudo -E $($config.remote_path)$binaryName"
     Write-Host "*********************************" -ForegroundColor Yellow
     Write-Host "Done!" -ForegroundColor Green
 } else {
