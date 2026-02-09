@@ -68,18 +68,19 @@ fn tweak_for_leg(tweaks: &ServoAngleTweaks, leg: LegId) -> ServoAngleTriplet {
 fn to_visualizer_angles(leg: LegId, angles_deg: ServoAngleTriplet) -> [f32; 3] {
     let mut coxa = angles_deg.coxa;
     let mut femur = angles_deg.femur;
-    let mut tibia = -(angles_deg.tibia);
+    let mut tibia = 180.0 + (angles_deg.tibia);
 
 
     if matches!(leg, LegId::RightFront | LegId::RightMiddle | LegId::RightBack) {
-        coxa = 180.0 + -180.0 - coxa;
-        femur = 45.0 + femur;
-        tibia = 180.0 - tibia;
+        coxa = -coxa;
+        femur = femur; //45.0 + 
+        tibia = tibia;
     }
 
     if matches!(leg, LegId::LeftFront | LegId::LeftMiddle | LegId::LeftBack) {
         coxa = 135.0 - coxa;
-        femur = -45.0 - femur;
+        femur = 90.0 + femur; //-45.0 - 
+        tibia =  270.0 +  tibia; 
     }
 
     let coxa = coxa.to_radians();

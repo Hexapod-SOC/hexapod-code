@@ -144,13 +144,14 @@ if (!container) {
 	const legAngles = new Map();
 	const RIGHT_FLIP = Math.PI;
 	const RIGHT_FB = Math.PI / 2;
+	// reveresed front back
 	const COXA_OFFSETS = {
 		left_front: Math.PI / 4,
-		left_middle: Math.PI / 2,
-		left_back: -Math.PI / 4,
-		right_front: -Math.PI / 4 - Math.PI / 2 + RIGHT_FLIP + RIGHT_FB,
+		left_middle: -Math.PI / 4,
+		left_back: Math.PI / 4,
+		right_front: Math.PI / 2,//-Math.PI / 4 - Math.PI / 2 + RIGHT_FLIP + RIGHT_FB,
 		right_middle: -Math.PI / 2 + RIGHT_FLIP,
-		right_back: Math.PI / 4 - Math.PI / 2 + RIGHT_FLIP + RIGHT_FB
+		right_back: Math.PI / 2,// Math.PI / 4 - Math.PI / 2 + RIGHT_FLIP + RIGHT_FB
 	};
 
 	const API_BASE = `${window.location.protocol}//${window.location.hostname}:3000/api`;
