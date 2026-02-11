@@ -170,6 +170,9 @@ function initGaitSelector() {
         return;
     }
     gaitBtns.forEach(btn => {
+        if (btn.disabled) {
+            return;
+        }
         btn.addEventListener('click', () => {
             currentGait = btn.dataset.gait;
             setActiveGaitButton(currentGait);
