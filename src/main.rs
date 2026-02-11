@@ -11,11 +11,12 @@ pub mod hexapod;
 use crate::hexapod::{LegStances, ServoAngleTriplet, ServoAngleTweaks};
 use audio::tts;
 use config::{
-    calibration_leg_stance_path, calibration_servo_tweaks_path, CONSTRAINTS,
-    LOAD_SAVED_SERVO_TWEAKS, SERVO_OFFSETS, SERVO_PINS, TMP_DIR, TTS_URL,
+    calibration_gait_configs_path, calibration_leg_stance_path, calibration_servo_tweaks_path,
+    CONSTRAINTS, LOAD_SAVED_SERVO_TWEAKS, SERVO_OFFSETS, SERVO_PINS, TMP_DIR, TTS_URL,
 };
 use glam::Vec3;
-use hexmath::GaitType;
+use hexmath::{GaitConfig, GaitType};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 fn load_saved_servo_tweaks() -> Option<ServoAngleTweaks> {
@@ -91,6 +92,72 @@ fn load_saved_leg_stance() -> Option<LegStances> {
         right_middle: Vec3::from_array(parsed.right_middle),
         right_back: Vec3::from_array(parsed.right_back),
     })
+}
+
+#[derive(serde::Deserialize, Clone)]
+struct FileGaitConfig {
+    duty_factor: f32,
+    speed: f32,
+    step_length_mm: f32,
+    step_height_mm: f32,
+    base_height_mm: f32,
+    body_push_gain: f32,
+    phase_offsets: [f32; 6],
+    max_step_length: f32,
+    max_speed: f32,
+}
+
+fn parse_gait_name(name: &str) -> Option<GaitType> {
+    match name.to_lowercase().as_str() {
+        "tripod" | "tri" | "t" => Some(GaitType::Tripod),
+        "tetrapod" | "quad" | "bi" => Some(GaitType::Tetrapod),
+        "wave" | "w" => Some(GaitType::Wave),
+        "ripple" | "r" => Some(GaitType::Ripple),
+        _ => None,
+    }
+}
+
+fn gait_config_from_file(gait_type: GaitType, file: &FileGaitConfig) -> GaitConfig {
+    let mut config = GaitConfig::default();
+    let mut offsets = file.phase_offsets;
+    for value in offsets.iter_mut() {
+        *value = value.clamp(0.0, 1.0);
+    }
+
+    config.gait_type = gait_type;
+    config.phase_offsets_override = Some(offsets);
+    config.duty_factor = file.duty_factor.clamp(0.05, 0.95);
+    config.step_length = file
+        .step_length_mm
+        .clamp(0.0, file.max_step_length.max(0.0));
+    config.step_height = file.step_height_mm.max(0.0);
+    config.speed = file.speed.clamp(0.1, file.max_speed.max(0.1));
+    config.base_height = file.base_height_mm.clamp(-300.0, 0.0);
+    config.body_push_gain = file.body_push_gain.clamp(0.0, 10.0);
+    config
+}
+
+fn load_saved_gait_configs() -> HashMap<GaitType, FileGaitConfig> {
+    let path = calibration_gait_configs_path();
+    if !path.exists() {
+        return HashMap::new();
+    }
+    let content = match std::fs::read_to_string(&path) {
+        Ok(c) => c,
+        Err(_) => return HashMap::new(),
+    };
+    let parsed: HashMap<String, FileGaitConfig> = match serde_json::from_str(&content) {
+        Ok(p) => p,
+        Err(_) => return HashMap::new(),
+    };
+
+    let mut result = HashMap::new();
+    for (name, cfg) in parsed {
+        if let Some(gait_type) = parse_gait_name(&name) {
+            result.insert(gait_type, cfg);
+        }
+    }
+    result
 }
 
 #[tokio::main]
@@ -176,6 +243,17 @@ async fn main() {
             let tweaks_arc = hexapod.get_servo_angle_tweaks();
             let mut t = tweaks_arc.lock().await;
             *t = tweaks;
+        }
+    }
+
+    // Load saved per-gait configs if available
+    let saved_gait_configs = load_saved_gait_configs();
+    if !saved_gait_configs.is_empty() {
+        let gait_controller = hexapod.get_gait_controller();
+        let mut gait = gait_controller.lock().await;
+        for (gait_type, cfg) in saved_gait_configs {
+            let config = gait_config_from_file(gait_type, &cfg);
+            gait.set_gait_config_for(gait_type, config);
         }
     }
 

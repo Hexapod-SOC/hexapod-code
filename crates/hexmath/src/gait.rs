@@ -2,7 +2,7 @@ use crate::hexapod::LegId;
 use std::collections::HashSet;
 
 /// Different gait patterns available
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
 pub enum GaitType {
     /// Classic tripod gait: 3 legs move while 3 support
     /// Groups: [LF, RM, LB] and [RF, LM, RB]

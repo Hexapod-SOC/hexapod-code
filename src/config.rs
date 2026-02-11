@@ -62,6 +62,8 @@ pub const SERVO_OFFSETS: ServoOffsets = ServoOffsets {
 pub const CALIBRATION_LEG_STANCE_FILE_NAME: &str = "leg_stance.json";
 /// Persistent per-servo angle tweaks (degrees), applied on top of IK outputs.
 pub const CALIBRATION_SERVO_TWEAKS_FILE_NAME: &str = "servo_angle_tweaks.json";
+/// Persistent per-gait tuning configs (JSON).
+pub const CALIBRATION_GAIT_CONFIGS_FILE_NAME: &str = "gait_configs.json";
 /// Set to true to load saved servo tweaks on startup.
 pub const LOAD_SAVED_SERVO_TWEAKS: bool = false;
 
@@ -81,6 +83,10 @@ pub fn calibration_leg_stance_path() -> PathBuf {
 
 pub fn calibration_servo_tweaks_path() -> PathBuf {
     config_dir().join(CALIBRATION_SERVO_TWEAKS_FILE_NAME)
+}
+
+pub fn calibration_gait_configs_path() -> PathBuf {
+    config_dir().join(CALIBRATION_GAIT_CONFIGS_FILE_NAME)
 }
 
 /// Helper to build the configuration passed into the LiDAR SLAM thread.

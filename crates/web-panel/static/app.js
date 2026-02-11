@@ -10,6 +10,44 @@ let gamepadLayout = 'xbox'; // 'xbox' or 'playstation'
 let gamepadIndex = null;
 let gamepadAnimationFrame = null;
 
+function normalizeGaitName(name) {
+    if (!name) return 'ripple';
+    const lower = name.toLowerCase();
+    if (lower.startsWith('tri')) return 'tripod';
+    if (lower.startsWith('tet') || lower.startsWith('quad') || lower === 'bi') return 'tetrapod';
+    if (lower.startsWith('wav')) return 'wave';
+    if (lower.startsWith('rip')) return 'ripple';
+    return lower;
+}
+
+function setActiveGaitButton(gaitName) {
+    const gaitBtns = document.querySelectorAll('[data-gait]');
+    gaitBtns.forEach(btn => {
+        if (btn.dataset.gait === gaitName) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    });
+}
+
+async function syncCurrentGaitFromServer() {
+    try {
+        const res = await fetch(`${API_BASE}/gait`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const normalized = normalizeGaitName(data.current_gait);
+        if (normalized && normalized !== currentGait) {
+            currentGait = normalized;
+            setActiveGaitButton(currentGait);
+            syncGaitConfigUI(currentGait);
+        }
+        await loadGaitConfig(currentGait);
+    } catch (_) {
+        // ignore
+    }
+}
+
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
     initJoysticks();
@@ -127,16 +165,17 @@ function setupJoystick(joystick, callback) {
 
 // Gait Selection
 function initGaitSelector() {
-    const gaitBtns = document.querySelectorAll('.gait-btn');
+    const gaitBtns = document.querySelectorAll('[data-gait]');
     if (!gaitBtns || gaitBtns.length === 0) {
         return;
     }
     gaitBtns.forEach(btn => {
         btn.addEventListener('click', () => {
-            gaitBtns.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
             currentGait = btn.dataset.gait;
+            setActiveGaitButton(currentGait);
             setGait(currentGait);
+            syncGaitConfigUI(currentGait);
+            loadGaitConfig(currentGait);
         });
     });
 
@@ -316,6 +355,10 @@ async function setGait(gait) {
         });
         if (response.ok) {
             const data = await response.json();
+            currentGait = normalizeGaitName(data.current_gait);
+            setActiveGaitButton(currentGait);
+            syncGaitConfigUI(currentGait);
+            loadGaitConfig(currentGait);
             console.log(`Gait changed to: ${data.current_gait}`);
             window.dispatchEvent(new CustomEvent('hexapod:status', {
                 detail: { gait_phase: 0, gait_name: data.current_gait }
@@ -324,6 +367,13 @@ async function setGait(gait) {
     } catch (error) {
         console.error('Error setting gait:', error);
         updateConnectionStatus(false);
+    }
+}
+
+function syncGaitConfigUI(gaitName) {
+    const nameInput = document.getElementById('custom-gait-name');
+    if (nameInput) {
+        nameInput.value = gaitName;
     }
 }
 
@@ -397,49 +447,101 @@ function initCustomGaitControls() {
     const applyBtn = document.getElementById('apply-custom-gait');
     if (!applyBtn) return;
 
+    const nameInput = document.getElementById('custom-gait-name');
+    if (nameInput) {
+        nameInput.value = currentGait;
+        nameInput.readOnly = true;
+    }
+
+    syncCurrentGaitFromServer();
+
     applyBtn.addEventListener('click', async () => {
         const payload = {
-            name: document.getElementById('custom-gait-name').value || 'custom',
-            leg_cycle_offsets: {
-                left_front: parseFloat(document.getElementById('off-lf').value),
-                left_middle: parseFloat(document.getElementById('off-lm').value),
-                left_back: parseFloat(document.getElementById('off-lb').value),
-                right_front: parseFloat(document.getElementById('off-rf').value),
-                right_middle: parseFloat(document.getElementById('off-rm').value),
-                right_back: parseFloat(document.getElementById('off-rb').value),
-            },
-            push_fraction: parseFloat(document.getElementById('push-fraction').value),
-            duty_factor: parseFloat(document.getElementById('push-fraction').value),
-            speed: parseFloat(document.getElementById('gait-speed').value),
-            step_length_mm: parseFloat(document.getElementById('step-length').value),
-            step_height_mm: parseFloat(document.getElementById('step-height').value),
-            base_height_mm: parseFloat(document.getElementById('base-height').value),
-            body_push_gain: parseFloat(document.getElementById('push-gain').value),
-            speed_multiplier: 1.0,
-            step_length_multiplier: 1.0,
-            lift_height_multiplier: 1.0,
-            max_step_length: parseFloat(document.getElementById('max-step').value),
-            max_speed: parseFloat(document.getElementById('max-speed').value)
+            gait_name: currentGait,
+            config: {
+                duty_factor: parseFloat(document.getElementById('push-fraction').value),
+                speed: parseFloat(document.getElementById('gait-speed').value),
+                step_length_mm: parseFloat(document.getElementById('step-length').value),
+                step_height_mm: parseFloat(document.getElementById('step-height').value),
+                base_height_mm: parseFloat(document.getElementById('base-height').value),
+                body_push_gain: parseFloat(document.getElementById('push-gain').value),
+                phase_offsets: [
+                    parseFloat(document.getElementById('off-lf').value),
+                    parseFloat(document.getElementById('off-lm').value),
+                    parseFloat(document.getElementById('off-lb').value),
+                    parseFloat(document.getElementById('off-rf').value),
+                    parseFloat(document.getElementById('off-rm').value),
+                    parseFloat(document.getElementById('off-rb').value)
+                ],
+                max_step_length: parseFloat(document.getElementById('max-step').value),
+                max_speed: parseFloat(document.getElementById('max-speed').value)
+            }
         };
 
         try {
-            const res = await fetch(`${API_BASE}/custom_gait`, {
+            const res = await fetch(`${API_BASE}/gait_config`, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(payload)
             });
             if (res.ok) {
                 const data = await res.json();
-                console.log('Custom gait applied:', data.current_gait);
+                currentGait = normalizeGaitName(data.gait_name);
+                setActiveGaitButton(currentGait);
+                syncGaitConfigUI(currentGait);
+                await loadGaitConfig(currentGait);
+                console.log('Gait config applied:', data.gait_name);
             } else {
-                console.error('Failed to apply custom gait', res.status);
+                console.error('Failed to apply gait config', res.status);
                 updateConnectionStatus(false);
             }
         } catch (err) {
-            console.error('Error applying custom gait', err);
+            console.error('Error applying gait config', err);
             updateConnectionStatus(false);
         }
     });
+}
+
+async function loadGaitConfig(gaitName) {
+    try {
+        const res = await fetch(`${API_BASE}/gait_config?gait_name=${encodeURIComponent(gaitName)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const cfg = data.config;
+
+        const setVal = (id, value, precision = 2) => {
+            const el = document.getElementById(id);
+            const val = document.getElementById(`${id}-val`);
+            if (!el) return;
+            el.value = value;
+            if (val) val.textContent = value.toFixed(precision);
+        };
+
+        setVal('push-fraction', cfg.duty_factor, 3);
+        setVal('gait-speed', cfg.speed, 2);
+        setVal('step-length', cfg.step_length_mm, 0);
+        setVal('step-height', cfg.step_height_mm, 0);
+        setVal('base-height', cfg.base_height_mm, 0);
+        setVal('push-gain', cfg.body_push_gain, 2);
+        if (cfg.max_step_length && cfg.max_step_length > 0) {
+            setVal('max-step', cfg.max_step_length, 0);
+        }
+        if (cfg.max_speed && cfg.max_speed > 0) {
+            setVal('max-speed', cfg.max_speed, 0);
+        }
+
+        if (Array.isArray(cfg.phase_offsets)) {
+            const offsets = cfg.phase_offsets;
+            setVal('off-lf', offsets[0] || 0, 3);
+            setVal('off-lm', offsets[1] || 0, 3);
+            setVal('off-lb', offsets[2] || 0, 3);
+            setVal('off-rf', offsets[3] || 0, 3);
+            setVal('off-rm', offsets[4] || 0, 3);
+            setVal('off-rb', offsets[5] || 0, 3);
+        }
+    } catch (_) {
+        // ignore
+    }
 }
 
 async function updateStatus() {
@@ -458,6 +560,16 @@ async function updateStatus() {
             const stateStatus = document.getElementById('state-status');
             if (gaitStatus) gaitStatus.textContent = status.gait_name || 'unknown';
             if (stateStatus) stateStatus.textContent = battery.power_state || 'unknown';
+
+            if (status.gait_name) {
+                const normalized = normalizeGaitName(status.gait_name);
+                if (normalized !== currentGait) {
+                    currentGait = normalized;
+                    setActiveGaitButton(currentGait);
+                    syncGaitConfigUI(currentGait);
+                    loadGaitConfig(currentGait);
+                }
+            }
 
             // Update battery display; if backend has no data, surface it clearly
             const voltageValue = document.getElementById('voltage-value');

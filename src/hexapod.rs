@@ -11,6 +11,7 @@ use glam::{EulerRot, Mat2, Quat, Vec3};
 use hexmath::hexapod::{Hexapod as MathHexapod, LegId};
 use hexmath::ik::{ik_solve_leg, Constraints, Geometry, LegAngles};
 use hexmath::{compute_leg_joints, step_hexapod, GaitConfig, GaitType, InputState, WalkState};
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -192,15 +193,28 @@ pub struct GaitController {
     body_pose: BodyPose,
     default_stance: LegStances,
     custom_gait_name: Option<String>,
+    per_gait_configs: HashMap<GaitType, GaitConfig>,
 }
 
 impl GaitController {
+    fn default_gait_config_for(gait_type: GaitType) -> GaitConfig {
+        let mut config = GaitConfig::default();
+        config.gait_type = gait_type;
+        config
+    }
+
     pub fn new(initial_gait: GaitType, constraints: Constraints, default_stance: Option<LegStances>) -> Self {
         let mut math_hexapod = MathHexapod::new();
         apply_constraints_to_hexapod(&mut math_hexapod, &constraints);
 
-        let mut gait_config = GaitConfig::default();
-        gait_config.gait_type = initial_gait;
+        let mut per_gait_configs = HashMap::new();
+        for gait_type in [GaitType::Tripod, GaitType::Tetrapod, GaitType::Wave, GaitType::Ripple] {
+            per_gait_configs.insert(gait_type, Self::default_gait_config_for(gait_type));
+        }
+        let gait_config = per_gait_configs
+            .get(&initial_gait)
+            .cloned()
+            .unwrap_or_else(|| Self::default_gait_config_for(initial_gait));
 
         let default_stance = default_stance.unwrap_or_else(|| {
             LegStances::from_hexapod(&math_hexapod, gait_config.base_height)
@@ -214,6 +228,7 @@ impl GaitController {
             body_pose: BodyPose::default(),
             default_stance,
             custom_gait_name: None,
+            per_gait_configs,
         }
     }
 
@@ -245,9 +260,36 @@ impl GaitController {
     }
 
     pub fn set_gait(&mut self, gait_type: GaitType) {
+        let current_type = self.gait_config.gait_type;
+        self.per_gait_configs
+            .insert(current_type, self.gait_config.clone());
+
+        self.gait_config = self
+            .per_gait_configs
+            .get(&gait_type)
+            .cloned()
+            .unwrap_or_else(|| Self::default_gait_config_for(gait_type));
         self.gait_config.gait_type = gait_type;
         self.gait_config.phase_offsets_override = None;
         self.custom_gait_name = None;
+    }
+
+    pub fn get_gait_config_for(&self, gait_type: GaitType) -> GaitConfig {
+        if self.gait_config.gait_type == gait_type {
+            return self.gait_config.clone();
+        }
+        self.per_gait_configs
+            .get(&gait_type)
+            .cloned()
+            .unwrap_or_else(|| Self::default_gait_config_for(gait_type))
+    }
+
+    pub fn set_gait_config_for(&mut self, gait_type: GaitType, config: GaitConfig) {
+        self.per_gait_configs.insert(gait_type, config.clone());
+        if self.gait_config.gait_type == gait_type {
+            self.gait_config = config;
+            self.custom_gait_name = None;
+        }
     }
 
     pub fn set_custom_gait(
@@ -269,6 +311,8 @@ impl GaitController {
             (base.step_length * step_length_multiplier).clamp(0.0, max_step_length.max(0.0));
         self.gait_config.step_height = (base.step_height * lift_height_multiplier).max(0.0);
         self.gait_config.speed = (base.speed * speed_multiplier).clamp(0.1, max_speed.max(0.1));
+        self.per_gait_configs
+            .insert(self.gait_config.gait_type, self.gait_config.clone());
     }
 
     pub fn set_custom_gait_absolute(
@@ -293,6 +337,8 @@ impl GaitController {
         self.gait_config.speed = speed.clamp(0.1, max_speed.max(0.1));
         self.gait_config.base_height = base_height.clamp(-300.0, 0.0);
         self.gait_config.body_push_gain = body_push_gain.clamp(0.0, 10.0);
+        self.per_gait_configs
+            .insert(self.gait_config.gait_type, self.gait_config.clone());
     }
 
     pub fn get_body_pose(&self) -> BodyPose {

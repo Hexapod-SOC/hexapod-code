@@ -1,9 +1,11 @@
-use crate::config::{calibration_leg_stance_path, calibration_servo_tweaks_path};
-use axum::{Json, extract::State, http::StatusCode};
+use crate::config::{
+    calibration_gait_configs_path, calibration_leg_stance_path, calibration_servo_tweaks_path,
+};
+use axum::{Json, extract::{Query, State}, http::StatusCode};
 use devices::lidar::SlamSnapshot;
 use glam::Vec3;
 use hexmath::hexapod::LegId;
-use hexmath::{GaitConfig, GaitType, WalkState};
+use hexmath::{get_leg_phase_offsets, GaitConfig, GaitType, WalkState};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::fs;
@@ -322,6 +324,38 @@ pub struct GaitResponse {
     pub current_gait: String,
 }
 
+#[derive(Serialize, Deserialize, Clone, Copy)]
+pub struct GaitConfigData {
+    pub duty_factor: f32,
+    pub speed: f32,
+    pub step_length_mm: f32,
+    pub step_height_mm: f32,
+    pub base_height_mm: f32,
+    pub body_push_gain: f32,
+    pub phase_offsets: [f32; 6],
+    pub max_step_length: f32,
+    pub max_speed: f32,
+}
+
+#[derive(Serialize)]
+pub struct GaitConfigResponse {
+    pub success: bool,
+    pub message: String,
+    pub gait_name: String,
+    pub config: GaitConfigData,
+}
+
+#[derive(Deserialize)]
+pub struct GaitConfigQuery {
+    pub gait_name: String,
+}
+
+#[derive(Deserialize)]
+pub struct SetGaitConfigRequest {
+    pub gait_name: String,
+    pub config: GaitConfigData,
+}
+
 fn parse_gait_name(name: &str) -> Option<GaitType> {
     match name.to_lowercase().as_str() {
         "tripod" | "tri" | "t" => Some(GaitType::Tripod),
@@ -359,6 +393,167 @@ pub async fn get_gait(
         success: true,
         message: "Current gait".to_string(),
         current_gait: gait_name,
+    }))
+}
+
+/// GET /api/gait_config?gait_name=Tripod
+pub async fn get_gait_config(
+    State(state): State<Arc<AppState>>,
+    Query(query): Query<GaitConfigQuery>,
+) -> Result<Json<GaitConfigResponse>, StatusCode> {
+    let gait_type = parse_gait_name(&query.gait_name).ok_or(StatusCode::BAD_REQUEST)?;
+    let gait_key = match gait_type {
+        GaitType::Tripod => "tripod",
+        GaitType::Tetrapod => "tetrapod",
+        GaitType::Wave => "wave",
+        GaitType::Ripple => "ripple",
+    };
+
+    if let Ok(content) = fs::read_to_string(calibration_gait_configs_path()).await {
+        if let Ok(saved) = serde_json::from_str::<std::collections::HashMap<String, GaitConfigData>>(&content) {
+            if let Some(config) = saved.get(gait_key) {
+                return Ok(Json(GaitConfigResponse {
+                    success: true,
+                    message: "Gait config".to_string(),
+                    gait_name: gait_type.name().to_string(),
+                    config: *config,
+                }));
+            }
+        }
+    }
+
+    let gait_controller = state.gait_controller.lock().await;
+    let config = gait_controller.get_gait_config_for(gait_type);
+
+    let phase_offsets = if let Some(override_offsets) = config.phase_offsets_override {
+        override_offsets
+    } else {
+        let offsets = get_leg_phase_offsets(gait_type, &config.disabled_legs, None);
+        [
+            offsets[0].1,
+            offsets[1].1,
+            offsets[2].1,
+            offsets[3].1,
+            offsets[4].1,
+            offsets[5].1,
+        ]
+    };
+
+    Ok(Json(GaitConfigResponse {
+        success: true,
+        message: "Gait config".to_string(),
+        gait_name: gait_type.name().to_string(),
+        config: GaitConfigData {
+            duty_factor: config.duty_factor,
+            speed: config.speed,
+            step_length_mm: config.step_length,
+            step_height_mm: config.step_height,
+            base_height_mm: config.base_height,
+            body_push_gain: config.body_push_gain,
+            phase_offsets,
+            max_step_length: 0.0,
+            max_speed: 0.0,
+        },
+    }))
+}
+
+/// POST /api/gait_config
+pub async fn set_gait_config(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<SetGaitConfigRequest>,
+) -> Result<Json<GaitConfigResponse>, StatusCode> {
+    let gait_type = parse_gait_name(&payload.gait_name).ok_or(StatusCode::BAD_REQUEST)?;
+    let mut gait_controller = state.gait_controller.lock().await;
+    let mut config = gait_controller.get_gait_config_for(gait_type);
+
+    let mut offsets = payload.config.phase_offsets;
+    for value in offsets.iter_mut() {
+        *value = value.clamp(0.0, 1.0);
+    }
+
+    config.gait_type = gait_type;
+    config.phase_offsets_override = Some(offsets);
+    config.duty_factor = payload.config.duty_factor.clamp(0.05, 0.95);
+    let max_step_length = payload
+        .config
+        .max_step_length
+        .max(payload.config.step_length_mm)
+        .max(0.0);
+    let max_speed = payload
+        .config
+        .max_speed
+        .max(payload.config.speed)
+        .max(0.1);
+
+    config.step_length = payload.config.step_length_mm.clamp(0.0, max_step_length);
+    config.step_height = payload.config.step_height_mm.max(0.0);
+    config.speed = payload.config.speed.clamp(0.1, max_speed);
+    config.base_height = payload.config.base_height_mm.clamp(-300.0, 0.0);
+    config.body_push_gain = payload.config.body_push_gain.clamp(0.0, 10.0);
+
+    gait_controller.set_gait_config_for(gait_type, config.clone());
+
+    let gait_key = match gait_type {
+        GaitType::Tripod => "tripod",
+        GaitType::Tetrapod => "tetrapod",
+        GaitType::Wave => "wave",
+        GaitType::Ripple => "ripple",
+    };
+
+    let mut all_configs: std::collections::HashMap<String, GaitConfigData> =
+        if let Ok(content) = fs::read_to_string(calibration_gait_configs_path()).await {
+            serde_json::from_str(&content).unwrap_or_default()
+        } else {
+            std::collections::HashMap::new()
+        };
+
+    all_configs.insert(
+        gait_key.to_string(),
+        GaitConfigData {
+            duty_factor: config.duty_factor,
+            speed: config.speed,
+            step_length_mm: config.step_length,
+            step_height_mm: config.step_height,
+            base_height_mm: config.base_height,
+            body_push_gain: config.body_push_gain,
+            phase_offsets: offsets,
+            max_step_length,
+            max_speed,
+        },
+    );
+
+    let path = calibration_gait_configs_path();
+    if let Some(dir) = path.parent() {
+        if let Err(e) = fs::create_dir_all(dir).await {
+            eprintln!("Failed to create calibration dir: {}", e);
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    let json = serde_json::to_string_pretty(&all_configs)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let mut file = fs::File::create(&path)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    file.write_all(json.as_bytes())
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(GaitConfigResponse {
+        success: true,
+        message: "Gait config updated".to_string(),
+        gait_name: gait_type.name().to_string(),
+        config: GaitConfigData {
+            duty_factor: config.duty_factor,
+            speed: config.speed,
+            step_length_mm: config.step_length,
+            step_height_mm: config.step_height,
+            base_height_mm: config.base_height,
+            body_push_gain: config.body_push_gain,
+            phase_offsets: offsets,
+            max_step_length,
+            max_speed,
+        },
     }))
 }
 
