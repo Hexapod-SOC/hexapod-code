@@ -795,6 +795,11 @@ function initLegCalibration() {
     const legIds = ['lf', 'lm', 'lb', 'rf', 'rm', 'rb'];
     const axes = ['x', 'y', 'z'];
     let legStanceAbortController = null;
+    const stanceRanges = {
+        x: { min: -200, max: 200, step: 1 },
+        y: { min: -200, max: 200, step: 1 },
+        z: { min: -200, max: 0, step: 1 }
+    };
 
     if (!document.getElementById('lf-x')) {
         return;
@@ -807,6 +812,12 @@ function initLegCalibration() {
             const valueDisplay = document.getElementById(`${legId}-${axis}-val`);
             
             if (slider && valueDisplay) {
+                const range = stanceRanges[axis];
+                if (range) {
+                    slider.min = range.min;
+                    slider.max = range.max;
+                    slider.step = range.step;
+                }
                 slider.addEventListener('input', () => {
                     valueDisplay.textContent = parseFloat(slider.value).toFixed(1);
                     // Instant live apply while dragging (autosaves on server)
@@ -827,6 +838,9 @@ function initLegCalibration() {
     if (resetBtn) {
         resetBtn.addEventListener('click', resetLegStance);
     }
+
+    // Load current stance on init so sliders reflect actual defaults
+    loadCurrentStance();
 }
 
 async function loadCurrentStance() {
@@ -861,8 +875,12 @@ function setLegSliders(legId, values) {
         const valueDisplay = document.getElementById(`${legId}-${axis}-val`);
         
         if (slider && valueDisplay) {
-            slider.value = values[index];
-            valueDisplay.textContent = parseFloat(values[index]).toFixed(1);
+            const min = parseFloat(slider.min);
+            const max = parseFloat(slider.max);
+            const raw = parseFloat(values[index]);
+            const clamped = Number.isNaN(raw) ? 0 : Math.min(max, Math.max(min, raw));
+            slider.value = clamped;
+            valueDisplay.textContent = clamped.toFixed(1);
         }
     });
 }
@@ -978,15 +996,16 @@ function resetLegStance() {
     setLegSliders('rb', [0.0, 45.0, -70.0]);
     
     console.log('Reset to default stance');
+    applyLegStanceLive();
 }
 
 // ===== SERVO ANGLE TWEAKS =====
 
-const SERVO_TWEAK_MIN = -180;
-const SERVO_TWEAK_MAX = 180;
+const SERVO_TWEAK_MIN = -90;
+const SERVO_TWEAK_MAX = 90;
 const SERVO_TWEAK_STEP = 0.5;
 const LOCKABLE_PARTS = ['coxa', 'femur', 'tibia'];
-const LOCK_SERVO_TWEAKS_UI = true;
+const LOCK_SERVO_TWEAKS_UI = false;
 
 function getAxisLockButton(legId, part) {
     return document.getElementById(`${legId}-${part}-lock`);
