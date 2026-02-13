@@ -599,9 +599,56 @@ async function updateStatus() {
         } else {
             updateConnectionStatus(false);
         }
+        await updateImu();
     } catch (error) {
         console.error('Error fetching status:', error);
         updateConnectionStatus(false);
+        await updateImu();
+    }
+}
+
+async function updateImu() {
+    const setImuValue = (id, value) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = value;
+    };
+
+    try {
+        const imuRes = await fetch(`${API_BASE}/imu`);
+        if (!imuRes.ok) {
+            setImuValue('imu-roll', 'N/A');
+            setImuValue('imu-pitch', 'N/A');
+            setImuValue('imu-yaw', 'N/A');
+            setImuValue('imu-calibration', 'N/A');
+            setImuValue('imu-quat', 'N/A');
+            return;
+        }
+
+        const imu = await imuRes.json();
+        if (!imu.success) {
+            setImuValue('imu-roll', 'N/A');
+            setImuValue('imu-pitch', 'N/A');
+            setImuValue('imu-yaw', 'N/A');
+            setImuValue('imu-calibration', 'N/A');
+            setImuValue('imu-quat', 'N/A');
+            return;
+        }
+
+        const fmt = (val) => Number(val).toFixed(2);
+        setImuValue('imu-roll', `${fmt(imu.euler[0])}°`);
+        setImuValue('imu-pitch', `${fmt(imu.euler[1])}°`);
+        setImuValue('imu-yaw', `${fmt(imu.euler[2])}°`);
+        setImuValue('imu-calibration', `${imu.calibration}/3`);
+        setImuValue(
+            'imu-quat',
+            `${fmt(imu.quat[0])}, ${fmt(imu.quat[1])}, ${fmt(imu.quat[2])}, ${fmt(imu.quat[3])}`
+        );
+    } catch (_) {
+        setImuValue('imu-roll', 'N/A');
+        setImuValue('imu-pitch', 'N/A');
+        setImuValue('imu-yaw', 'N/A');
+        setImuValue('imu-calibration', 'N/A');
+        setImuValue('imu-quat', 'N/A');
     }
 }
 

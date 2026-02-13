@@ -50,6 +50,8 @@ pub async fn run_server(state: AppState, port: u16) -> Result<(), Box<dyn std::e
         )
         // Body pose
         .route("/api/pose", post(routes::set_body_pose))
+            // IMU data
+            .route("/api/imu", get(routes::get_imu_data))
         // Text-to-speech
         .route("/api/tts", post(routes::speak_text))
     // LiDAR SLAM data

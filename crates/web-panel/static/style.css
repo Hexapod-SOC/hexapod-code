@@ -117,6 +117,37 @@ h1 {
     font-weight: bold;
 }
 
+.imu-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.imu-card {
+    background: #f7f7ff;
+    border: 1px solid #e2e2f5;
+    border-radius: 12px;
+    padding: 14px;
+    text-align: center;
+}
+
+.imu-card-wide {
+    grid-column: span 2;
+}
+
+.imu-label {
+    font-size: 0.85em;
+    color: #555;
+    margin-bottom: 6px;
+}
+
+.imu-value {
+    font-size: 1.4em;
+    font-weight: 700;
+    color: #4a55c2;
+}
+
 .visualizer-card {
     background: #f9f9f9;
     border-radius: 12px;
