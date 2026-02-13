@@ -30,7 +30,6 @@ impl ServoController {
     pub fn new(_servo_pins: ServoPins, _servo_offsets: ServoOffsets) -> Self {
         let mut servos_controller = ServoController {};
         servos_controller.init_servos();
-        servos_controller.set_all_legs_to_angles(90.0, 50.0, 50.0); // Default position
         servos_controller
     }
 

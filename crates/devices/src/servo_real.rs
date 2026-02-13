@@ -61,7 +61,6 @@ impl ServoController {
             last_pwm_right: [None; 16],
         };
         servos_controller.init_servos();
-        servos_controller.set_all_legs_to_angles(90.0, 50.0, 50.0); // Default position
         servos_controller
     }
 

@@ -73,12 +73,12 @@ function initJoysticks() {
 
     setupJoystick(moveJoystick, (x, y) => {
         // x = strafe (left/right), y = forward (forward/back)
-        sendMoveCommand({ forward: y * 100, strafe: x * 100, rotation: 0.0 });
+        sendMoveCommand({ forward: y * 100, strafe: -x * 100, rotation: 0.0 });
     });
 
     setupJoystick(rotateJoystick, (x, y) => {
         // x = rotation
-        sendMoveCommand({ forward: 0.0, strafe: 0.0, rotation: x });
+        sendMoveCommand({ forward: 0.0, strafe: 0.0, rotation: -x });
     });
 }
 
@@ -779,9 +779,9 @@ function pollGamepad() {
         return Math.abs(value) < deadzone ? 0 : value;
     };
 
-    const strafeX = processAxis(leftStickX);
+    const strafeX = -processAxis(leftStickX);
     const forwardY = -processAxis(leftStickY); // Invert Y axis
-    const rotation = processAxis(rightStickX);
+    const rotation = -processAxis(rightStickX);
 
     // Send movement command (convert -1 to 1 range to -100 to 100 mm/s)
     // Always send commands, even when zero, to ensure robot stops when sticks are released

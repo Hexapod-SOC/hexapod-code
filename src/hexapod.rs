@@ -27,6 +27,11 @@ const MAX_TURN_RATE: f32 = 1.0;
 // Servo command range (aligned to 0..180 mapping).
 const SERVO_ANGLE_MIN: f32 = 0.0;
 const SERVO_ANGLE_MAX: f32 = 180.0;
+const SAFE_FALLBACK_ANGLES: LegAngles = LegAngles {
+    coxa: 90.0,
+    femur: 135.0,
+    tibia: 135.0,
+};
 
 pub type Leg = LegId;
 
@@ -510,6 +515,21 @@ fn target_angles_with_offsets(hexapod: &MathHexapod, leg_id: LegId, constraints:
     }
 }
 
+fn angles_are_finite(angles: &LegAngles) -> bool {
+    angles.coxa.is_finite() && angles.femur.is_finite() && angles.tibia.is_finite()
+}
+
+fn angles_list_are_finite(angles: &[(LegId, LegAngles)]) -> bool {
+    angles.iter().all(|(_, a)| angles_are_finite(a))
+}
+
+fn default_fallback_angles() -> Vec<(LegId, LegAngles)> {
+    all_legs()
+        .into_iter()
+        .map(|leg| (leg, SAFE_FALLBACK_ANGLES))
+        .collect()
+}
+
 /// Control inputs for the hexapod - can be set by any control interface
 #[derive(Debug, Clone, Copy)]
 pub struct HexapodControl {
@@ -543,6 +563,7 @@ pub struct Hexapod {
     imu: Option<Arc<Mutex<Box<dyn Imu>>>>,
     smoothed_velocity: Vec3,
     smoothed_rotation: f32,
+    last_valid_angles: Option<Vec<(LegId, LegAngles)>>,
 }
 
 impl Hexapod {
@@ -555,7 +576,15 @@ impl Hexapod {
         default_stance: Option<LegStances>,
     ) -> Self {
         let servo_controller = ServoController::new(servo_pins, servo_offsets);
-        let gait_controller = GaitController::new(initial_gait, ik_constraints, default_stance);
+        let mut gait_controller = GaitController::new(initial_gait, ik_constraints, default_stance);
+        let initial_angles = {
+            let angles = gait_controller.calculate_pose_angles();
+            if angles.iter().all(|(_, a)| angles_are_finite(a)) {
+                Some(angles)
+            } else {
+                None
+            }
+        };
 
         // Initialize battery monitor (will gracefully handle if not available)
         let ubec_port = std::env::var("UBEC_PORT").unwrap_or_else(|_| UBEC_PORT.to_string());
@@ -589,6 +618,7 @@ impl Hexapod {
             imu,
             smoothed_velocity: Vec3::ZERO,
             smoothed_rotation: 0.0,
+            last_valid_angles: initial_angles,
         }
     }
 
@@ -693,6 +723,15 @@ impl Hexapod {
             leg_angles.coxa = (leg_angles.coxa + t.coxa).clamp(SERVO_ANGLE_MIN, SERVO_ANGLE_MAX);
             leg_angles.femur = (leg_angles.femur + t.femur).clamp(SERVO_ANGLE_MIN, SERVO_ANGLE_MAX);
             leg_angles.tibia = (leg_angles.tibia + t.tibia).clamp(SERVO_ANGLE_MIN, SERVO_ANGLE_MAX);
+        }
+
+        if !angles_list_are_finite(&adjusted) {
+            adjusted = self
+                .last_valid_angles
+                .clone()
+                .unwrap_or_else(default_fallback_angles);
+        } else {
+            self.last_valid_angles = Some(adjusted.clone());
         }
 
         // Smooth servo commands to avoid abrupt foot impacts

@@ -5,6 +5,7 @@ use glam::Vec3;
 use std::collections::HashMap;
 
 const COXA_YAW_GAIN: f32 = 1.0;
+const TURN_STRIDE_GAIN: f32 = 1.0;
 
 #[derive(Clone, Debug, Default)]
 pub struct InputState {
@@ -120,7 +121,7 @@ pub fn step_hexapod(
             input_state.turn
         };
 
-        let effective_stride = stride_offset * (move_dir_forward + turn_differential * 0.5);
+        let effective_stride = stride_offset * (move_dir_forward + turn_differential * TURN_STRIDE_GAIN);
         let strafe_stride = stride_offset * move_dir_strafe;
 
 

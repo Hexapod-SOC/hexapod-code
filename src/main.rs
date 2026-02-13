@@ -257,6 +257,9 @@ async fn main() {
         }
     }
 
+    // Stand up into the current default stance instead of resetting to a fixed pose
+    hexapod.update(0.0).await;
+
     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 
     // Display initial battery status
