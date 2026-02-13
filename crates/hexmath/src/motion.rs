@@ -5,7 +5,7 @@ use glam::Vec3;
 use std::collections::HashMap;
 
 const COXA_YAW_GAIN: f32 = 1.0;
-const TURN_STRIDE_GAIN: f32 = 1.0;
+const TURN_STRIDE_GAIN: f32 = 0.75;
 
 #[derive(Clone, Debug, Default)]
 pub struct InputState {
