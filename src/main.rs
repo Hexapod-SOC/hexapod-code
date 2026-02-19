@@ -17,6 +17,7 @@ use config::{
 use glam::Vec3;
 use hexmath::{GaitConfig, GaitType};
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 fn load_saved_servo_tweaks() -> Option<ServoAngleTweaks> {
@@ -325,6 +326,68 @@ async fn main() {
         tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
         println!();
     }
+
+    // Start AI Python module as subprocess
+    let ai_child = if config::AI_ENABLE {
+        let exe_dir = std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|d| d.to_path_buf()))
+            .unwrap_or_else(|| PathBuf::from("."));
+        let ai_dir = exe_dir.join(config::AI_SCRIPT_DIR);
+        let ai_script = ai_dir.join("main.py");
+
+        if ai_script.exists() {
+            println!("Starting AI module from {:?}...", ai_script);
+
+            match std::process::Command::new("python3")
+                .arg("main.py")
+                .current_dir(&ai_dir)
+                .env("HEXAPOD_API_BASE", format!("http://127.0.0.1:{}", config::API_PORT))
+                .env("AI_CHAT_PORT", config::AI_CHAT_PORT.to_string())
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped())
+                .spawn()
+            {
+                Ok(mut child) => {
+                    println!("AI module started (PID: {})", child.id());
+
+                    // Stream stdout
+                    if let Some(stdout) = child.stdout.take() {
+                        tokio::spawn(async move {
+                            use tokio::io::{AsyncBufReadExt, BufReader};
+                            let reader = BufReader::new(tokio::process::ChildStdout::from_std(stdout).unwrap());
+                            let mut lines = reader.lines();
+                            while let Ok(Some(line)) = lines.next_line().await {
+                                println!("[AI] {}", line);
+                            }
+                        });
+                    }
+                    // Stream stderr
+                    if let Some(stderr) = child.stderr.take() {
+                        tokio::spawn(async move {
+                            use tokio::io::{AsyncBufReadExt, BufReader};
+                            let reader = BufReader::new(tokio::process::ChildStderr::from_std(stderr).unwrap());
+                            let mut lines = reader.lines();
+                            while let Ok(Some(line)) = lines.next_line().await {
+                                eprintln!("[AI] {}", line);
+                            }
+                        });
+                    }
+
+                    Some(child)
+                }
+                Err(e) => {
+                    eprintln!("Failed to start AI module: {}", e);
+                    None
+                }
+            }
+        } else {
+            eprintln!("AI script not found at {:?} — skipping AI module", ai_script);
+            None
+        }
+    } else {
+        None
+    };
 
     println!("Hexapod ready!\n");
 

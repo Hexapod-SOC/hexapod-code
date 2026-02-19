@@ -1,5 +1,6 @@
 // API Configuration - Use current window location for API calls
 const API_BASE = `${window.location.protocol}//${window.location.hostname}:3000/api`;
+const AI_API_BASE = `${window.location.protocol}//${window.location.hostname}:3001/api/ai`;
 
 // State
 let currentGait = 'ripple';
@@ -9,6 +10,7 @@ let gamepadConnected = false;
 let gamepadLayout = 'xbox'; // 'xbox' or 'playstation'
 let gamepadIndex = null;
 let gamepadAnimationFrame = null;
+let aiChatSending = false;
 
 function normalizeGaitName(name) {
     if (!name) return 'ripple';
@@ -54,6 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initGaitSelector();
     initPoseControls();
     initEmergencyStop();
+    initAIChat();
     initTTS();
     initGamepad();
     initCustomGaitControls();
@@ -291,24 +294,24 @@ function initTTS() {
 async function speakText(text) {
     const voice = document.getElementById('tts-voice').value;
     const ttsStatus = document.getElementById('tts-status');
-    
+
     try {
         showTTSStatus('Speaking...', 'loading');
-        
+
         const response = await fetch(`${API_BASE}/tts`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
+            body: JSON.stringify({
                 text: text,
                 voice: voice
             })
         });
-        
+
         if (response.ok) {
             const data = await response.json();
             showTTSStatus('✓ Sent to speaker', 'success');
             console.log('TTS:', data.message);
-            
+
             // Clear status after 2 seconds
             setTimeout(() => {
                 ttsStatus.textContent = '';
@@ -426,8 +429,8 @@ async function emergencyStop() {
 // Custom Gait UI
 function initCustomGaitControls() {
     const ids = [
-        'push-fraction','gait-speed','step-length','step-height','base-height','push-gain','max-step','max-speed',
-        'off-lf','off-lm','off-lb','off-rf','off-rm','off-rb'
+        'push-fraction', 'gait-speed', 'step-length', 'step-height', 'base-height', 'push-gain', 'max-step', 'max-speed',
+        'off-lf', 'off-lm', 'off-lb', 'off-rf', 'off-rm', 'off-rb'
     ];
     ids.forEach(id => {
         const el = document.getElementById(id);
@@ -484,7 +487,7 @@ function initCustomGaitControls() {
         try {
             const res = await fetch(`${API_BASE}/gait_config`, {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
             if (res.ok) {
@@ -727,11 +730,11 @@ function updateGamepadStatus(connected, gamepadName = '') {
 
 function setGamepadLayout(layout) {
     gamepadLayout = layout;
-    
+
     // Update button states
     const xboxBtn = document.getElementById('xboxBtn');
     const psBtn = document.getElementById('playstationBtn');
-    
+
     if (layout === 'xbox') {
         xboxBtn.classList.add('active');
         psBtn.classList.remove('active');
@@ -739,7 +742,7 @@ function setGamepadLayout(layout) {
         psBtn.classList.add('active');
         xboxBtn.classList.remove('active');
     }
-    
+
     console.log(`Gamepad layout set to: ${layout}`);
 }
 
@@ -819,7 +822,7 @@ function pollGamepad() {
     const leftStickX = gamepad.axes[0];  // Left/Right
     const leftStickY = gamepad.axes[1];  // Forward/Back
     const rightStickX = gamepad.axes[2]; // Rotation
-    
+
     // Apply deadzone
     const deadzone = 0.15;
     const processAxis = (value) => {
@@ -832,16 +835,16 @@ function pollGamepad() {
 
     // Send movement command (convert -1 to 1 range to -100 to 100 mm/s)
     // Always send commands, even when zero, to ensure robot stops when sticks are released
-    sendMoveCommand({ 
-        forward: forwardY * 100, 
-        strafe: strafeX * 100, 
-        rotation: rotation 
+    sendMoveCommand({
+        forward: forwardY * 100,
+        strafe: strafeX * 100,
+        rotation: rotation
     });
 
     // Handle button presses (detect button down events)
     const buttonA = gamepad.buttons[mapping.A || 0];
     const buttonB = gamepad.buttons[mapping.B || 1];
-    
+
     // Emergency Stop (A/X button)
     if (buttonA && buttonA.pressed && !previousButtonStates.A) {
         emergencyStop();
@@ -966,13 +969,13 @@ function initLegCalibration() {
     if (!document.getElementById('lf-x')) {
         return;
     }
-    
+
     // Set up slider value displays
     legIds.forEach(legId => {
         axes.forEach(axis => {
             const slider = document.getElementById(`${legId}-${axis}`);
             const valueDisplay = document.getElementById(`${legId}-${axis}-val`);
-            
+
             if (slider && valueDisplay) {
                 const range = stanceRanges[axis];
                 if (range) {
@@ -988,13 +991,13 @@ function initLegCalibration() {
             }
         });
     });
-    
+
     // Load current stance button
     const loadBtn = document.getElementById('load-current-stance');
     if (loadBtn) {
         loadBtn.addEventListener('click', loadCurrentStance);
     }
-    
+
     // Reset button
     const resetBtn = document.getElementById('reset-leg-stance');
     if (resetBtn) {
@@ -1011,7 +1014,7 @@ async function loadCurrentStance() {
         if (response.ok) {
             const data = await response.json();
             const stance = data.current_stance;
-            
+
             // Update sliders with current values
             setLegSliders('lf', stance.left_front);
             setLegSliders('lm', stance.left_middle);
@@ -1019,7 +1022,7 @@ async function loadCurrentStance() {
             setLegSliders('rf', stance.right_front);
             setLegSliders('rm', stance.right_middle);
             setLegSliders('rb', stance.right_back);
-            
+
             console.log('Loaded current stance:', stance);
         } else {
             console.error('Failed to load current stance');
@@ -1035,7 +1038,7 @@ function setLegSliders(legId, values) {
     axes.forEach((axis, index) => {
         const slider = document.getElementById(`${legId}-${axis}`);
         const valueDisplay = document.getElementById(`${legId}-${axis}-val`);
-        
+
         if (slider && valueDisplay) {
             const min = parseFloat(slider.min);
             const max = parseFloat(slider.max);
@@ -1084,14 +1087,14 @@ function collectLegStancePayload() {
 
 async function applyLegStance() {
     const payload = collectLegStancePayload();
-    
+
     try {
         const response = await fetch(`${API_BASE}/leg_stance`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
-        
+
         if (response.ok) {
             const data = await response.json();
             console.log('✓ Leg stance applied and saved:', data.message);
@@ -1112,7 +1115,7 @@ async function applyLegStanceLive() {
     try {
         // Abort previous in-flight request to avoid backlog
         if (window.__legStanceAbortController) {
-            try { window.__legStanceAbortController.abort(); } catch (e) {}
+            try { window.__legStanceAbortController.abort(); } catch (e) { }
         }
         window.__legStanceAbortController = new AbortController();
 
@@ -1156,7 +1159,7 @@ function resetLegStance() {
     setLegSliders('rf', [0.0, 45.0, -70.0]);
     setLegSliders('rm', [0.0, 55.0, -50.0]);
     setLegSliders('rb', [0.0, 45.0, -70.0]);
-    
+
     console.log('Reset to default stance');
     applyLegStanceLive();
 }
@@ -1368,7 +1371,7 @@ async function applyServoTweaksLive() {
     const payload = collectServoTweaksPayload();
     try {
         if (window.__servoTweaksAbortController) {
-            try { window.__servoTweaksAbortController.abort(); } catch (e) {}
+            try { window.__servoTweaksAbortController.abort(); } catch (e) { }
         }
         window.__servoTweaksAbortController = new AbortController();
         await fetch(`${API_BASE}/servo_tweaks`, {
@@ -1423,4 +1426,158 @@ async function saveServoTweaksNow() {
     } catch (_) {
         // ignore
     }
+}
+
+// ===== AI CHAT =====
+
+function initAIChat() {
+    const sendBtn = document.getElementById('ai-chat-send');
+    const chatInput = document.getElementById('ai-chat-input');
+
+    if (!sendBtn || !chatInput) return;
+
+    sendBtn.addEventListener('click', () => {
+        const text = chatInput.value.trim();
+        if (text.length > 0 && !aiChatSending) {
+            sendAIChatMessage(text);
+            chatInput.value = '';
+        }
+    });
+
+    // Simulate Voice Button
+    const speakBtn = document.getElementById('ai-chat-speak');
+    if (speakBtn) {
+        speakBtn.addEventListener('click', () => {
+            const text = chatInput.value.trim();
+            if (text.length > 0 && !aiChatSending) {
+                // Browser TTS
+                const utter = new SpeechSynthesisUtterance(text);
+                // Try to use a decent English voice
+                const voices = window.speechSynthesis.getVoices();
+                const voice = voices.find(v => v.name.includes('Google US English')) ||
+                    voices.find(v => v.lang.startsWith('en-US')) ||
+                    voices.find(v => v.lang.startsWith('en'));
+                if (voice) utter.voice = voice;
+
+                window.speechSynthesis.speak(utter);
+
+                // Send to AI
+                sendAIChatMessage(text);
+                chatInput.value = '';
+            }
+        });
+    }
+
+    chatInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            const text = chatInput.value.trim();
+            if (text.length > 0 && !aiChatSending) {
+                sendAIChatMessage(text);
+                chatInput.value = '';
+            }
+        }
+    });
+
+    // Poll AI health status
+    checkAIHealth();
+    setInterval(checkAIHealth, 5000);
+}
+
+async function checkAIHealth() {
+    const dot = document.getElementById('ai-status-dot');
+    const text = document.getElementById('ai-status-text');
+    if (!dot || !text) return;
+
+    try {
+        const res = await fetch(`${AI_API_BASE}/health`, { signal: AbortSignal.timeout(2000) });
+        if (res.ok) {
+            const data = await res.json();
+            dot.classList.add('connected');
+            text.textContent = `AI Connected (${data.model || 'GPT'})`;
+        } else {
+            dot.classList.remove('connected');
+            text.textContent = 'AI Disconnected';
+        }
+    } catch (_) {
+        dot.classList.remove('connected');
+        text.textContent = 'AI Disconnected';
+    }
+}
+
+async function sendAIChatMessage(message) {
+    aiChatSending = true;
+    const sendBtn = document.getElementById('ai-chat-send');
+    sendBtn.disabled = true;
+
+    // Add user message
+    appendChatMessage('user', message);
+
+    // Add thinking indicator
+    const messagesDiv = document.getElementById('chat-messages');
+    const thinkingEl = document.createElement('div');
+    thinkingEl.className = 'chat-message ai-message';
+    thinkingEl.id = 'chat-thinking';
+    thinkingEl.innerHTML = '<div class="chat-thinking"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>';
+    messagesDiv.appendChild(thinkingEl);
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+    try {
+        const response = await fetch(`${AI_API_BASE}/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: message })
+        });
+
+        // Remove thinking indicator
+        const thinking = document.getElementById('chat-thinking');
+        if (thinking) thinking.remove();
+
+        if (response.ok) {
+            const data = await response.json();
+            appendChatMessage('ai', data.reply || 'Done.', data.actions || []);
+        } else {
+            const err = await response.json().catch(() => ({}));
+            appendChatMessage('ai', `⚠️ Error: ${err.error || 'Unknown error'}`);
+        }
+    } catch (error) {
+        // Remove thinking indicator
+        const thinking = document.getElementById('chat-thinking');
+        if (thinking) thinking.remove();
+
+        console.error('AI Chat error:', error);
+        appendChatMessage('ai', '⚠️ Could not reach AI service. Is the Python AI module running?');
+    }
+
+    aiChatSending = false;
+    sendBtn.disabled = false;
+    document.getElementById('ai-chat-input').focus();
+}
+
+function appendChatMessage(role, text, actions) {
+    const messagesDiv = document.getElementById('chat-messages');
+    if (!messagesDiv) return;
+
+    const msgEl = document.createElement('div');
+    msgEl.className = `chat-message ${role === 'user' ? 'user-message' : 'ai-message'}`;
+
+    const bubbleEl = document.createElement('div');
+    bubbleEl.className = 'chat-bubble';
+    bubbleEl.textContent = text;
+    msgEl.appendChild(bubbleEl);
+
+    // Show action badges for AI messages
+    if (role === 'ai' && actions && actions.length > 0) {
+        const actionsEl = document.createElement('div');
+        actionsEl.className = 'chat-actions';
+        actions.forEach(a => {
+            const badge = document.createElement('span');
+            badge.className = 'chat-action-badge';
+            badge.textContent = `⚡ ${a.function}${a.result ? ': ' + a.result : ''}`;
+            actionsEl.appendChild(badge);
+        });
+        msgEl.appendChild(actionsEl);
+    }
+
+    messagesDiv.appendChild(msgEl);
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
 }

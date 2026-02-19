@@ -17,6 +17,10 @@ pub const LIDAR_IDLE_SLEEP_MS: u64 = 5;
 pub const GPS_ENABLE: bool = true;
 pub const GPS_SERIAL_PORT: &str = "/dev/ttyACM5";
 
+pub const AI_ENABLE: bool = true;
+pub const AI_SCRIPT_DIR: &str = "ai";
+pub const AI_CHAT_PORT: u16 = 3001;
+
 pub const IMU_ENABLE: bool = true;
 pub const IMU_I2C_BUS: u8 = 1;
 pub const IMU_I2C_ADR: u16 = 0x28;

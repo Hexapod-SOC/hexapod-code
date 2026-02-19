@@ -36,6 +36,38 @@ Write-Host "Sending binary to Raspberry Pi..." -ForegroundColor Cyan
 scp "target/$target/release/$binaryName" "$($config.user)@$piHost`:$($config.remote_path)$binaryName"
 if ($LASTEXITCODE -ne 0) { exit 1 }
 
+# Copy AI module
+$aiSourceDir = "crates/devices/src/ai"
+if (Test-Path $aiSourceDir) {
+    Write-Host "Syncing AI module to Raspberry Pi..." -ForegroundColor Cyan
+    # Cleanup pycache before sync to speed up
+    Get-ChildItem -Path $aiSourceDir -Recurse -Filter "__pycache__" | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+    ssh "$($config.user)@$piHost" "mkdir -p $($config.remote_path)ai"
+    scp -r "$aiSourceDir/*" "$($config.user)@$piHost`:$($config.remote_path)ai/"
+    
+    # Sync Wheels for offline install
+    $wheelsPath = Join-Path (Get-Location) "wheels"
+    Write-Host "Checking wheels at: $wheelsPath" -ForegroundColor Magenta
+    if (Test-Path $wheelsPath) {
+         Write-Host "Syncing offline wheels..." -ForegroundColor Cyan
+         ssh "$($config.user)@$piHost" "mkdir -p $($config.remote_path)wheels"
+         scp -r "$wheelsPath/*" "$($config.user)@$piHost`:$($config.remote_path)wheels/"
+         
+         Write-Host "Installing dependencies from offline wheels..." -ForegroundColor Cyan
+         # Try to uninstall requests first to clear bad state
+         ssh "$($config.user)@$piHost" "sudo pip3 uninstall -y --break-system-packages requests urllib3 charset-normalizer"
+         ssh "$($config.user)@$piHost" "cd $($config.remote_path)ai && sudo -H pip3 install --break-system-packages --force-reinstall --no-index --find-links ../wheels fastapi uvicorn starlette typing_extensions pydantic annotated-doc anyio idna sniffio click colorama requests urllib3 charset_normalizer certifi openai distro tqdm networkx numpy"
+    } else {
+         Write-Host "Wheels directory not found!" -ForegroundColor Red
+    }
+    
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Warning: Failed to sync/install AI module" -ForegroundColor Yellow
+    } else {
+        Write-Host "AI module synced and installed." -ForegroundColor Green
+    }
+}
+
 if ($shouldRun) {
     # Run on Pi
     Write-Host "Running binary on Raspberry Pi..." -ForegroundColor Yellow

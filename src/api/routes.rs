@@ -303,10 +303,15 @@ pub async fn stop_hexapod(
     let mut control = state.control.lock().await;
     control.velocity = Vec3::ZERO;
     control.rotation = 0.0;
+    drop(control);
+
+    // Disable servos (cuts relay power) via UBEC
+    let mut ubec = state.ubec_controller.lock().await;
+    ubec.disable_servos();
 
     Ok(Json(MoveResponse {
         success: true,
-        message: "Movement stopped".to_string(),
+        message: "Emergency stop: movement stopped, relay disconnected".to_string(),
     }))
 }
 

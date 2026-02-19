@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,18 +8,19 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link rel="stylesheet" href="/style.css">
 </head>
+
 <body>
     <div class="connection-status disconnected" id="connection-status">
         ● Connecting...
     </div>
-    
+
     <div class="container">
         <div class="page-links">
             <a class="link-button" href="/visualizer">Open 3D Visualizer</a>
         </div>
         <h1>🦾 Hexapod Control</h1>
         <p class="subtitle">Real-time Robot Control Interface</p>
-        
+
         <!-- Status Display -->
         <div class="status-grid">
             <div class="status-card">
@@ -84,7 +86,7 @@
                 <div class="visualizer-hint">Drag to orbit • Scroll to zoom • Shift+drag to pan</div>
             </div>
         </div>
-        
+
         <!-- Gamepad Control -->
         <div class="control-section">
             <h2 class="section-title">🎮 Gamepad Control</h2>
@@ -97,7 +99,8 @@
                     <label class="toggle-label">Controller Layout:</label>
                     <div class="toggle-buttons">
                         <button class="toggle-btn active" id="xboxBtn" onclick="setGamepadLayout('xbox')">Xbox</button>
-                        <button class="toggle-btn" id="playstationBtn" onclick="setGamepadLayout('playstation')">PlayStation</button>
+                        <button class="toggle-btn" id="playstationBtn"
+                            onclick="setGamepadLayout('playstation')">PlayStation</button>
                     </div>
                 </div>
                 <div class="gamepad-info" id="gamepadInfo">
@@ -105,7 +108,7 @@
                 </div>
             </div>
         </div>
-        
+
         <!-- Movement Control -->
         <div class="control-section">
             <h2 class="section-title">Movement Control</h2>
@@ -124,7 +127,7 @@
                 </div>
             </div>
         </div>
-        
+
         <!-- Gait Selection -->
         <div class="control-section">
             <h2 class="section-title">Gait Selection</h2>
@@ -132,7 +135,8 @@
                 <button class="gait-btn" data-gait="ripple">Ripple</button>
                 <button class="gait-btn" data-gait="wave" disabled title="Locked: not configured yet">Wave</button>
                 <button class="gait-btn" data-gait="tripod">Tripod</button>
-                <button class="gait-btn" data-gait="tetrapod" disabled title="Locked: not configured yet">Tetrapod</button>
+                <button class="gait-btn" data-gait="tetrapod" disabled
+                    title="Locked: not configured yet">Tetrapod</button>
             </div>
         </div>
 
@@ -293,24 +297,30 @@
 
             <div class="slider-group">
                 <h4>Leg Phase Offsets (0.0 - 1.0)</h4>
-                <label>LF <span id="off-lf-val">0.00</span><input type="range" id="off-lf" min="0" max="1" step="0.005" value="0.00"></label>
-                <label>LM <span id="off-lm-val">0.50</span><input type="range" id="off-lm" min="0" max="1" step="0.005" value="0.50"></label>
-                <label>LB <span id="off-lb-val">0.00</span><input type="range" id="off-lb" min="0" max="1" step="0.005" value="0.00"></label>
-                <label>RF <span id="off-rf-val">0.50</span><input type="range" id="off-rf" min="0" max="1" step="0.005" value="0.50"></label>
-                <label>RM <span id="off-rm-val">0.00</span><input type="range" id="off-rm" min="0" max="1" step="0.005" value="0.00"></label>
-                <label>RB <span id="off-rb-val">0.50</span><input type="range" id="off-rb" min="0" max="1" step="0.005" value="0.50"></label>
+                <label>LF <span id="off-lf-val">0.00</span><input type="range" id="off-lf" min="0" max="1" step="0.005"
+                        value="0.00"></label>
+                <label>LM <span id="off-lm-val">0.50</span><input type="range" id="off-lm" min="0" max="1" step="0.005"
+                        value="0.50"></label>
+                <label>LB <span id="off-lb-val">0.00</span><input type="range" id="off-lb" min="0" max="1" step="0.005"
+                        value="0.00"></label>
+                <label>RF <span id="off-rf-val">0.50</span><input type="range" id="off-rf" min="0" max="1" step="0.005"
+                        value="0.50"></label>
+                <label>RM <span id="off-rm-val">0.00</span><input type="range" id="off-rm" min="0" max="1" step="0.005"
+                        value="0.00"></label>
+                <label>RB <span id="off-rb-val">0.50</span><input type="range" id="off-rb" min="0" max="1" step="0.005"
+                        value="0.50"></label>
             </div>
 
             <div class="slider-group">
                 <button class="btn btn-secondary" id="apply-custom-gait">Apply Gait Settings</button>
             </div>
         </div>
-        
+
         <!-- Leg Calibration -->
         <div class="control-section">
             <h2 class="section-title">⚙️ Leg Position Calibration</h2>
             <p class="subtitle">Adjust default leg positions (X=forward, Y=strafe, Z=height)</p>
-            
+
             <div class="calibration-grid">
                 <!-- Left Front -->
                 <div class="leg-calibration">
@@ -469,7 +479,33 @@
                 </div>
             </div>
         </div>
-        
+
+        <!-- AI Chat -->
+        <div class="control-section">
+            <h2 class="section-title">🤖 AI Chat</h2>
+            <div class="ai-chat-container">
+                <div class="ai-chat-status" id="ai-chat-status">
+                    <span class="ai-status-dot" id="ai-status-dot">●</span>
+                    <span id="ai-status-text">AI Disconnected</span>
+                </div>
+                <div class="chat-messages" id="chat-messages">
+                    <div class="chat-message ai-message">
+                        <div class="chat-bubble">
+                            👋 Hi! I'm the Hexapod AI controller. Type a command like <em>"walk forward"</em>,
+                            <em>"dance"</em>, or <em>"what's the battery?"</em>
+                        </div>
+                    </div>
+                </div>
+                <div class="chat-input-group">
+                    <input type="text" id="ai-chat-input" placeholder="Type a command..." maxlength="500"
+                        autocomplete="off">
+                    <button class="btn btn-secondary" id="ai-chat-speak"
+                        title="Simulate Voice (Browser Speaks)">🎤</button>
+                    <button class="btn btn-ai-send" id="ai-chat-send">Send ➤</button>
+                </div>
+            </div>
+        </div>
+
         <!-- Text-to-Speech -->
         <div class="control-section">
             <h2 class="section-title">🔊 Text-to-Speech</h2>
@@ -485,11 +521,12 @@
                 <div id="tts-status" class="tts-status"></div>
             </div>
         </div>
-        
+
         <button class="btn btn-stop" id="emergency-stop">🛑 EMERGENCY STOP</button>
     </div>
-    
+
     <script src="/app.js"></script>
     <script type="module" src="/hexapod.js"></script>
 </body>
+
 </html>

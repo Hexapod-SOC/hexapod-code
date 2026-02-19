@@ -33,6 +33,7 @@ pub enum PowerState {
 pub struct PicoUbecController {
     reader: Option<BufReader<File>>,
     writer: Option<File>,
+    port_path: String,
     battery_status: BatteryStatus,
     power_state: PowerState,
     connection_failed: bool,
@@ -61,6 +62,7 @@ impl PicoUbecController {
         Self {
             reader,
             writer,
+            port_path: port_path.to_string(),
             battery_status: BatteryStatus::default(),
             power_state: PowerState::Normal,
             connection_failed: failed,
@@ -293,21 +295,52 @@ impl PicoUbecController {
         matches!(self.power_state, PowerState::Critical)
     }
 
-    /// Send shutdown command to UBEC
-    pub fn send_shutdown(&mut self, delay_seconds: u32) {
+    /// Send a command over UART, with fallback direct write if stored fd fails
+    fn send_command(&mut self, cmd: &str, label: &str) {
         if self.connection_failed {
-            eprintln!("Cannot send shutdown: UART not connected");
+            eprintln!("Cannot send {}: UART not connected", label);
             return;
         }
 
+        // First attempt: use stored writer
         if let Some(writer) = self.writer.as_mut() {
-            let cmd = format!("SHUTDOWN:{}\n", delay_seconds);
-            if let Err(e) = writer.write_all(cmd.as_bytes()) {
-                eprintln!("Failed to send shutdown command: {}", e);
-            } else {
-                println!("Shutdown command sent: {} seconds delay", delay_seconds);
+            if writer.write_all(cmd.as_bytes()).is_ok() {
+                let _ = writer.flush();
+                println!("{} sent", label);
+                return;
             }
         }
+
+        // Stored fd is dead — open a fresh write-only fd (skips termios, device keeps config from startup)
+        eprintln!("[UBEC] Stored fd failed, direct write to {}...", self.port_path);
+        match OpenOptions::new()
+            .write(true)
+            .custom_flags(libc::O_NOCTTY | libc::O_NONBLOCK)
+            .open(&self.port_path)
+        {
+            Ok(mut f) => {
+                match f.write_all(cmd.as_bytes()) {
+                    Ok(_) => {
+                        let _ = f.flush();
+                        // Replace dead writer with new one
+                        self.writer = Some(f);
+                        println!("{} sent (via new fd)", label);
+                    }
+                    Err(e) => {
+                        eprintln!("[UBEC] Direct write also failed: {}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("[UBEC] Cannot open {} for write: {}", self.port_path, e);
+            }
+        }
+    }
+
+    /// Send shutdown command to UBEC
+    pub fn send_shutdown(&mut self, delay_seconds: u32) {
+        let cmd = format!("SHUTDOWN:{}\n", delay_seconds);
+        self.send_command(&cmd, &format!("Shutdown ({}s delay)", delay_seconds));
     }
 
     /// Check if UART connection is available
@@ -317,35 +350,11 @@ impl PicoUbecController {
 
     /// Enable servos via UART command
     pub fn enable_servos(&mut self) {
-        if self.connection_failed {
-            eprintln!("Cannot enable servos: UART not connected");
-            return;
-        }
-
-        if let Some(writer) = self.writer.as_mut() {
-            let cmd = "ENABLE_SERVOS\n";
-            if let Err(e) = writer.write_all(cmd.as_bytes()) {
-                eprintln!("Failed to send enable servos command: {}", e);
-            } else {
-                println!("Enable servos command sent");
-            }
-        }
+        self.send_command("ENABLE_SERVOS\n", "Enable servos");
     }
 
     /// Disable servos via UART command
     pub fn disable_servos(&mut self) {
-        if self.connection_failed {
-            eprintln!("Cannot disable servos: UART not connected");
-            return;
-        }
-
-        if let Some(writer) = self.writer.as_mut() {
-            let cmd = "DISABLE_SERVOS\n";
-            if let Err(e) = writer.write_all(cmd.as_bytes()) {
-                eprintln!("Failed to send disable servos command: {}", e);
-            } else {
-                println!("Disable servos command sent");
-            }
-        }
+        self.send_command("DISABLE_SERVOS\n", "Disable servos");
     }
 }
