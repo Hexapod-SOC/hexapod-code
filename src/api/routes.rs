@@ -282,6 +282,11 @@ pub async fn move_hexapod(
     // X=forward/back, Y=left/right (strafe), Z=up/down
     control.velocity = Vec3::new(payload.forward, payload.strafe, 0.0);
     control.rotation = payload.rotation;
+    drop(control);
+
+    // Ensure servos are enabled so the robot actually moves!
+    let mut ubec = state.ubec_controller.lock().await;
+    ubec.enable_servos();
 
     Ok(Json(MoveResponse {
         success: true,
@@ -363,10 +368,11 @@ pub struct SetGaitConfigRequest {
 
 fn parse_gait_name(name: &str) -> Option<GaitType> {
     match name.to_lowercase().as_str() {
-        "tripod" | "tri" | "t" => Some(GaitType::Tripod),
+        "tripod" | "tri" | "t"    => Some(GaitType::Tripod),
         "tetrapod" | "quad" | "bi" => Some(GaitType::Tetrapod),
-        "wave" | "w" => Some(GaitType::Wave),
-        "ripple" | "r" => Some(GaitType::Ripple),
+        "wave" | "w"               => Some(GaitType::Wave),
+        "ripple" | "r"             => Some(GaitType::Ripple),
+        "crawl" | "c" | "slope"    => Some(GaitType::Crawl),
         _ => None,
     }
 }
@@ -408,10 +414,11 @@ pub async fn get_gait_config(
 ) -> Result<Json<GaitConfigResponse>, StatusCode> {
     let gait_type = parse_gait_name(&query.gait_name).ok_or(StatusCode::BAD_REQUEST)?;
     let gait_key = match gait_type {
-        GaitType::Tripod => "tripod",
+        GaitType::Tripod   => "tripod",
         GaitType::Tetrapod => "tetrapod",
-        GaitType::Wave => "wave",
-        GaitType::Ripple => "ripple",
+        GaitType::Wave     => "wave",
+        GaitType::Ripple   => "ripple",
+        GaitType::Crawl    => "crawl",
     };
 
     if let Ok(content) = fs::read_to_string(calibration_gait_configs_path()).await {
@@ -499,10 +506,11 @@ pub async fn set_gait_config(
     gait_controller.set_gait_config_for(gait_type, config.clone());
 
     let gait_key = match gait_type {
-        GaitType::Tripod => "tripod",
+        GaitType::Tripod   => "tripod",
         GaitType::Tetrapod => "tetrapod",
-        GaitType::Wave => "wave",
-        GaitType::Ripple => "ripple",
+        GaitType::Wave     => "wave",
+        GaitType::Ripple   => "ripple",
+        GaitType::Crawl    => "crawl",
     };
 
     let mut all_configs: std::collections::HashMap<String, GaitConfigData> =

@@ -33,6 +33,11 @@ pub const TTS_URL: &str = "http://127.0.0.1:5000";
 /// You can override at runtime with the UBEC_PORT env var.
 pub const UBEC_PORT: &str = "/dev/serial0";
 
+/// HTTP endpoint on the PC where battery readings are POSTed every minute.
+/// Run battery_server.py on your PC, then set this to http://<your-pc-ip>:5555/battery
+/// You can override at runtime with the BATTERY_LOG_URL env var.
+pub const BATTERY_LOG_SERVER: &str = "http://192.168.9.28:5555/battery";
+
 pub const SERVO_PINS: ServoPins = ServoPins {
     left_front: (12, 13, 14),
     left_middle: (4, 5, 6),

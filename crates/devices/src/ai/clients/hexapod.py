@@ -6,8 +6,6 @@ from config import settings
 class HexapodClient:
     def __init__(self):
         self.base_url = settings.HEXAPOD_API_BASE
-        print(f"DEBUG: requests file: {requests.__file__}")
-        print(f"DEBUG: requests dir: {dir(requests)}")
         self.session = requests.Session()
 
     def get_status(self) -> Dict[str, Any]:
@@ -69,7 +67,8 @@ class HexapodClient:
             if resp.status_code == 200:
                 return resp.json()
             return None
-        except Exception:
+        except Exception as e:
+            print(f"Error getting lidar map: {e}")
             return None
 
     def get_lidar_frame(self) -> Optional[Dict[str, Any]]:

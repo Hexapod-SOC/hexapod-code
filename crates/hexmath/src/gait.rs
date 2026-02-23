@@ -21,35 +21,45 @@ pub enum GaitType {
     /// Ripple gait: legs move in sequence, but with more overlap than wave
     /// 2-3 legs in swing at once, smoother than wave, slower than tripod
     Ripple,
+
+    /// Crawl gait: alternating single-leg sequence optimised for slopes.
+    /// Always keeps 5 legs on the ground: maximum grip and traction.
+    /// Uses a tight left-right-alternating order to shift weight smoothly:
+    ///   LF → RF → LM → RM → LB → RB
+    /// High step height clears uneven ground; low body height lowers CoG.
+    Crawl,
 }
 
 impl GaitType {
     pub fn name(&self) -> &'static str {
         match self {
-            GaitType::Tripod => "Tripod",
+            GaitType::Tripod   => "Tripod",
             GaitType::Tetrapod => "Tetrapod",
-            GaitType::Wave => "Wave",
-            GaitType::Ripple => "Ripple",
+            GaitType::Wave     => "Wave",
+            GaitType::Ripple   => "Ripple",
+            GaitType::Crawl    => "Crawl",
         }
     }
 
     /// Get number of phases in the gait cycle
     pub fn phase_count(&self) -> usize {
         match self {
-            GaitType::Tripod => 2,
+            GaitType::Tripod   => 2,
             GaitType::Tetrapod => 3,
-            GaitType::Wave => 6,
-            GaitType::Ripple => 6,
+            GaitType::Wave     => 6,
+            GaitType::Ripple   => 6,
+            GaitType::Crawl    => 6,
         }
     }
 
     /// Cycle to next gait type
     pub fn next(&self) -> GaitType {
         match self {
-            GaitType::Tripod => GaitType::Tetrapod,
+            GaitType::Tripod   => GaitType::Tetrapod,
             GaitType::Tetrapod => GaitType::Wave,
-            GaitType::Wave => GaitType::Ripple,
-            GaitType::Ripple => GaitType::Tripod,
+            GaitType::Wave     => GaitType::Ripple,
+            GaitType::Ripple   => GaitType::Crawl,
+            GaitType::Crawl    => GaitType::Tripod,
         }
     }
 }
@@ -86,13 +96,15 @@ pub struct GaitConfig {
     pub phase_offsets_override: Option<[f32; 6]>,
 }
 
+
+
 impl Default for GaitConfig {
     fn default() -> Self {
         Self {
             gait_type: GaitType::Tripod,
-            step_length: 90.0,
+            step_length: 110.0,
             step_height: 50.0,
-            speed: 1.1,
+            speed: 1.5,
             base_height: -50.0,
             disabled_legs: HashSet::new(),
             duty_factor: 0.55,
@@ -225,20 +237,31 @@ pub fn get_leg_phase_offsets(
             offsets
         }
         GaitType::Wave => [
-            (LegId::LeftFront, 0.0),
-            (LegId::LeftMiddle, 0.167),
-            (LegId::LeftBack, 0.333),
-            (LegId::RightFront, 0.833),
+            (LegId::LeftFront,   0.0),
+            (LegId::LeftMiddle,  0.167),
+            (LegId::LeftBack,    0.333),
+            (LegId::RightFront,  0.833),
             (LegId::RightMiddle, 0.667),
-            (LegId::RightBack, 0.5),
+            (LegId::RightBack,   0.5),
         ],
         GaitType::Ripple => [
-            (LegId::LeftFront, 0.0),
+            (LegId::LeftFront,   0.0),
             (LegId::RightMiddle, 0.166),
-            (LegId::LeftBack, 0.333),
-            (LegId::RightFront, 0.5),
-            (LegId::LeftMiddle, 0.666),
-            (LegId::RightBack, 0.833),
+            (LegId::LeftBack,    0.333),
+            (LegId::RightFront,  0.5),
+            (LegId::LeftMiddle,  0.666),
+            (LegId::RightBack,   0.833),
+        ],
+        // Crawl: alternating left-right sequence for maximum slope stability.
+        // Only 1 leg off the ground at any time (duty 0.83 → ~5/6 grounded).
+        // LF→RF→LM→RM→LB→RB keeps weight distributed diagonally.
+        GaitType::Crawl => [
+            (LegId::LeftFront,   0.0),
+            (LegId::RightFront,  0.167),
+            (LegId::LeftMiddle,  0.333),
+            (LegId::RightMiddle, 0.5),
+            (LegId::LeftBack,    0.667),
+            (LegId::RightBack,   0.833),
         ],
     }
 }
@@ -284,6 +307,8 @@ pub fn calculate_foot_offset(
     step_height: f32,
     move_magnitude: f32,
 ) -> (f32, f32) {
+
+
     if state.is_swing {
         let t = state.swing_progress;
         let stride_offset = (t * 2.0 - 1.0) * step_length * 0.5 * move_magnitude;

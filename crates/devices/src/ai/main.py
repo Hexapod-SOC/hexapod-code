@@ -3,13 +3,28 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import asyncio
 import logging
+from contextlib import asynccontextmanager
 from agent import Agent
 from config import settings
 
 # Logging setup
 logging.basicConfig(level=logging.INFO)
 
-app = FastAPI()
+agent = Agent()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Start the agent loop
+    loop_task = asyncio.create_task(agent.run_loop())
+    yield
+    # Shutdown logic
+    loop_task.cancel()
+    try:
+        await loop_task
+    except asyncio.CancelledError:
+        pass
+
+app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -19,15 +34,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-agent = Agent()
-
 class ChatRequest(BaseModel):
     message: str
-
-@app.on_event("startup")
-async def startup_event():
-    # Start the agent loop in background
-    asyncio.create_task(agent.run_loop())
 
 @app.get("/api/ai/health")
 async def health_check():
@@ -36,7 +44,7 @@ async def health_check():
 @app.post("/api/ai/chat")
 async def chat(request: ChatRequest):
     try:
-        response = agent.process_command(request.message)
+        response = await agent.process_command(request.message)
         return response
     except Exception as e:
         logging.error(f"Chat error: {e}")

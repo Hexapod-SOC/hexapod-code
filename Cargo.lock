@@ -3080,6 +3080,7 @@ dependencies = [
  "lidar-slam",
  "linux-embedded-hal",
  "pwm-pca9685",
+ "reqwest",
  "serde",
  "serde_json",
  "tokio",

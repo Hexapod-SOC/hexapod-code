@@ -80,6 +80,7 @@ pub fn step_hexapod(
 
         let duty_factor = match gait_config.gait_type {
             GaitType::Ripple => 0.83,
+            GaitType::Crawl  => 0.83, // 5 of 6 legs on ground at all times
             _ => gait_config.duty_factor,
         };
 
@@ -193,6 +194,7 @@ pub fn step_hexapod(
         let phase_offset = phase_offsets_map.get(leg_id).copied().unwrap_or(0.0);
         let duty_factor = match gait_config.gait_type {
             GaitType::Ripple => 0.83,
+            GaitType::Crawl  => 0.83,
             _ => gait_config.duty_factor,
         };
 

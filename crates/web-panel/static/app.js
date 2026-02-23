@@ -453,6 +453,36 @@ function initCustomGaitControls() {
     const applyBtn = document.getElementById('apply-custom-gait');
     if (!applyBtn) return;
 
+    // Mode Buttons
+    const normalBtn = document.getElementById('mode-normal');
+    const turboBtn = document.getElementById('mode-turbo');
+
+    if (normalBtn) {
+        normalBtn.addEventListener('click', () => {
+            document.getElementById('step-length').value = 80;
+            document.getElementById('step-height').value = 70;
+            document.getElementById('gait-speed').value = 1.0;
+            // Trigger input events to update labels
+            ['step-length', 'step-height', 'gait-speed'].forEach(id => {
+                document.getElementById(id).dispatchEvent(new Event('input'));
+            });
+            applyBtn.click();
+        });
+    }
+
+    if (turboBtn) {
+        turboBtn.addEventListener('click', () => {
+            document.getElementById('step-length').value = 110;
+            document.getElementById('step-height').value = 50;
+            document.getElementById('gait-speed').value = 1.3;
+            // Trigger input events to update labels
+            ['step-length', 'step-height', 'gait-speed'].forEach(id => {
+                document.getElementById(id).dispatchEvent(new Event('input'));
+            });
+            applyBtn.click();
+        });
+    }
+
     const nameInput = document.getElementById('custom-gait-name');
     if (nameInput) {
         nameInput.value = currentGait;

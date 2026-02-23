@@ -127,43 +127,53 @@ impl PicoUbecController {
         Ok((reader, writer))
     }
 
-    /// Update battery status by reading from UART
-    /// Returns true if new data was received, false if no data or error
+    /// Update battery status by reading from UART.
+    /// Drains all currently available lines so cached values stay fresh.
+    /// Returns true if at least one new line was received.
     pub fn update(&mut self) -> bool {
         // Skip if connection failed at initialization
         if self.connection_failed {
             return false;
         }
 
-        let reader = match self.reader.as_mut() {
-            Some(r) => r,
-            None => return false,
-        };
+        // Collect all pending lines first (while holding the reader borrow),
+        // then release the borrow before calling parse_message (which needs &mut self).
+        let lines: Vec<String> = {
+            let reader = match self.reader.as_mut() {
+                Some(r) => r,
+                None => return false,
+            };
 
-        // Try to read a line, but don't block if no data is available
-        let mut line = String::new();
-        match reader.read_line(&mut line) {
-            Ok(0) => false, // No data available
-            Ok(_) => {
-                // Parse the message
-                self.parse_message(&line);
-                true
+            let mut collected = Vec::new();
+            loop {
+                let mut line = String::new();
+                match reader.read_line(&mut line) {
+                    Ok(0) => break,
+                    Ok(_) => collected.push(line),
+                    Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => break,
+                    Err(e) => {
+                        eprintln!("UART read error (continuing without battery data): {}", e);
+                        break;
+                    }
+                }
             }
-            Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                // No data available (non-blocking mode)
-                false
-            }
-            Err(e) => {
-                // Log error but continue operation
-                eprintln!("UART read error (continuing without battery data): {}", e);
-                false
-            }
+            collected
+        }; // reader borrow ends here
+
+        let got_data = !lines.is_empty();
+        for line in lines {
+            eprintln!("[UBEC RAW] {:?}", line.trim_end()); // TODO: remove after debugging
+            self.parse_message(&line);
         }
+        got_data
     }
 
     /// Parse a UART message according to the protocol specification
     fn parse_message(&mut self, msg: &str) {
-        let msg = msg.trim_end_matches("\r\n").trim_end_matches('\n');
+        // Use .trim() so CR+LF, bare CR, bare LF and trailing spaces are all stripped.
+        // The previous trim_end_matches chain left '\r' inside value tokens (e.g. "7.40\r")
+        // which caused f32::parse to silently fail and the voltage to never update.
+        let msg = msg.trim();
         let parts: Vec<&str> = msg.split(':').collect();
 
         match parts.as_slice() {
@@ -175,8 +185,13 @@ impl PicoUbecController {
             // Data telemetry
             ["DATA", "VOLTAGE", v] => {
                 if let Ok(voltage) = v.parse::<f32>() {
+                    if (voltage - self.battery_status.voltage).abs() > 0.001 {
+                        eprintln!("[UBEC] Voltage updated: {:.3}V → {:.3}V", self.battery_status.voltage, voltage);
+                    }
                     self.battery_status.voltage = voltage;
                     self.battery_status.last_update = Some(Instant::now());
+                } else {
+                    eprintln!("[UBEC] Failed to parse voltage token: {:?}", v);
                 }
             }
             ["DATA", "CURRENT", c] => {

@@ -28,7 +28,7 @@ if ($LASTEXITCODE -ne 0) { exit 1 }
 
 # Remove existing binary
 Write-Host "Removing existing binary on Raspberry Pi..." -ForegroundColor Cyan
-ssh "$($config.user)@$piHost" "sudo pkill hexapod-code"
+ssh "$($config.user)@$piHost" "sudo pkill hexapod-code; sudo pkill -f 'python3 main.py'"
 ssh "$($config.user)@$piHost" "rm -f $($config.remote_path)$binaryName"
 
 # Copy binary
@@ -42,7 +42,9 @@ if (Test-Path $aiSourceDir) {
     Write-Host "Syncing AI module to Raspberry Pi..." -ForegroundColor Cyan
     # Cleanup pycache before sync to speed up
     Get-ChildItem -Path $aiSourceDir -Recurse -Filter "__pycache__" | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
-    ssh "$($config.user)@$piHost" "mkdir -p $($config.remote_path)ai"
+    
+    # Force remove remote directory to ensure clean sync and avoid permission issues
+    ssh "$($config.user)@$piHost" "sudo rm -rf $($config.remote_path)ai; mkdir -p $($config.remote_path)ai"
     scp -r "$aiSourceDir/*" "$($config.user)@$piHost`:$($config.remote_path)ai/"
     
     # Sync Wheels for offline install

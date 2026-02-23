@@ -205,6 +205,28 @@ impl GaitController {
     fn default_gait_config_for(gait_type: GaitType) -> GaitConfig {
         let mut config = GaitConfig::default();
         config.gait_type = gait_type;
+
+        match gait_type {
+            GaitType::Ripple => {
+                // Ripple duty_factor is forced to 0.83 in motion.rs (5+ legs grounded).
+                // Tuned for slope climbing – resist slipping, fight gravity.
+                config.step_length    = 80.0;  // short strides: little lost if a foot slips
+                config.step_height    = 70.0;  // high lift so feet clear and plant firmly
+                config.speed          = 1.0;   // deliberate pace on inclines
+                config.base_height    = -35.0; // lower CoG – robot hugs the slope
+                config.body_push_gain = 3.2;   // strong stance push to fight gravity
+            }
+            GaitType::Crawl => {
+                // One leg off the ground at a time – maximum traction.
+                config.step_height    = 75.0;
+                config.step_length    = 90.0;
+                config.speed          = 0.9;
+                config.base_height    = -35.0;
+                config.body_push_gain = 3.0;
+                config.duty_factor    = 0.72; // actual value used is 0.83 (see motion.rs)
+            }
+            _ => {}
+        }
         config
     }
 
@@ -213,7 +235,7 @@ impl GaitController {
         apply_constraints_to_hexapod(&mut math_hexapod, &constraints);
 
         let mut per_gait_configs = HashMap::new();
-        for gait_type in [GaitType::Tripod, GaitType::Tetrapod, GaitType::Wave, GaitType::Ripple] {
+        for gait_type in [GaitType::Tripod, GaitType::Tetrapod, GaitType::Wave, GaitType::Ripple, GaitType::Crawl] {
             per_gait_configs.insert(gait_type, Self::default_gait_config_for(gait_type));
         }
         let gait_config = per_gait_configs
@@ -664,7 +686,16 @@ impl Hexapod {
 
         if !control.enabled {
             // If disabled, don't move
+            if std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() % 2000 < 50 {
+                println!("Control DISABLED. Ignoring inputs.");
+            }
             return;
+        }
+
+        // Debug: Print control state every ~2s (assuming 20Hz update)
+        // We use system time to avoid needing state
+        if std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() % 2000 < 50 {
+             println!("Loop running. Control: Vel={:?} Rot={:.2} Enabled={}", control.velocity, control.rotation, control.enabled);
         }
 
         // Apply deadzones so tiny stick/joystick noise doesn't trigger gait motion
@@ -701,9 +732,15 @@ impl Hexapod {
         let input_state = control_to_input(self.smoothed_velocity, self.smoothed_rotation);
 
         let angles = if is_moving {
+            // Log every 20th frame (approx 1 per second at 20Hz) to avoid spam
+            let phase = gait.get_gait_phase();
+            if (phase * 20.0) as i32 % 5 == 0 {
+                 println!("Moving! Vel: {:?} SmoothVel: {:?} Phase: {:.2}", control.velocity, self.smoothed_velocity, phase);
+            }
             gait.update(&input_state, dt);
             gait.current_leg_angles()
         } else {
+             // println!("Not moving. Vel: {:?} Smooth: {:?}", control.velocity, self.smoothed_velocity);
             gait.calculate_pose_angles()
         };
         drop(gait);
@@ -726,6 +763,7 @@ impl Hexapod {
         }
 
         if !angles_list_are_finite(&adjusted) {
+            println!("IK Failed! Using last valid angles.");
             adjusted = self
                 .last_valid_angles
                 .clone()
@@ -737,6 +775,7 @@ impl Hexapod {
         // Smooth servo commands to avoid abrupt foot impacts
         let mut servo = self.servo_controller.lock().await;
         for (leg, leg_angles) in adjusted.iter() {
+            // println!("Servo {:?} -> {:?}", leg, leg_angles);
             servo.set_leg_angles(*leg, *leg_angles);
         }
     }

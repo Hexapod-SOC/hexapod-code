@@ -12,13 +12,35 @@ use crate::hexapod::{LegStances, ServoAngleTriplet, ServoAngleTweaks};
 use audio::tts;
 use config::{
     calibration_gait_configs_path, calibration_leg_stance_path, calibration_servo_tweaks_path,
-    CONSTRAINTS, LOAD_SAVED_SERVO_TWEAKS, SERVO_OFFSETS, SERVO_PINS, TMP_DIR, TTS_URL,
+    BATTERY_LOG_SERVER, CONSTRAINTS, LOAD_SAVED_SERVO_TWEAKS, SERVO_OFFSETS, SERVO_PINS, TMP_DIR, TTS_URL,
 };
 use glam::Vec3;
 use hexmath::{GaitConfig, GaitType};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
+
+/// Convert a Unix timestamp (seconds) to (year, month, day, hour, min, sec) UTC.
+/// Uses Howard Hinnant's civil calendar algorithm. No external crate required.
+fn epoch_to_datetime(secs: u64) -> (u32, u32, u32, u32, u32, u32) {
+    let sec  = (secs % 60) as u32;
+    let min  = ((secs / 60) % 60) as u32;
+    let hour = ((secs / 3600) % 24) as u32;
+
+    // Shift days-since-1970-01-01 to days-since-0000-03-01 (Hinnant's civil epoch)
+    let z: i64 = (secs / 86400) as i64 + 719468;
+    let era = if z >= 0 { z } else { z - 146096 } / 146097;
+    let doe = (z - era * 146097) as u64;                          // day of era  [0, 146096]
+    let yoe = (doe - doe/1460 + doe/36524 - doe/146096) / 365;   // year of era [0, 399]
+    let y   = yoe as i64 + era * 400;                             // year (proleptic Gregorian)
+    let doy = doe - (365*yoe + yoe/4 - yoe/100);                  // day of year from Mar 1 [0, 365]
+    let mp  = (5*doy + 2) / 153;                                  // month part  [0, 11]
+    let day = (doy - (153*mp + 2)/5 + 1) as u32;                 // day         [1, 31]
+    let month = if mp < 10 { (mp + 3) as u32 } else { (mp - 9) as u32 };
+    let year  = if month <= 2 { y + 1 } else { y } as u32;
+
+    (year, month, day, hour, min, sec)
+}
 
 fn load_saved_servo_tweaks() -> Option<ServoAngleTweaks> {
     let path = calibration_servo_tweaks_path();
@@ -110,10 +132,11 @@ struct FileGaitConfig {
 
 fn parse_gait_name(name: &str) -> Option<GaitType> {
     match name.to_lowercase().as_str() {
-        "tripod" | "tri" | "t" => Some(GaitType::Tripod),
+        "tripod" | "tri" | "t"     => Some(GaitType::Tripod),
         "tetrapod" | "quad" | "bi" => Some(GaitType::Tetrapod),
-        "wave" | "w" => Some(GaitType::Wave),
-        "ripple" | "r" => Some(GaitType::Ripple),
+        "wave" | "w"               => Some(GaitType::Wave),
+        "ripple" | "r"             => Some(GaitType::Ripple),
+        "crawl" | "c" | "slope"    => Some(GaitType::Crawl),
         _ => None,
     }
 }
@@ -303,6 +326,72 @@ async fn main() {
         println!("API server started on http://0.0.0.0:{}", config::API_PORT);
     }
 
+    // ── Battery voltage logger (push to PC) ──────────────────────────────────
+    // Every 60 seconds POSTs { session_id, minute, voltage } JSON to the PC
+    // server running battery_server.py.
+    // Override the target URL at runtime:  BATTERY_LOG_URL=http://x.x.x.x:5555/battery
+    {
+        use std::time::SystemTime;
+
+        let ubec_for_log = hexapod.get_ubec_controller();
+        let server_url = std::env::var("BATTERY_LOG_URL")
+            .unwrap_or_else(|_| config::BATTERY_LOG_SERVER.to_string());
+
+        // Build a session ID from the startup timestamp so the PC can group rows per run
+        let ts = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let (y, mo, d, h, mi, s) = epoch_to_datetime(ts);
+        let session_id = format!(
+            "{:04}-{:02}-{:02}_{:02}-{:02}-{:02}",
+            y, mo, d, h, mi, s
+        );
+
+        println!("[BatteryLog] Pushing voltage every 60s → {}", server_url);
+        println!("[BatteryLog] Session ID: {}", session_id);
+
+        tokio::spawn(async move {
+            let http = reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(5))
+                .build()
+                .expect("Failed to build HTTP client");
+
+            let mut minute: u32 = 0;
+            loop {
+                tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
+                minute += 1;
+
+                // Read latest voltage from the shared UBEC controller
+                let voltage = {
+                    let mut ubec = ubec_for_log.lock().await;
+                    ubec.update();
+                    ubec.get_battery_status().voltage
+                };
+
+                let body = serde_json::json!({
+                    "session_id": session_id,
+                    "minute": minute,
+                    "voltage": voltage,
+                });
+
+                match http.post(&server_url).json(&body).send().await {
+                    Ok(resp) if resp.status().is_success() => {
+                        println!("[BatteryLog] minute={} voltage={:.3}V ✓", minute, voltage);
+                    }
+                    Ok(resp) => {
+                        eprintln!("[BatteryLog] Server returned {} at minute {}", resp.status(), minute);
+                    }
+                    Err(e) => {
+                        eprintln!("[BatteryLog] Failed to send minute {}: {}", minute, e);
+                    }
+                }
+            }
+        });
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
+
     if config::WEB_PANEL_ENABLE {
         println!(
             "Starting web panel on port {} (non-blocking)...",
@@ -342,7 +431,7 @@ async fn main() {
             match std::process::Command::new("python3")
                 .arg("main.py")
                 .current_dir(&ai_dir)
-                .env("HEXAPOD_API_BASE", format!("http://127.0.0.1:{}", config::API_PORT))
+                .env("HEXAPOD_API_BASE", format!("http://127.0.0.1:{}/api", config::API_PORT))
                 .env("AI_CHAT_PORT", config::AI_CHAT_PORT.to_string())
                 .stdout(std::process::Stdio::piped())
                 .stderr(std::process::Stdio::piped())
