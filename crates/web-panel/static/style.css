@@ -527,6 +527,26 @@ input[type="range"]::-moz-range-thumb {
     gap: 10px;
 }
 
+.ai-chat-hint {
+    margin-bottom: 10px;
+    font-size: 0.85em;
+    color: #666;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+#ai-chat-live.active {
+    background: #2ed573;
+    color: #fff;
+}
+
+#ai-chat-voice.recording {
+    background: #d63031;
+    color: white;
+}
+
 .chat-message {
     display: flex;
     flex-direction: column;

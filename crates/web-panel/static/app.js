@@ -11,6 +11,16 @@ let gamepadLayout = 'xbox'; // 'xbox' or 'playstation'
 let gamepadIndex = null;
 let gamepadAnimationFrame = null;
 let aiChatSending = false;
+let voiceRecording = false;
+let voiceRecorder = null;
+let voiceChunks = [];
+let voiceStream = null;
+let liveModeEnabled = false;
+let liveRecording = false;
+const LIVE_CHUNK_MS = 2500;
+let liveRecorder = null;
+let liveChunks = [];
+let liveStopTimer = null;
 
 function normalizeGaitName(name) {
     if (!name) return 'ripple';
@@ -1475,27 +1485,28 @@ function initAIChat() {
     });
 
     // Simulate Voice Button
-    const speakBtn = document.getElementById('ai-chat-speak');
-    if (speakBtn) {
-        speakBtn.addEventListener('click', () => {
-            const text = chatInput.value.trim();
-            if (text.length > 0 && !aiChatSending) {
-                // Browser TTS
-                const utter = new SpeechSynthesisUtterance(text);
-                // Try to use a decent English voice
-                const voices = window.speechSynthesis.getVoices();
-                const voice = voices.find(v => v.name.includes('Google US English')) ||
-                    voices.find(v => v.lang.startsWith('en-US')) ||
-                    voices.find(v => v.lang.startsWith('en'));
-                if (voice) utter.voice = voice;
-
-                window.speechSynthesis.speak(utter);
-
-                // Send to AI
-                sendAIChatMessage(text);
-                chatInput.value = '';
+    const voiceBtn = document.getElementById('ai-chat-voice');
+    if (voiceBtn) {
+        voiceBtn.addEventListener('click', async () => {
+            if (aiChatSending) return;
+            if (liveModeEnabled) {
+                appendChatMessage('ai', '⚠️ Disable Live Mode to use manual recording.');
+                return;
+            }
+            if (!voiceRecording) {
+                await startVoiceRecording(voiceBtn);
+            } else {
+                stopVoiceRecording(voiceBtn);
             }
         });
+    }
+
+    const liveBtn = document.getElementById('ai-chat-live');
+    if (liveBtn) {
+        liveBtn.addEventListener('click', () => {
+            toggleLiveMode(liveBtn);
+        });
+        updateLiveButton(liveBtn);
     }
 
     chatInput.addEventListener('keypress', (e) => {
@@ -1511,6 +1522,95 @@ function initAIChat() {
     // Poll AI health status
     checkAIHealth();
     setInterval(checkAIHealth, 5000);
+}
+
+async function startVoiceRecording(button) {
+    try {
+        voiceStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const preferredType = 'audio/webm';
+        const options = MediaRecorder.isTypeSupported(preferredType) ? { mimeType: preferredType } : undefined;
+        voiceRecorder = new MediaRecorder(voiceStream, options);
+        voiceChunks = [];
+
+        voiceRecorder.ondataavailable = (event) => {
+            if (event.data && event.data.size > 0) {
+                voiceChunks.push(event.data);
+            }
+        };
+
+        voiceRecorder.onstop = async () => {
+            const blobType = (options && options.mimeType) ? options.mimeType : 'audio/webm';
+            const audioBlob = new Blob(voiceChunks, { type: blobType });
+            await sendVoiceCommand(audioBlob);
+            if (voiceStream) {
+                voiceStream.getTracks().forEach(track => track.stop());
+                voiceStream = null;
+            }
+        };
+
+        voiceRecorder.start();
+        voiceRecording = true;
+        button.classList.add('recording');
+        button.textContent = '⏹️';
+    } catch (error) {
+        console.error('Microphone error:', error);
+        appendChatMessage('ai', '⚠️ Microphone access denied or unavailable.');
+    }
+}
+
+function stopVoiceRecording(button) {
+    if (!voiceRecorder) return;
+    voiceRecorder.stop();
+    voiceRecording = false;
+    button.classList.remove('recording');
+    button.textContent = '🎙️';
+}
+
+async function sendVoiceCommand(audioBlob) {
+    aiChatSending = true;
+    const sendBtn = document.getElementById('ai-chat-send');
+    sendBtn.disabled = true;
+
+    const messagesDiv = document.getElementById('chat-messages');
+    const thinkingEl = document.createElement('div');
+    thinkingEl.className = 'chat-message ai-message';
+    thinkingEl.id = 'chat-thinking';
+    thinkingEl.innerHTML = '<div class="chat-thinking"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>';
+    messagesDiv.appendChild(thinkingEl);
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+    try {
+        const response = await fetch(`${AI_API_BASE}/voice`, {
+            method: 'POST',
+            headers: { 'Content-Type': audioBlob.type || 'audio/webm' },
+            body: audioBlob
+        });
+
+        const thinking = document.getElementById('chat-thinking');
+        if (thinking) thinking.remove();
+
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            appendChatMessage('ai', `⚠️ Voice error: ${err.detail || 'Unknown error'}`);
+        } else {
+            const data = await response.json();
+            if (data.transcript) {
+                appendChatMessage('user', data.transcript);
+            }
+            if (data.reply) {
+                appendChatMessage('ai', data.reply, data.actions || []);
+            }
+        }
+    } catch (error) {
+        const thinking = document.getElementById('chat-thinking');
+        if (thinking) thinking.remove();
+        console.error('Voice error:', error);
+        appendChatMessage('ai', '⚠️ Could not reach AI voice service.');
+    }
+
+    aiChatSending = false;
+    sendBtn.disabled = false;
+    document.getElementById('ai-chat-input').focus();
 }
 
 async function checkAIHealth() {
@@ -1535,12 +1635,18 @@ async function checkAIHealth() {
 }
 
 async function sendAIChatMessage(message) {
+    return sendAIChatMessageWithOptions(message, {});
+}
+
+async function sendAIChatMessageWithOptions(message, options) {
     aiChatSending = true;
     const sendBtn = document.getElementById('ai-chat-send');
     sendBtn.disabled = true;
 
     // Add user message
-    appendChatMessage('user', message);
+    if (!options.skipUserAppend) {
+        appendChatMessage('user', options.displayText || message);
+    }
 
     // Add thinking indicator
     const messagesDiv = document.getElementById('chat-messages');
@@ -1581,6 +1687,148 @@ async function sendAIChatMessage(message) {
     aiChatSending = false;
     sendBtn.disabled = false;
     document.getElementById('ai-chat-input').focus();
+}
+
+function updateLiveButton(button) {
+    if (!button) return;
+    if (liveModeEnabled) {
+        button.classList.add('active');
+        button.textContent = 'Live: On';
+    } else {
+        button.classList.remove('active');
+        button.textContent = 'Live Mode';
+    }
+}
+
+function toggleLiveMode(button) {
+    if (liveModeEnabled) {
+        stopLiveMode();
+    } else {
+        startLiveMode();
+    }
+    updateLiveButton(button);
+}
+
+function startLiveMode() {
+    startLiveRecording();
+}
+
+function stopLiveMode() {
+    stopLiveRecording();
+}
+
+function extractWakeCommand(text) {
+    if (!text) return '';
+    const lower = text.toLowerCase();
+    const wakeWords = ['hexapod', 'ninja'];
+    for (const wake of wakeWords) {
+        const idx = lower.indexOf(wake);
+        if (idx !== -1) {
+            const after = text.slice(idx + wake.length).replace(/^\s*[:,]?\s*/g, '').trim();
+            if (after.length > 0) return after;
+        }
+    }
+    return '';
+}
+
+async function startLiveRecording() {
+    if (liveRecording) return;
+    try {
+        voiceStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        liveModeEnabled = true;
+        liveRecording = true;
+        startLiveChunkRecorder();
+    } catch (error) {
+        console.error('Live mode mic error:', error);
+        appendChatMessage('ai', '⚠️ Microphone access denied or unavailable.');
+        liveModeEnabled = false;
+        liveRecording = false;
+    }
+}
+
+function stopLiveRecording() {
+    liveModeEnabled = false;
+    if (liveRecorder && liveRecording) {
+        try {
+            liveRecorder.stop();
+        } catch (_) {
+            // ignore
+        }
+    }
+    if (liveStopTimer) {
+        clearTimeout(liveStopTimer);
+        liveStopTimer = null;
+    }
+    if (voiceStream) {
+        voiceStream.getTracks().forEach(track => track.stop());
+        voiceStream = null;
+    }
+}
+
+function startLiveChunkRecorder() {
+    if (!voiceStream || !liveModeEnabled) return;
+
+    const preferredType = 'audio/webm';
+    const options = MediaRecorder.isTypeSupported(preferredType) ? { mimeType: preferredType } : undefined;
+    liveRecorder = new MediaRecorder(voiceStream, options);
+    liveChunks = [];
+
+    liveRecorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+            liveChunks.push(event.data);
+        }
+    };
+
+    liveRecorder.onstop = async () => {
+        if (liveChunks.length > 0 && liveModeEnabled) {
+            const blobType = (options && options.mimeType) ? options.mimeType : 'audio/webm';
+            const audioBlob = new Blob(liveChunks, { type: blobType });
+            await sendVoiceChunk(audioBlob);
+        }
+
+        if (liveModeEnabled) {
+            startLiveChunkRecorder();
+        } else {
+            liveRecording = false;
+        }
+    };
+
+    liveRecorder.start();
+    liveStopTimer = setTimeout(() => {
+        if (liveRecorder && liveRecorder.state === 'recording') {
+            try {
+                liveRecorder.stop();
+            } catch (_) {
+                // ignore
+            }
+        }
+    }, LIVE_CHUNK_MS);
+}
+
+async function sendVoiceChunk(audioBlob) {
+    try {
+        const response = await fetch(`${AI_API_BASE}/voice`, {
+            method: 'POST',
+            headers: { 'Content-Type': audioBlob.type || 'audio/webm' },
+            body: audioBlob
+        });
+
+        if (!response.ok) {
+            return;
+        }
+        const data = await response.json();
+        if (!data.accepted) {
+            return;
+        }
+        if (data.transcript) {
+            appendChatMessage('user', data.transcript);
+        }
+        if (data.reply) {
+            appendChatMessage('ai', data.reply, data.actions || []);
+        }
+    } catch (error) {
+        console.error('Live chunk error:', error);
+    }
 }
 
 function appendChatMessage(role, text, actions) {
