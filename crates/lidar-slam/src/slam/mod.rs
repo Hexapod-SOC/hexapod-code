@@ -19,6 +19,10 @@ pub struct SlamParams {
     pub min_score: i32,
     pub update_score_ratio: f32,
     pub sample_step: usize,
+    pub heading_prior_weight: f32,
+    pub heading_blend: f32,
+    pub heading_max_error_rad: f32,
+    pub max_rejects_before_reset: u32,
 }
 
 impl Default for SlamParams {
@@ -38,6 +42,10 @@ impl Default for SlamParams {
             min_score: 0,
             update_score_ratio: 0.5,
             sample_step: 2,
+            heading_prior_weight: 0.6,
+            heading_blend: 0.2,
+            heading_max_error_rad: 0.6,
+            max_rejects_before_reset: 8,
         }
     }
 }
@@ -49,6 +57,7 @@ pub struct BreezySLAM {
     map: OccupancyGrid,
     rng: SmallRng,
     last_score: i32,
+    reject_count: u32,
 }
 
 impl BreezySLAM {
@@ -71,24 +80,59 @@ impl BreezySLAM {
             map,
             rng: SmallRng::from_entropy(),
             last_score: 0,
+            reject_count: 0,
         }
     }
 
     /// Update SLAM with a new scan and optional odometry delta.
     pub fn update(&mut self, scan: &LaserScan, odom: Option<PoseDelta>) -> Pose2D {
+        self.update_with_heading(scan, odom, None)
+    }
+
+    /// Update SLAM with a new scan, optional odometry delta, and optional heading hint.
+    pub fn update_with_heading(
+        &mut self,
+        scan: &LaserScan,
+        odom: Option<PoseDelta>,
+        heading_rad: Option<f32>,
+    ) -> Pose2D {
         let mut start = self.pose;
         if let Some(delta) = odom {
             self.apply_odometry_in_place(&mut start, delta);
         }
+        if let Some(heading) = heading_rad {
+            let diff = angle_diff(heading, start.theta)
+                .clamp(-self.params.heading_max_error_rad, self.params.heading_max_error_rad);
+            start.theta = wrap_angle(start.theta + diff * self.params.heading_prior_weight);
+        }
+
         let (best_pose, best_score) = self.search_pose(start, scan);
-        self.pose = best_pose;
+        let mut pose = best_pose;
+        if let Some(heading) = heading_rad {
+            let diff = angle_diff(heading, pose.theta)
+                .clamp(-self.params.heading_max_error_rad, self.params.heading_max_error_rad);
+            pose.theta = wrap_angle(pose.theta + diff * self.params.heading_blend);
+        }
+
+        self.pose = pose;
         let accept = best_score >= self.params.min_score
             && (self.last_score == 0
                 || best_score as f32 >= self.params.update_score_ratio * self.last_score as f32);
         if accept {
-            self.integrate_scan_at(scan, best_pose);
+            self.integrate_scan_at(scan, pose);
             self.last_score = best_score;
+            self.reject_count = 0;
+            return self.pose;
         }
+
+        self.reject_count = self.reject_count.saturating_add(1);
+        if self.reject_count >= self.params.max_rejects_before_reset {
+            self.reset_map(heading_rad);
+            self.integrate_scan_at(scan, self.pose);
+            self.last_score = best_score;
+            self.reject_count = 0;
+        }
+
         self.pose
     }
 
@@ -112,12 +156,7 @@ impl BreezySLAM {
         pose.x += delta.forward;
         pose.y += delta.sideways;
         pose.theta += delta.dtheta;
-        // Normalize theta to [-pi, pi] for stability.
-        if pose.theta > std::f32::consts::PI {
-            pose.theta -= 2.0 * std::f32::consts::PI;
-        } else if pose.theta < -std::f32::consts::PI {
-            pose.theta += 2.0 * std::f32::consts::PI;
-        }
+        pose.theta = wrap_angle(pose.theta);
     }
 
     fn integrate_scan_at(&mut self, scan: &LaserScan, pose: Pose2D) {
@@ -246,6 +285,46 @@ impl BreezySLAM {
             }
         }
     }
+
+    fn reset_map(&mut self, heading_rad: Option<f32>) {
+        let half_extent = self.params.map_size_pixels as f32 * self.params.map_resolution * 0.5;
+        let origin = Pose2D {
+            x: -half_extent,
+            y: -half_extent,
+            theta: 0.0,
+        };
+        self.map = OccupancyGrid::new(
+            self.params.map_size_pixels,
+            self.params.map_size_pixels,
+            self.params.map_resolution,
+            origin,
+        );
+        self.pose = Pose2D::default();
+        if let Some(heading) = heading_rad {
+            self.pose.theta = wrap_angle(heading);
+        }
+        self.last_score = 0;
+    }
+}
+
+fn wrap_angle(theta: f32) -> f32 {
+    let mut t = theta;
+    if t > std::f32::consts::PI {
+        t -= 2.0 * std::f32::consts::PI;
+    } else if t < -std::f32::consts::PI {
+        t += 2.0 * std::f32::consts::PI;
+    }
+    t
+}
+
+fn angle_diff(target: f32, current: f32) -> f32 {
+    let mut diff = target - current;
+    if diff > std::f32::consts::PI {
+        diff -= 2.0 * std::f32::consts::PI;
+    } else if diff < -std::f32::consts::PI {
+        diff += 2.0 * std::f32::consts::PI;
+    }
+    diff
 }
 
 #[cfg(test)]

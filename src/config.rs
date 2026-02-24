@@ -14,6 +14,9 @@ pub const WEB_PANEL_PORT: u16 = 8080;
 pub const LIDAR_SLAM_ENABLE: bool = true;
 pub const LIDAR_SERIAL_PORT: &str = "/dev/ttyUSB0";
 pub const LIDAR_IDLE_SLEEP_MS: u64 = 5;
+pub const LIDAR_IMU_FUSION_ENABLE: bool = true;
+pub const LIDAR_IMU_POLL_MS: u64 = 20;
+pub const LIDAR_IMU_MAX_DTHETA_RAD: f32 = 0.5;
 
 pub const GPS_ENABLE: bool = true;
 pub const GPS_SERIAL_PORT: &str = "/dev/ttyACM5";
@@ -106,6 +109,10 @@ pub fn lidar_slam_config() -> LidarSlamConfig {
     params.map_resolution = 0.04;
     params.max_range_m = 12.0;
     params.sample_step = 2;
+    params.heading_prior_weight = 0.7;
+    params.heading_blend = 0.25;
+    params.heading_max_error_rad = 0.7;
+    params.max_rejects_before_reset = 6;
 
     LidarSlamConfig {
         port: LIDAR_SERIAL_PORT.into(),

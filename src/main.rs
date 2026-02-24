@@ -17,6 +17,7 @@ use config::{
 };
 use glam::Vec3;
 use hexmath::{GaitConfig, GaitType};
+use lidar_slam::PoseDelta;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -61,6 +62,62 @@ async fn main() {
     } else {
         None
     };
+
+    if config::LIDAR_SLAM_ENABLE && config::LIDAR_IMU_FUSION_ENABLE {
+        if let (Some(lidar), Some(imu)) = (lidar_handle.clone(), hexapod.get_imu()) {
+            tokio::spawn(async move {
+                let mut last_yaw: Option<f32> = None;
+                let mut last_error = tokio::time::Instant::now()
+                    .checked_sub(tokio::time::Duration::from_secs(5))
+                    .unwrap_or_else(tokio::time::Instant::now);
+                let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(
+                    config::LIDAR_IMU_POLL_MS,
+                ));
+                loop {
+                    interval.tick().await;
+                    let yaw_deg = {
+                        let mut imu = imu.lock().await;
+                        match imu.read_data() {
+                            Ok(data) if data.calibration > 0 => Some(data.euler.z),
+                            Ok(_) => None,
+                            Err(e) => {
+                                if last_error.elapsed()
+                                    >= tokio::time::Duration::from_secs(2)
+                                {
+                                    eprintln!("[LiDAR SLAM] IMU read error: {e}");
+                                    last_error = tokio::time::Instant::now();
+                                }
+                                None
+                            }
+                        }
+                    };
+
+                    if let Some(yaw_deg) = yaw_deg {
+                        let yaw_rad = yaw_deg.to_radians();
+                        if let Some(prev) = last_yaw {
+                            let mut dtheta = yaw_rad - prev;
+                            if dtheta > std::f32::consts::PI {
+                                dtheta -= 2.0 * std::f32::consts::PI;
+                            } else if dtheta < -std::f32::consts::PI {
+                                dtheta += 2.0 * std::f32::consts::PI;
+                            }
+                            dtheta = dtheta.clamp(
+                                -config::LIDAR_IMU_MAX_DTHETA_RAD,
+                                config::LIDAR_IMU_MAX_DTHETA_RAD,
+                            );
+                            lidar.update_odometry(PoseDelta {
+                                forward: 0.0,
+                                sideways: 0.0,
+                                dtheta,
+                            });
+                        }
+                        lidar.update_heading(yaw_rad);
+                        last_yaw = Some(yaw_rad);
+                    }
+                }
+            });
+        }
+    }
 
     if config::GPS_ENABLE {
         let gps_port =

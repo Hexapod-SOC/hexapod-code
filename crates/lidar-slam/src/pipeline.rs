@@ -23,10 +23,20 @@ impl LidarSlam {
         data: &[u8],
         odom: Option<PoseDelta>,
     ) -> DriverResult<Vec<(Pose2D, LaserScan)>> {
+        self.ingest_with_heading(data, odom, None)
+    }
+
+    /// Feed raw bytes from the LD19 with optional odometry and heading hint.
+    pub fn ingest_with_heading(
+        &mut self,
+        data: &[u8],
+        odom: Option<PoseDelta>,
+        heading_rad: Option<f32>,
+    ) -> DriverResult<Vec<(Pose2D, LaserScan)>> {
         let scans = self.parser.ingest_bytes(data)?;
         let mut results = Vec::with_capacity(scans.len());
         for scan in scans {
-            let pose = self.slam.update(&scan, odom);
+            let pose = self.slam.update_with_heading(&scan, odom, heading_rad);
             results.push((pose, scan));
         }
         Ok(results)

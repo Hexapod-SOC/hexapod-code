@@ -47,6 +47,7 @@ pub struct LidarSlamHandle {
     serial: Arc<Mutex<SerialInterface>>,
     state: Arc<RwLock<SlamSnapshot>>,
     odometry: Arc<RwLock<Option<PoseDelta>>>,
+    heading: Arc<RwLock<Option<f32>>>,
     running: Arc<AtomicBool>,
     join_handle: Mutex<Option<JoinHandle<()>>>,
 }
@@ -56,11 +57,13 @@ impl LidarSlamHandle {
         let serial = Arc::new(Mutex::new(SerialInterface::new(&config.port)?));
         let state = Arc::new(RwLock::new(SlamSnapshot::default()));
         let odometry = Arc::new(RwLock::new(None));
+        let heading = Arc::new(RwLock::new(None));
         let running = Arc::new(AtomicBool::new(true));
 
         let serial_thread = Arc::clone(&serial);
         let state_thread = Arc::clone(&state);
         let odom_thread = Arc::clone(&odometry);
+        let heading_thread = Arc::clone(&heading);
         let running_thread = Arc::clone(&running);
         let buffer_len = config.read_buffer_len.max(1024);
         let idle_sleep = config.idle_sleep;
@@ -105,7 +108,15 @@ impl LidarSlamHandle {
                         guard.take()
                     };
 
-                    match slam.ingest(&buffer[..read_bytes], odom_delta) {
+                    let heading_rad = {
+                        let guard = match heading_thread.read() {
+                            Ok(g) => g,
+                            Err(poisoned) => poisoned.into_inner(),
+                        };
+                        *guard
+                    };
+
+                    match slam.ingest_with_heading(&buffer[..read_bytes], odom_delta, heading_rad) {
                         Ok(updates) => {
                             if updates.is_empty() {
                                 continue;
@@ -141,6 +152,7 @@ impl LidarSlamHandle {
             serial,
             state,
             odometry,
+            heading,
             running,
             join_handle: Mutex::new(Some(join_handle)),
         })
@@ -154,7 +166,23 @@ impl LidarSlamHandle {
     /// Provide an odometry delta that will be applied to the next SLAM update.
     pub fn update_odometry(&self, delta: PoseDelta) {
         if let Ok(mut guard) = self.odometry.write() {
-            *guard = Some(delta);
+            let merged = if let Some(existing) = *guard {
+                PoseDelta {
+                    forward: existing.forward + delta.forward,
+                    sideways: existing.sideways + delta.sideways,
+                    dtheta: existing.dtheta + delta.dtheta,
+                }
+            } else {
+                delta
+            };
+            *guard = Some(merged);
+        }
+    }
+
+    /// Provide an absolute heading (yaw) in radians from an IMU.
+    pub fn update_heading(&self, heading_rad: f32) {
+        if let Ok(mut guard) = self.heading.write() {
+            *guard = Some(heading_rad);
         }
     }
 
