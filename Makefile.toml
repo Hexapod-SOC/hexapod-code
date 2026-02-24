@@ -55,3 +55,14 @@ args = ["hexapod-devkit", "remoterun", "--local"]
 [tasks.pirunremote.windows]
 command = "powershell"
 args = ["-ExecutionPolicy", "Bypass", "-File", "remoterun.ps1", "-r"]
+
+[tasks.pcrunai]
+workspace = false
+
+[tasks.pcrunai.linux]
+command = "bash"
+args = ["-lc", "cd ai && nix-shell shell.nix --run 'HEXAPOD_API_BASE=\"http://localhost:3000/api\" AI_CHAT_PORT=3001 python main.py'"]
+
+[tasks.pcrunai.windows]
+command = "powershell"
+args = ["-NoProfile", "-Command", "$env:HEXAPOD_API_BASE='http://localhost:3000/api'; $env:AI_CHAT_PORT='3001'; python ai/main.py"]
