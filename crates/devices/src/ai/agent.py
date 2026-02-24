@@ -52,6 +52,7 @@ class Agent:
         self.is_running  = False
         self.status_message = "Idle"
         self.last_error: Optional[str] = None
+        self.walk_velocity = (0.0, 0.0, 0.0)
 
         # Internal counters
         self._tick = 0
@@ -95,6 +96,12 @@ class Agent:
         elif self.current_task == "find_exit":
             self.status_message = "Searching for exit..."
             # TODO: exit finder implementation
+        elif self.current_task == "walk":
+            blocked, reason = self._movement_blocked(*self.walk_velocity)
+            if blocked:
+                self.client.stop()
+                self.current_task = None
+                self.status_message = f"Stopped: obstacle {reason}"
         else:
             # Idle – do nothing
             pass
@@ -161,9 +168,24 @@ class Agent:
         strafe = strafe * speed * MAX_SPEED_MM_S
         rot    = rot    * speed * MAX_ROT_RAD_S
 
+        blocked, reason = self._movement_blocked(fwd, strafe, rot)
+        if blocked:
+            self.client.stop()
+            logging.info(f"Move blocked: obstacle {reason}")
+            return
+
         logging.info(f"Move {direction} {duration}s (f={fwd} s={strafe} r={rot})")
         self.client.move(fwd, strafe, rot)
-        await asyncio.sleep(duration)
+
+        start = time.monotonic()
+        while time.monotonic() - start < duration:
+            blocked, reason = self._movement_blocked(fwd, strafe, rot)
+            if blocked:
+                self.client.stop()
+                logging.info(f"Move stopped early: obstacle {reason}")
+                return
+            await asyncio.sleep(0.2)
+
         self.client.stop()
         logging.info("Move finished.")
 
@@ -224,10 +246,16 @@ class Agent:
                 elif direction == "right":     strafe =  speed * MAX_SPEED_MM_S
                 elif direction == "turn_left": rot    = -speed * MAX_ROT_RAD_S
                 elif direction == "turn_right":rot    =  speed * MAX_ROT_RAD_S
-                self.current_task = "walk"
-                self.client.move(fwd, strafe, rot)
-                logging.info(f"Walk {direction} indefinitely (f={fwd} s={strafe} r={rot})")
-                reply += f"\nWalking {direction} — say 'stop' to halt."
+                blocked, reason = self._movement_blocked(fwd, strafe, rot)
+                if blocked:
+                    self.client.stop()
+                    reply += f"\nBlocked by obstacle {reason}."
+                else:
+                    self.current_task = "walk"
+                    self.walk_velocity = (fwd, strafe, rot)
+                    self.client.move(fwd, strafe, rot)
+                    logging.info(f"Walk {direction} indefinitely (f={fwd} s={strafe} r={rot})")
+                    reply += f"\nWalking {direction} — say 'stop' to halt."
 
             elif name == "move":
                 direction = args.get("direction", "forward")
@@ -306,3 +334,38 @@ class Agent:
             "message": self.status_message,
             "model":   settings.OPENAI_MODEL,
         }
+
+    def _movement_blocked(self, fwd: float, strafe: float, rot: float) -> tuple[bool, str]:
+        """Return (blocked, reason) based on LIDAR scan."""
+        scan = self.lidar.get_scan()
+        if not scan:
+            return False, ""
+
+        blocked_front = False
+        blocked_left = False
+        blocked_right = False
+        blocked_back = False
+
+        for p in scan.get("points", []):
+            d = p.get("distance_mm", 99999)
+            a = p.get("angle_deg", 0)
+            if d < settings.SAFETY_DISTANCE:
+                if -30 < a < 30:
+                    blocked_front = True
+                elif 30 <= a < 120:
+                    blocked_left = True
+                elif -120 < a <= -30:
+                    blocked_right = True
+                elif a >= 150 or a <= -150:
+                    blocked_back = True
+
+        if fwd > 0 and blocked_front:
+            return True, "front"
+        if fwd < 0 and blocked_back:
+            return True, "rear"
+        if strafe > 0 and blocked_right:
+            return True, "right"
+        if strafe < 0 and blocked_left:
+            return True, "left"
+
+        return False, ""
