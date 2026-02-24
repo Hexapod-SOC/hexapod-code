@@ -58,7 +58,7 @@ if (Test-Path $aiSourceDir) {
          Write-Host "Installing dependencies from offline wheels..." -ForegroundColor Cyan
          # Try to uninstall requests first to clear bad state
          ssh "$($config.user)@$piHost" "sudo pip3 uninstall -y --break-system-packages requests urllib3 charset-normalizer"
-         ssh "$($config.user)@$piHost" "cd $($config.remote_path)ai && sudo -H pip3 install --break-system-packages --force-reinstall --no-index --find-links ../wheels fastapi uvicorn starlette typing_extensions pydantic annotated-doc anyio idna sniffio click colorama requests urllib3 charset_normalizer certifi openai distro tqdm networkx numpy"
+         ssh "$($config.user)@$piHost" "cd $($config.remote_path)ai && sudo -H pip3 install --break-system-packages --force-reinstall --no-index --find-links ../wheels fastapi uvicorn starlette typing_extensions pydantic annotated-doc anyio idna sniffio click colorama requests urllib3 charset_normalizer certifi openai distro tqdm networkx numpy websockets"
     } else {
          Write-Host "Wheels directory not found!" -ForegroundColor Red
     }

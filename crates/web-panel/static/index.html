@@ -506,13 +506,20 @@
                 </div>
                 <div class="ai-chat-hint">
                     Voice wake words: <strong>"hexapod"</strong> or <strong>"ninja"</strong>
-                    <button class="btn btn-secondary" id="ai-chat-live" title="Toggle live wake-word mode">Live Mode</button>
+                    <button class="btn btn-secondary" id="ai-chat-live" title="Toggle live wake-word mode">Live
+                        Mode</button>
                 </div>
                 <div class="chat-input-group">
                     <input type="text" id="ai-chat-input" placeholder="Type a command..." maxlength="500"
                         autocomplete="off">
                     <button class="btn btn-secondary" id="ai-chat-voice" title="Record voice command">🎙️</button>
                     <button class="btn btn-ai-send" id="ai-chat-send">Send ➤</button>
+                </div>
+                <div class="ai-quick-actions"
+                    style="display: flex; gap: 8px; margin-top: 10px; justify-content: center;">
+                    <button class="btn btn-secondary btn-sm" id="ai-btn-walk">Walk Forward</button>
+                    <button class="btn btn-secondary btn-sm" id="ai-btn-stop" style="color: #ff4444;">Stop</button>
+                    <button class="btn btn-secondary btn-sm" id="ai-btn-spin">Spin in Place</button>
                 </div>
             </div>
         </div>

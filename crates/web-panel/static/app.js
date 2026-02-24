@@ -17,10 +17,12 @@ let voiceChunks = [];
 let voiceStream = null;
 let liveModeEnabled = false;
 let liveRecording = false;
-const LIVE_CHUNK_MS = 2500;
 let liveRecorder = null;
 let liveChunks = [];
 let liveStopTimer = null;
+let liveAudioContext = null;
+let liveScriptProcessor = null;
+let liveWs = null;
 
 function normalizeGaitName(name) {
     if (!name) return 'ripple';
@@ -1519,6 +1521,28 @@ function initAIChat() {
         }
     });
 
+    // Quick Actions
+    const btnWalk = document.getElementById('ai-btn-walk');
+    if (btnWalk) {
+        btnWalk.addEventListener('click', () => {
+            if (!aiChatSending) sendAIChatMessageWithOptions("walk forward", { speakReply: true });
+        });
+    }
+
+    const btnStop = document.getElementById('ai-btn-stop');
+    if (btnStop) {
+        btnStop.addEventListener('click', () => {
+            if (!aiChatSending) sendAIChatMessageWithOptions("halt", { speakReply: true });
+        });
+    }
+
+    const btnSpin = document.getElementById('ai-btn-spin');
+    if (btnSpin) {
+        btnSpin.addEventListener('click', () => {
+            if (!aiChatSending) sendAIChatMessageWithOptions("spin in place", { speakReply: true });
+        });
+    }
+
     // Poll AI health status
     checkAIHealth();
     setInterval(checkAIHealth, 5000);
@@ -1527,8 +1551,14 @@ function initAIChat() {
 async function startVoiceRecording(button) {
     try {
         voiceStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const preferredType = 'audio/webm';
-        const options = MediaRecorder.isTypeSupported(preferredType) ? { mimeType: preferredType } : undefined;
+        const preferredTypes = ['audio/mp3', 'audio/mpeg', 'audio/webm'];
+        let options;
+        for (const pt of preferredTypes) {
+            if (MediaRecorder.isTypeSupported(pt)) {
+                options = { mimeType: pt };
+                break;
+            }
+        }
         voiceRecorder = new MediaRecorder(voiceStream, options);
         voiceChunks = [];
 
@@ -1670,7 +1700,13 @@ async function sendAIChatMessageWithOptions(message, options) {
 
         if (response.ok) {
             const data = await response.json();
-            appendChatMessage('ai', data.reply || 'Done.', data.actions || []);
+            const replyText = data.reply || 'Done.';
+            appendChatMessage('ai', replyText, data.actions || []);
+
+            // Speak the reply out loud if requested
+            if (options.speakReply && data.reply) {
+                speakText(data.reply);
+            }
         } else {
             const err = await response.json().catch(() => ({}));
             appendChatMessage('ai', `⚠️ Error: ${err.error || 'Unknown error'}`);
@@ -1734,10 +1770,78 @@ function extractWakeCommand(text) {
 async function startLiveRecording() {
     if (liveRecording) return;
     try {
-        voiceStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        voiceStream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+                channelCount: 1,
+                sampleRate: 24000
+            }
+        });
         liveModeEnabled = true;
         liveRecording = true;
-        startLiveChunkRecorder();
+
+        liveAudioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+        const source = liveAudioContext.createMediaStreamSource(voiceStream);
+
+        // Use ScriptProcessorNode (deprecated but highly compatible) for grabbing raw PCM
+        liveScriptProcessor = liveAudioContext.createScriptProcessor(4096, 1, 1);
+
+        // Create WebSocket connection
+        const loc = window.location;
+        const wsProtocol = loc.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${wsProtocol}//${loc.hostname}:3001/api/ai/realtime`;
+        liveWs = new WebSocket(wsUrl);
+
+        liveWs.onopen = () => {
+            console.log('Realtime AI WebSocket connected');
+            source.connect(liveScriptProcessor);
+            liveScriptProcessor.connect(liveAudioContext.destination);
+        };
+
+        liveWs.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.transcript) {
+                    appendChatMessage('user', data.transcript);
+                }
+                if (data.reply) {
+                    appendChatMessage('ai', data.reply, data.actions || []);
+                }
+            } catch (e) {
+                console.error("WS parse error", e);
+            }
+        };
+
+        liveWs.onerror = (e) => {
+            console.error('Realtime WS error', e);
+        };
+
+        liveWs.onclose = () => {
+            console.log('Realtime AI WebSocket closed');
+            stopLiveRecording();
+        };
+
+        liveScriptProcessor.onaudioprocess = (event) => {
+            if (!liveWs || liveWs.readyState !== WebSocket.OPEN) return;
+
+            const inputData = event.inputBuffer.getChannelData(0);
+            const pcm16 = new Int16Array(inputData.length);
+            for (let i = 0; i < inputData.length; i++) {
+                // convert Float32 [-1.0, 1.0] to Int16
+                let s = Math.max(-1, Math.min(1, inputData[i]));
+                pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+            }
+
+            // Convert Int16Array to Base64 String
+            const uint8 = new Uint8Array(pcm16.buffer);
+            let binary = '';
+            for (let i = 0; i < uint8.byteLength; i++) {
+                binary += String.fromCharCode(uint8[i]);
+            }
+            const b64 = btoa(binary);
+
+            liveWs.send(b64);
+        };
+
     } catch (error) {
         console.error('Live mode mic error:', error);
         appendChatMessage('ai', '⚠️ Microphone access denied or unavailable.');
@@ -1748,61 +1852,24 @@ async function startLiveRecording() {
 
 function stopLiveRecording() {
     liveModeEnabled = false;
-    if (liveRecorder && liveRecording) {
-        try {
-            liveRecorder.stop();
-        } catch (_) {
-            // ignore
-        }
+    liveRecording = false;
+
+    if (liveScriptProcessor) {
+        liveScriptProcessor.disconnect();
+        liveScriptProcessor = null;
     }
-    if (liveStopTimer) {
-        clearTimeout(liveStopTimer);
-        liveStopTimer = null;
+    if (liveAudioContext) {
+        liveAudioContext.close();
+        liveAudioContext = null;
+    }
+    if (liveWs) {
+        liveWs.close();
+        liveWs = null;
     }
     if (voiceStream) {
         voiceStream.getTracks().forEach(track => track.stop());
         voiceStream = null;
     }
-}
-
-function startLiveChunkRecorder() {
-    if (!voiceStream || !liveModeEnabled) return;
-
-    const preferredType = 'audio/webm';
-    const options = MediaRecorder.isTypeSupported(preferredType) ? { mimeType: preferredType } : undefined;
-    liveRecorder = new MediaRecorder(voiceStream, options);
-    liveChunks = [];
-
-    liveRecorder.ondataavailable = (event) => {
-        if (event.data && event.data.size > 0) {
-            liveChunks.push(event.data);
-        }
-    };
-
-    liveRecorder.onstop = async () => {
-        if (liveChunks.length > 0 && liveModeEnabled) {
-            const blobType = (options && options.mimeType) ? options.mimeType : 'audio/webm';
-            const audioBlob = new Blob(liveChunks, { type: blobType });
-            await sendVoiceChunk(audioBlob);
-        }
-
-        if (liveModeEnabled) {
-            startLiveChunkRecorder();
-        } else {
-            liveRecording = false;
-        }
-    };
-
-    liveRecorder.start();
-    liveStopTimer = setTimeout(() => {
-        if (liveRecorder && liveRecorder.state === 'recording') {
-            try {
-                liveRecorder.stop();
-            } catch (_) {
-                // ignore
-            }
-        }
-    }, LIVE_CHUNK_MS);
 }
 
 async function sendVoiceChunk(audioBlob) {

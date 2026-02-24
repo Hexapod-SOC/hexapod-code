@@ -11,7 +11,7 @@ class Settings(BaseModel):
     # OpenAI
     OPENAI_API_KEY: str = ""
     OPENAI_MODEL: str = "gpt-4-turbo-preview"
-    OPENAI_WHISPER_MODEL: str = os.getenv("OPENAI_WHISPER_MODEL", "whisper-1")
+    OPENAI_WHISPER_MODEL: str = os.getenv("OPENAI_WHISPER_MODEL", "gpt-4o-audio-preview")
     
     # Robot Physical Constraints (mm)
     ROBOT_RADIUS: int = 250  # mm (approximate standing radius)
