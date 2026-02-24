@@ -114,7 +114,15 @@ Content-Type: application/json
 }
 ```
 
-### Stop Movement
+### Emergency Stop
+```
+POST /api/estop
+Content-Type: application/json
+
+{}
+```
+
+### Graceful Stop (Shutdown + Poweroff)
 ```
 POST /api/stop
 Content-Type: application/json

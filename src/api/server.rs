@@ -28,6 +28,7 @@ pub async fn run_server(state: AppState, port: u16) -> Result<(), Box<dyn std::e
         // Movement control
         .route("/api/move", post(routes::move_hexapod))
         .route("/api/stop", post(routes::stop_hexapod))
+        .route("/api/estop", post(routes::estop_hexapod))
         // Gait control
         .route("/api/gait", get(routes::get_gait))
         .route("/api/gait", post(routes::set_gait))

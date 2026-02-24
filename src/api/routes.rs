@@ -300,6 +300,9 @@ pub async fn move_hexapod(
 #[derive(Deserialize)]
 pub struct StopRequest {}
 
+#[derive(Deserialize)]
+pub struct EStopRequest {}
+
 /// POST /api/stop
 pub async fn stop_hexapod(
     State(state): State<Arc<AppState>>,
@@ -313,10 +316,39 @@ pub async fn stop_hexapod(
     // Disable servos (cuts relay power) via UBEC
     let mut ubec = state.ubec_controller.lock().await;
     ubec.disable_servos();
+    ubec.send_shutdown(30);
+
+    if let Err(error) = std::process::Command::new("sudo").arg("poweroff").spawn() {
+        eprintln!("Failed to execute poweroff: {}", error);
+        return Err(StatusCode::INTERNAL_SERVER_ERROR);
+    }
 
     Ok(Json(MoveResponse {
         success: true,
-        message: "Emergency stop: movement stopped, relay disconnected".to_string(),
+        message: "Stop: shutdown scheduled (30s) and poweroff initiated".to_string(),
+    }))
+}
+
+/// POST /api/estop
+pub async fn estop_hexapod(
+    State(state): State<Arc<AppState>>,
+    Json(_payload): Json<EStopRequest>,
+) -> Result<Json<MoveResponse>, StatusCode> {
+    let mut control = state.control.lock().await;
+    control.velocity = Vec3::ZERO;
+    control.rotation = 0.0;
+    drop(control);
+
+    let mut ubec = state.ubec_controller.lock().await;
+    if !ubec.is_connected() {
+        eprintln!("E-Stop requested but UBEC is not connected");
+    }
+    ubec.disable_servos();
+    ubec.send_shutdown(1);
+
+    Ok(Json(MoveResponse {
+        success: true,
+        message: "E-Stop: shutdown command sent (1s)".to_string(),
     }))
 }
 

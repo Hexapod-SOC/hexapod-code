@@ -115,6 +115,7 @@ Click the red "🛑 EMERGENCY STOP" button to:
 - Stop all movement immediately
 - Reset body pose to neutral
 - Clear all joystick inputs
+- Send immediate UBEC shutdown (SHUTDOWN 0)
 
 ### Text-to-Speech
 
@@ -217,7 +218,8 @@ The panel calls these API endpoints:
 - `GET /api/health` - Connection check
 - `GET /api/status` - Status updates
 - `POST /api/move` - Movement control
-- `POST /api/stop` - Emergency stop
+- `POST /api/estop` - Emergency stop (SHUTDOWN 0)
+- `POST /api/stop` - Graceful stop (SHUTDOWN 30 + poweroff)
 - `POST /api/gait` - Gait selection
 - `POST /api/pose` - Body pose
 - `POST /api/tts` - Text-to-speech

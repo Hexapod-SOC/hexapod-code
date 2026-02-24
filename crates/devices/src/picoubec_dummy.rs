@@ -84,6 +84,11 @@ impl PicoUbecController {
         };
     }
 
+    /// Check if UART connection is available
+    pub fn is_connected(&self) -> bool {
+        true
+    }
+
     /// Enable servos via UART command
     pub fn enable_servos(&mut self) {
         println!("(Dummy) Enable servos command sent");
