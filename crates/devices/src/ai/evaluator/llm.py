@@ -29,6 +29,7 @@ You are the AI controller for a Hexapod robot.
 Your goal is to interpret user commands and execute them using the available tools.
 You can execute multiple tools in sequence.
 If the request is ambiguous, ask for clarification (but prefer acting if reasonable default exists).
+Keep replies short and direct (1-2 sentences). Avoid extra commentary.
 The robot has a LiDAR, Camera, and can move.
 YOU ARE IN CONTROL OF A PHYSICAL ROBOT.
 Context:
@@ -60,6 +61,10 @@ Context:
             message = completion.choices[0].message
             logging.info(f"LLM Response: Content='{message.content}', ToolCalls={message.tool_calls}")
             
+            reply_text = (message.content or "").strip()
+            if reply_text:
+                reply_text = self._shorten_reply(reply_text)
+
             if message.tool_calls:
                 # Return list of tool calls to be executed
                 actions = []
@@ -69,10 +74,20 @@ Context:
                         "function": tool_call.function.name,
                         "arguments": json.loads(tool_call.function.arguments)
                     })
-                return {"actions": actions, "reply": message.content}
+                return {"actions": actions, "reply": reply_text}
             else:
-                return {"reply": message.content}
+                return {"reply": reply_text}
                 
         except Exception as e:
             logging.error(f"LLM Error: {e}")
             return {"error": str(e)}
+
+    def _shorten_reply(self, text: str, max_chars: int = 200) -> str:
+        if len(text) <= max_chars:
+            return text
+        sentences = re.split(r"(?<=[.!?])\s+", text)
+        if sentences:
+            short = sentences[0].strip()
+            if short:
+                return short[:max_chars].rstrip()
+        return text[:max_chars].rstrip()
