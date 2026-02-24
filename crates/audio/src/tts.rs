@@ -2,12 +2,18 @@ use anyhow::{anyhow, Error, Result};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
+#[cfg(feature = "real")]
 use std::sync::{
     mpsc::{self, Receiver, Sender},
+};
+use std::sync::{
     Arc, Mutex, OnceLock,
 };
+#[cfg(feature = "real")]
 use std::thread;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
+#[cfg(feature = "real")]
+use std::time::Duration;
 
 #[cfg(feature = "real")]
 use crate::play;
@@ -39,8 +45,11 @@ impl CacheData {
 }
 
 struct TtsShared {
+    #[allow(dead_code)]
     url: String,
+    #[allow(dead_code)]
     tmp_dir: String,
+    #[allow(dead_code)]
     cache_dir: String,
     cache_file: String,
     cache: Mutex<CacheData>,

@@ -598,7 +598,7 @@ impl Hexapod {
         default_stance: Option<LegStances>,
     ) -> Self {
         let servo_controller = ServoController::new(servo_pins, servo_offsets);
-        let mut gait_controller = GaitController::new(initial_gait, ik_constraints, default_stance);
+        let gait_controller = GaitController::new(initial_gait, ik_constraints, default_stance);
         let initial_angles = {
             let angles = gait_controller.calculate_pose_angles();
             if angles.iter().all(|(_, a)| angles_are_finite(a)) {

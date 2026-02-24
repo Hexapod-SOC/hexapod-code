@@ -10,6 +10,7 @@ pub const WEB_API_ENABLE: bool = true;
 pub const API_PORT: u16 = 3000;
 pub const WEB_PANEL_ENABLE: bool = true;
 pub const WEB_PANEL_PORT: u16 = 8080;
+
 pub const LIDAR_SLAM_ENABLE: bool = true;
 pub const LIDAR_SERIAL_PORT: &str = "/dev/ttyUSB0";
 pub const LIDAR_IDLE_SLEEP_MS: u64 = 5;

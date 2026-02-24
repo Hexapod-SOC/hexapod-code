@@ -55,14 +55,3 @@ args = ["hexapod-devkit", "remoterun", "--local"]
 [tasks.pirunremote.windows]
 command = "powershell"
 args = ["-ExecutionPolicy", "Bypass", "-File", "remoterun.ps1", "-r"]
-
-# Adam nix shell wrappers for Pi builds
-[tasks.nixpibuildrelease]
-command = "nix-shell"
-args = ["-p", "cargo-cross", "--run", "cargo make pibuildrelease"]
-workspace = false
-
-[tasks.nixpirunremote]
-command = "nix-shell"
-args = ["-p", "cargo-cross", "--run", "cargo make pirunremote"]
-workspace = false

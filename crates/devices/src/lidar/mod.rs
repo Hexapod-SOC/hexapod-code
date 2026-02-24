@@ -18,6 +18,7 @@ pub use serial::SerialInterface;
 pub use slam::{LidarSlamConfig, LidarSlamHandle, SlamSnapshot};
 
 use anyhow::Result;
+#[cfg(feature = "real")]
 use std::io::Read;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
