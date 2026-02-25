@@ -19,7 +19,7 @@ $binaryName = "hexapod-code" # Assumption
 Write-Host "Deploying AI module to $piHost..." -ForegroundColor Cyan
 
 # Copy AI module
-$aiSourceDir = "crates/devices/src/ai"
+$aiSourceDir = "ai"
 if (Test-Path $aiSourceDir) {
     Write-Host "Syncing AI module..." -ForegroundColor Cyan
     # Cleanup pycache

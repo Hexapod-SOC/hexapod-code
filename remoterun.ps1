@@ -37,7 +37,7 @@ scp "target/$target/release/$binaryName" "$($config.user)@$piHost`:$($config.rem
 if ($LASTEXITCODE -ne 0) { exit 1 }
 
 # Copy AI module
-$aiSourceDir = "crates/devices/src/ai"
+$aiSourceDir = "ai"
 if (Test-Path $aiSourceDir) {
     Write-Host "Syncing AI module to Raspberry Pi..." -ForegroundColor Cyan
     # Cleanup pycache before sync to speed up
