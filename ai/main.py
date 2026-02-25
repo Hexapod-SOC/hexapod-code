@@ -6,10 +6,17 @@ import logging
 import os
 import re
 import tempfile
+import base64
+import io
+import math
+import wave
+from array import array
+from collections import deque
 from contextlib import asynccontextmanager
 import openai
 import json
 import websockets
+import numpy as np
 from agent import Agent
 from config import settings
 
@@ -32,6 +39,76 @@ def _normalize_mic_source(value: str) -> str:
     return "web"
 
 MIC_SOURCE = _normalize_mic_source(settings.MIC_SOURCE)
+
+def _parse_csv(value: str) -> list[str]:
+    if not value:
+        return []
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+def _normalize_pcm16(samples: array, target_rms: float = 4000.0) -> array:
+    if not samples:
+        return samples
+    acc = 0.0
+    for s in samples:
+        acc += s * s
+    rms = math.sqrt(acc / len(samples)) if samples else 0.0
+    if rms <= 1.0:
+        return samples
+    gain = target_rms / rms
+    if gain <= 0:
+        return samples
+    out = array("h")
+    for s in samples:
+        v = int(max(-32768, min(32767, s * gain)))
+        out.append(v)
+    return out
+
+def _pcm16_to_wav_bytes(samples: array, sample_rate: int) -> bytes:
+    samples = _normalize_pcm16(samples)
+    with io.BytesIO() as buf:
+        with wave.open(buf, "wb") as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)
+            wf.setframerate(sample_rate)
+            wf.writeframes(samples.tobytes())
+        return buf.getvalue()
+
+def _is_transcript_good(text: str) -> bool:
+    if not text:
+        return False
+    stripped = text.strip()
+    if len(stripped) < settings.OPENAI_TRANSCRIBE_MIN_CHARS:
+        return False
+    alpha = sum(1 for c in stripped if c.isalpha())
+    ratio = alpha / max(1, len(stripped))
+    return ratio >= settings.OPENAI_TRANSCRIBE_MIN_ALPHA_RATIO
+
+def _transcribe_with_model(file_path: str, model: str) -> str:
+    with open(file_path, "rb") as audio_file:
+        transcript = stt_client.audio.transcriptions.create(
+            model=model,
+            file=audio_file,
+            response_format="text",
+            language=settings.OPENAI_TRANSCRIBE_LANGUAGE,
+            temperature=0.0,
+            prompt=settings.OPENAI_TRANSCRIBE_PROMPT,
+        )
+    if isinstance(transcript, str):
+        return transcript.strip()
+    return str(transcript).strip()
+
+def _save_transcribe_audio(data: bytes, suffix: str) -> None:
+    if not settings.SAVE_TRANSCRIBE_AUDIO:
+        return
+    try:
+        os.makedirs(settings.TRANSCRIBE_AUDIO_DIR, exist_ok=True)
+        timestamp = int(asyncio.get_event_loop().time() * 1000)
+        filename = f"audio_{timestamp}{suffix}"
+        out_path = os.path.join(settings.TRANSCRIBE_AUDIO_DIR, filename)
+        with open(out_path, "wb") as f:
+            f.write(data)
+    except Exception as e:
+        logging.warning(f"Failed to save transcribe audio: {e}")
 
 if settings.OPENAI_API_KEY:
     stt_client = openai.OpenAI(api_key=settings.OPENAI_API_KEY, max_retries=0)
@@ -84,15 +161,16 @@ async def _transcribe_audio(data: bytes, suffix: str) -> str:
     if not data:
         raise HTTPException(status_code=400, detail="Empty audio upload")
 
+    _save_transcribe_audio(data, suffix)
+
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         tmp.write(data)
         tmp_path = tmp.name
 
-    if "gpt" in settings.OPENAI_WHISPER_MODEL and "audio" in settings.OPENAI_WHISPER_MODEL and suffix in [".mp3", ".wav"]:
-        import base64
-        fmt = suffix.replace(".", "").lower()
-        b64_data = base64.b64encode(data).decode('utf-8')
-        try:
+    try:
+        if "gpt" in settings.OPENAI_WHISPER_MODEL and "audio" in settings.OPENAI_WHISPER_MODEL and suffix in [".mp3", ".wav"]:
+            fmt = suffix.replace(".", "").lower()
+            b64_data = base64.b64encode(data).decode('utf-8')
             resp = stt_client.chat.completions.create(
                 model=settings.OPENAI_WHISPER_MODEL,
                 modalities=["text"],
@@ -112,33 +190,26 @@ async def _transcribe_audio(data: bytes, suffix: str) -> str:
                 ],
                 temperature=0.0
             )
-            return resp.choices[0].message.content.strip()
-        finally:
-            try:
-                os.remove(tmp_path)
-            except OSError:
-                pass
-    else:
+            transcript_text = (resp.choices[0].message.content or "").strip()
+        else:
+            model_to_use = "whisper-1" if "gpt" in settings.OPENAI_WHISPER_MODEL else settings.OPENAI_WHISPER_MODEL
+            transcript_text = _transcribe_with_model(tmp_path, model_to_use)
+
+        if _is_transcript_good(transcript_text):
+            return transcript_text
+
+        retry_model = settings.OPENAI_TRANSCRIBE_RETRY_MODEL.strip()
+        if retry_model and retry_model != settings.OPENAI_WHISPER_MODEL:
+            retry_text = _transcribe_with_model(tmp_path, retry_model)
+            if _is_transcript_good(retry_text):
+                return retry_text
+
+        return transcript_text
+    finally:
         try:
-            with open(tmp_path, "rb") as audio_file:
-                # Fallback to standard whisper for formats like webm
-                model_to_use = "whisper-1" if "gpt" in settings.OPENAI_WHISPER_MODEL else settings.OPENAI_WHISPER_MODEL
-                transcript = stt_client.audio.transcriptions.create(
-                    model=model_to_use,
-                    file=audio_file,
-                    response_format="text",
-                    language=settings.OPENAI_TRANSCRIBE_LANGUAGE,
-                    temperature=0.0,
-                    prompt=settings.OPENAI_TRANSCRIBE_PROMPT,
-                )
-            if isinstance(transcript, str):
-                return transcript.strip()
-            return str(transcript).strip()
-        finally:
-            try:
-                os.remove(tmp_path)
-            except OSError:
-                pass
+            os.remove(tmp_path)
+        except OSError:
+            pass
 
 @app.get("/api/ai/health")
 async def health_check():
@@ -261,6 +332,152 @@ async def websocket_realtime(websocket: WebSocket):
             await websocket.close(code=1011)
         except:
             pass
+
+@app.websocket("/api/ai/wake")
+async def websocket_wake(websocket: WebSocket):
+    await websocket.accept()
+
+    if not settings.PICOVOICE_ACCESS_KEY:
+        await websocket.close(code=1008, reason="Picovoice access key missing")
+        return
+
+    try:
+        import pvporcupine
+    except Exception:
+        await websocket.close(code=1011, reason="Porcupine not installed")
+        return
+
+    keyword_paths = _parse_csv(settings.PORCUPINE_KEYWORD_PATHS)
+    keywords = _parse_csv(settings.PORCUPINE_KEYWORDS)
+    if not keyword_paths and not keywords:
+        await websocket.close(code=1008, reason="Porcupine keywords not configured")
+        return
+
+    sensitivities_raw = _parse_csv(settings.PORCUPINE_SENSITIVITIES)
+    if keyword_paths:
+        keyword_count = len(keyword_paths)
+    else:
+        keyword_count = len(keywords)
+    if len(sensitivities_raw) != keyword_count:
+        sensitivities = [0.65] * keyword_count
+    else:
+        sensitivities = [float(s) for s in sensitivities_raw]
+
+    try:
+        porcupine = pvporcupine.create(
+            access_key=settings.PICOVOICE_ACCESS_KEY,
+            keyword_paths=keyword_paths or None,
+            keywords=keywords or None,
+            sensitivities=sensitivities,
+        )
+    except Exception as e:
+        logging.error(f"Porcupine init failed: {e}")
+        await websocket.close(code=1011, reason="Porcupine init failed")
+        return
+
+    sample_rate = porcupine.sample_rate
+    frame_length = porcupine.frame_length
+
+    pre_roll_samples = int(sample_rate * settings.WAKE_PRE_ROLL_MS / 1000)
+    trim_samples = int(sample_rate * settings.WAKE_TRIM_MS / 1000)
+    silence_samples = int(sample_rate * settings.WAKE_SILENCE_MS / 1000)
+    max_samples = int(sample_rate * settings.WAKE_MAX_UTTERANCE_MS / 1000)
+    min_samples = int(sample_rate * settings.WAKE_MIN_UTTERANCE_MS / 1000)
+
+    pcm_buffer = array("h")
+    pre_roll = deque(maxlen=pre_roll_samples)
+    listening = False
+    utterance = array("h")
+    silence_run = 0
+    skip_after_wake = 0
+
+    try:
+        while True:
+            msg = await websocket.receive()
+            if "text" in msg and msg["text"]:
+                raw = base64.b64decode(msg["text"])
+            elif "bytes" in msg and msg["bytes"]:
+                raw = msg["bytes"]
+            else:
+                continue
+
+            if len(raw) % 2 != 0:
+                raw = raw[:-1]
+            if not raw:
+                continue
+
+            pcm = np.frombuffer(raw, dtype=np.int16)
+            pcm_buffer.extend(pcm.tolist())
+
+            while len(pcm_buffer) >= frame_length:
+                frame = pcm_buffer[:frame_length]
+                del pcm_buffer[:frame_length]
+
+                rms = 0.0
+                if frame_length > 0:
+                    rms = math.sqrt(sum(s * s for s in frame) / frame_length)
+
+                if not listening:
+                    pre_roll.extend(frame)
+                    try:
+                        keyword_index = porcupine.process(frame)
+                    except Exception as e:
+                        logging.warning(f"Porcupine process error: {e}")
+                        keyword_index = -1
+                    if keyword_index >= 0:
+                        listening = True
+                        utterance = array("h")
+                        silence_run = 0
+                        skip_after_wake = trim_samples
+                        keyword_name = (
+                            keywords[keyword_index]
+                            if keywords
+                            else os.path.basename(keyword_paths[keyword_index])
+                        )
+                        await websocket.send_json({"event": "wake", "keyword": keyword_name})
+                else:
+                    if skip_after_wake > 0:
+                        skip_after_wake = max(0, skip_after_wake - frame_length)
+                    else:
+                        utterance.extend(frame)
+                    if rms < settings.WAKE_RMS_THRESHOLD:
+                        silence_run += frame_length
+                    else:
+                        silence_run = 0
+
+                    if silence_run >= silence_samples or len(utterance) >= max_samples:
+                        if len(utterance) >= min_samples:
+                            wav_bytes = _pcm16_to_wav_bytes(utterance, sample_rate)
+                            transcript = await _transcribe_audio(wav_bytes, ".wav")
+                            accepted, command = _extract_wake_command(transcript)
+                            if not command:
+                                command = transcript.strip()
+                            payload = {
+                                "transcript": transcript,
+                                "accepted": bool(command),
+                                "command": command,
+                            }
+                            if command:
+                                response = await agent.process_command(command)
+                                reply = response.get("reply") or ""
+                                actions = response.get("actions", [])
+                                payload.update({"reply": reply, "actions": actions})
+                                if reply:
+                                    agent.client.speak(reply)
+                            await websocket.send_json(payload)
+
+                        listening = False
+                        utterance = array("h")
+                        silence_run = 0
+                        skip_after_wake = 0
+                        pre_roll.clear()
+
+    except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        logging.error(f"Wake WS error: {e}")
+    finally:
+        porcupine.delete()
 
 if __name__ == "__main__":
     import uvicorn

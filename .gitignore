@@ -6,3 +6,6 @@ crates/devices/src/ai/apikey.txt
 /ai/apikey.txt
 __pycache__
 *.pyc
+/.venv
+ai/.nix-venv/
+ai/transcribe_samples

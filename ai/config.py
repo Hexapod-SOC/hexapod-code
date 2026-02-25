@@ -14,6 +14,25 @@ class Settings(BaseModel):
     OPENAI_WHISPER_MODEL: str = os.getenv("OPENAI_WHISPER_MODEL", "gpt-4o-transcribe")
     OPENAI_TRANSCRIBE_LANGUAGE: str = os.getenv("OPENAI_TRANSCRIBE_LANGUAGE", "en")
     OPENAI_TRANSCRIBE_PROMPT: str = os.getenv("OPENAI_TRANSCRIBE_PROMPT", "hexapod ninja")
+    OPENAI_TRANSCRIBE_RETRY_MODEL: str = os.getenv("OPENAI_TRANSCRIBE_RETRY_MODEL", "whisper-1")
+    OPENAI_TRANSCRIBE_MIN_CHARS: int = int(os.getenv("OPENAI_TRANSCRIBE_MIN_CHARS", "3"))
+    OPENAI_TRANSCRIBE_MIN_ALPHA_RATIO: float = float(os.getenv("OPENAI_TRANSCRIBE_MIN_ALPHA_RATIO", "0.3"))
+    SAVE_TRANSCRIBE_AUDIO: bool = os.getenv("SAVE_TRANSCRIBE_AUDIO", "false").lower() == "true"
+    TRANSCRIBE_AUDIO_DIR: str = os.getenv("TRANSCRIBE_AUDIO_DIR", "./transcribe_samples")
+
+    # Picovoice Porcupine (wake word detection)
+    PICOVOICE_ACCESS_KEY: str = os.getenv("PICOVOICE_ACCESS_KEY", "")
+    PORCUPINE_KEYWORD_PATHS: str = os.getenv("PORCUPINE_KEYWORD_PATHS", "")
+    PORCUPINE_KEYWORDS: str = os.getenv("PORCUPINE_KEYWORDS", "bumblebee")
+    PORCUPINE_SENSITIVITIES: str = os.getenv("PORCUPINE_SENSITIVITIES", "0.65,0.65")
+
+    # Wake/utterance detection (ms)
+    WAKE_PRE_ROLL_MS: int = int(os.getenv("WAKE_PRE_ROLL_MS", "500"))
+    WAKE_TRIM_MS: int = int(os.getenv("WAKE_TRIM_MS", "2"))
+    WAKE_SILENCE_MS: int = int(os.getenv("WAKE_SILENCE_MS", "500"))
+    WAKE_MAX_UTTERANCE_MS: int = int(os.getenv("WAKE_MAX_UTTERANCE_MS", "8000"))
+    WAKE_MIN_UTTERANCE_MS: int = int(os.getenv("WAKE_MIN_UTTERANCE_MS", "400"))
+    WAKE_RMS_THRESHOLD: int = int(os.getenv("WAKE_RMS_THRESHOLD", "500"))
 
     # Microphone input source ("web" for browser mic, "onboard" for future hardware mic)
     MIC_SOURCE: str = os.getenv("AI_MIC_SOURCE", "web")
