@@ -19,6 +19,20 @@ logging.basicConfig(level=logging.INFO)
 agent = Agent()
 stt_client = None
 
+def _normalize_mic_source(value: str) -> str:
+    if not value:
+        return "web"
+    source = value.strip().lower()
+    if source == "onboard":
+        logging.warning("Onboard mic selected but not implemented; using web panel mic.")
+        return "web"
+    if source != "web":
+        logging.warning(f"Unknown mic source '{value}', using web panel mic.")
+        return "web"
+    return "web"
+
+MIC_SOURCE = _normalize_mic_source(settings.MIC_SOURCE)
+
 if settings.OPENAI_API_KEY:
     stt_client = openai.OpenAI(api_key=settings.OPENAI_API_KEY, max_retries=0)
 else:
@@ -53,7 +67,8 @@ class ChatRequest(BaseModel):
 def _extract_wake_command(text: str) -> tuple[bool, str]:
     if not text:
         return False, ""
-    match = re.match(r"^\s*(hexapod|ninja)\s*[:,]?\s*(.+)$", text.strip(), re.IGNORECASE)
+    cleaned = text.strip()
+    match = re.search(r"\b(hexapod|ninja)\b\s*[:,]?\s*(.+)$", cleaned, re.IGNORECASE)
     if not match:
         return False, ""
     command = match.group(2).strip()
@@ -85,7 +100,12 @@ async def _transcribe_audio(data: bytes, suffix: str) -> str:
                     {
                         "role": "user",
                         "content": [
-                            {"type": "text", "text": "Transcribe the following audio precisely. Only output the transcription, nothing else. If you hear nothing, output nothing."},
+                            {"type": "text", "text": (
+                                "Transcribe the following audio precisely in English. "
+                                "Only output the transcription, nothing else. "
+                                "If you hear nothing, output nothing. "
+                                f"Wake words: {settings.OPENAI_TRANSCRIBE_PROMPT}."
+                            )},
                             {"type": "input_audio", "input_audio": {"data": b64_data, "format": fmt}}
                         ]
                     }
@@ -107,9 +127,9 @@ async def _transcribe_audio(data: bytes, suffix: str) -> str:
                     model=model_to_use,
                     file=audio_file,
                     response_format="text",
-                    language="en",
+                    language=settings.OPENAI_TRANSCRIBE_LANGUAGE,
                     temperature=0.0,
-                    prompt="hexapod ninja",
+                    prompt=settings.OPENAI_TRANSCRIBE_PROMPT,
                 )
             if isinstance(transcript, str):
                 return transcript.strip()
@@ -122,7 +142,9 @@ async def _transcribe_audio(data: bytes, suffix: str) -> str:
 
 @app.get("/api/ai/health")
 async def health_check():
-    return agent.get_health()
+    payload = agent.get_health()
+    payload["mic_source"] = MIC_SOURCE
+    return payload
 
 @app.post("/api/ai/chat")
 async def chat(request: ChatRequest):

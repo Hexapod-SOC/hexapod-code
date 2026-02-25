@@ -18,11 +18,10 @@ let voiceStream = null;
 let liveModeEnabled = false;
 let liveRecording = false;
 let liveRecorder = null;
+let liveStream = null;
+const LIVE_CHUNK_MS = 2000;
 let liveChunks = [];
-let liveStopTimer = null;
-let liveAudioContext = null;
-let liveScriptProcessor = null;
-let liveWs = null;
+let liveRestartTimer = null;
 
 function normalizeGaitName(name) {
     if (!name) return 'ripple';
@@ -1770,78 +1769,51 @@ function extractWakeCommand(text) {
 async function startLiveRecording() {
     if (liveRecording) return;
     try {
-        voiceStream = await navigator.mediaDevices.getUserMedia({
-            audio: {
-                channelCount: 1,
-                sampleRate: 24000
-            }
+        liveStream = await navigator.mediaDevices.getUserMedia({
+            audio: true
         });
+
+        const preferredTypes = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/ogg'];
+        let options;
+        for (const pt of preferredTypes) {
+            if (MediaRecorder.isTypeSupported(pt)) {
+                options = { mimeType: pt };
+                break;
+            }
+        }
+
+        liveRecorder = new MediaRecorder(liveStream, options);
+        liveChunks = [];
+        liveRecorder.ondataavailable = (event) => {
+            if (event.data && event.data.size > 0) {
+                liveChunks.push(event.data);
+            }
+        };
+
+        liveRecorder.onstop = async () => {
+            if (liveChunks.length > 0) {
+                const blobType = (options && options.mimeType) ? options.mimeType : 'audio/webm';
+                const audioBlob = new Blob(liveChunks, { type: blobType });
+                liveChunks = [];
+                await sendVoiceChunk(audioBlob);
+            }
+            if (liveStream) {
+                liveStream.getTracks().forEach(track => track.stop());
+            }
+            liveStream = null;
+            if (liveModeEnabled) {
+                liveRestartTimer = setTimeout(startLiveRecording, 200);
+            }
+        };
+
         liveModeEnabled = true;
         liveRecording = true;
-
-        liveAudioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
-        const source = liveAudioContext.createMediaStreamSource(voiceStream);
-
-        // Use ScriptProcessorNode (deprecated but highly compatible) for grabbing raw PCM
-        liveScriptProcessor = liveAudioContext.createScriptProcessor(4096, 1, 1);
-
-        // Create WebSocket connection
-        const loc = window.location;
-        const wsProtocol = loc.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${wsProtocol}//${loc.hostname}:3001/api/ai/realtime`;
-        liveWs = new WebSocket(wsUrl);
-
-        liveWs.onopen = () => {
-            console.log('Realtime AI WebSocket connected');
-            source.connect(liveScriptProcessor);
-            liveScriptProcessor.connect(liveAudioContext.destination);
-        };
-
-        liveWs.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                if (data.transcript) {
-                    appendChatMessage('user', data.transcript);
-                }
-                if (data.reply) {
-                    appendChatMessage('ai', data.reply, data.actions || []);
-                }
-            } catch (e) {
-                console.error("WS parse error", e);
+        liveRecorder.start();
+        liveRestartTimer = setTimeout(() => {
+            if (liveRecorder && liveRecorder.state === 'recording') {
+                liveRecorder.stop();
             }
-        };
-
-        liveWs.onerror = (e) => {
-            console.error('Realtime WS error', e);
-        };
-
-        liveWs.onclose = () => {
-            console.log('Realtime AI WebSocket closed');
-            stopLiveRecording();
-        };
-
-        liveScriptProcessor.onaudioprocess = (event) => {
-            if (!liveWs || liveWs.readyState !== WebSocket.OPEN) return;
-
-            const inputData = event.inputBuffer.getChannelData(0);
-            const pcm16 = new Int16Array(inputData.length);
-            for (let i = 0; i < inputData.length; i++) {
-                // convert Float32 [-1.0, 1.0] to Int16
-                let s = Math.max(-1, Math.min(1, inputData[i]));
-                pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-            }
-
-            // Convert Int16Array to Base64 String
-            const uint8 = new Uint8Array(pcm16.buffer);
-            let binary = '';
-            for (let i = 0; i < uint8.byteLength; i++) {
-                binary += String.fromCharCode(uint8[i]);
-            }
-            const b64 = btoa(binary);
-
-            liveWs.send(b64);
-        };
-
+        }, LIVE_CHUNK_MS);
     } catch (error) {
         console.error('Live mode mic error:', error);
         appendChatMessage('ai', '⚠️ Microphone access denied or unavailable.');
@@ -1854,25 +1826,25 @@ function stopLiveRecording() {
     liveModeEnabled = false;
     liveRecording = false;
 
-    if (liveScriptProcessor) {
-        liveScriptProcessor.disconnect();
-        liveScriptProcessor = null;
+    if (liveRestartTimer) {
+        clearTimeout(liveRestartTimer);
+        liveRestartTimer = null;
     }
-    if (liveAudioContext) {
-        liveAudioContext.close();
-        liveAudioContext = null;
+    if (liveRecorder && liveRecorder.state !== 'inactive') {
+        liveRecorder.stop();
     }
-    if (liveWs) {
-        liveWs.close();
-        liveWs = null;
-    }
-    if (voiceStream) {
-        voiceStream.getTracks().forEach(track => track.stop());
-        voiceStream = null;
+    liveRecorder = null;
+
+    if (liveStream) {
+        liveStream.getTracks().forEach(track => track.stop());
+        liveStream = null;
     }
 }
 
 async function sendVoiceChunk(audioBlob) {
+    if (!audioBlob || audioBlob.size < 2048) {
+        return;
+    }
     try {
         const response = await fetch(`${AI_API_BASE}/voice`, {
             method: 'POST',

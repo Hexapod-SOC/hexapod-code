@@ -12,6 +12,12 @@ class Settings(BaseModel):
     OPENAI_API_KEY: str = ""
     OPENAI_MODEL: str = "gpt-5-mini"
     OPENAI_WHISPER_MODEL: str = os.getenv("OPENAI_WHISPER_MODEL", "gpt-4o-transcribe")
+    OPENAI_TRANSCRIBE_LANGUAGE: str = os.getenv("OPENAI_TRANSCRIBE_LANGUAGE", "en")
+    OPENAI_TRANSCRIBE_PROMPT: str = os.getenv("OPENAI_TRANSCRIBE_PROMPT", "hexapod ninja")
+
+    # Microphone input source ("web" for browser mic, "onboard" for future hardware mic)
+    MIC_SOURCE: str = os.getenv("AI_MIC_SOURCE", "web")
+    MIC_SAMPLE_RATE: int = int(os.getenv("AI_MIC_SAMPLE_RATE", "24000"))
     
     # Robot Physical Constraints (mm)
     ROBOT_RADIUS: int = 250  # mm (approximate standing radius)
