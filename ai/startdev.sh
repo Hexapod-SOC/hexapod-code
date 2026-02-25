@@ -1,1 +1,0 @@
-nix-shell --run 'HEXAPOD_API_BASE="http://localhost:3000/api" AI_CHAT_PORT=3001 python main.py'

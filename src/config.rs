@@ -22,7 +22,12 @@ pub const GPS_ENABLE: bool = true;
 pub const GPS_SERIAL_PORT: &str = "/dev/ttyACM5";
 
 pub const AI_ENABLE: bool = true;
+
+#[cfg(feature = "dummy")]
+pub const AI_SCRIPT_DIR: &str = "../../ai";
+#[cfg(feature = "real")]
 pub const AI_SCRIPT_DIR: &str = "ai";
+
 pub const AI_CHAT_PORT: u16 = 3001;
 
 pub const IMU_ENABLE: bool = true;
