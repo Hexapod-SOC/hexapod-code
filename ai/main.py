@@ -45,6 +45,47 @@ def _parse_csv(value: str) -> list[str]:
         return []
     return [item.strip() for item in value.split(",") if item.strip()]
 
+def _looks_like_path(value: str) -> bool:
+    if not value:
+        return False
+    if value.endswith(".ppn"):
+        return True
+    if value.startswith(("~", ".")):
+        return True
+    if os.path.isabs(value):
+        return True
+    return "/" in value or "\\" in value
+
+def _expand_keyword_path(value: str) -> str:
+    return os.path.abspath(os.path.expanduser(os.path.expandvars(value)))
+
+def _split_keywords_and_paths(
+    keyword_paths_raw: list[str],
+    keywords_raw: list[str],
+) -> tuple[list[str], list[str], list[str]]:
+    keyword_paths: list[str] = []
+    keywords: list[str] = []
+    errors: list[str] = []
+
+    for path in keyword_paths_raw:
+        expanded = _expand_keyword_path(path)
+        if not os.path.isfile(expanded):
+            errors.append(f"Keyword path not found: {expanded}")
+            continue
+        keyword_paths.append(expanded)
+
+    for entry in keywords_raw:
+        if _looks_like_path(entry) or entry.endswith(".ppn"):
+            expanded = _expand_keyword_path(entry)
+            if not os.path.isfile(expanded):
+                errors.append(f"Keyword path not found: {expanded}")
+                continue
+            keyword_paths.append(expanded)
+        else:
+            keywords.append(entry)
+
+    return keyword_paths, keywords, errors
+
 def _normalize_pcm16(samples: array, target_rms: float = 4000.0) -> array:
     if not samples:
         return samples
@@ -141,6 +182,16 @@ class ChatRequest(BaseModel):
     message: str
 
 
+class Waypoint(BaseModel):
+    x: float
+    y: float
+
+
+class NavigateRequest(BaseModel):
+    waypoints: list[Waypoint]
+    mode: str = "replace"
+
+
 def _extract_wake_command(text: str) -> tuple[bool, str]:
     if not text:
         return False, ""
@@ -225,6 +276,27 @@ async def chat(request: ChatRequest):
     except Exception as e:
         logging.error(f"Chat error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/ai/navigation")
+async def get_navigation():
+    return agent.get_navigation_status()
+
+
+@app.post("/api/ai/navigation")
+async def set_navigation(request: NavigateRequest):
+    waypoints = [(wp.x, wp.y) for wp in request.waypoints]
+    mode = request.mode.lower().strip() if request.mode else "replace"
+    if mode not in ("replace", "append"):
+        raise HTTPException(status_code=400, detail="mode must be 'replace' or 'append'")
+    agent.set_navigation_waypoints(waypoints, mode=mode)
+    return agent.get_navigation_status()
+
+
+@app.post("/api/ai/navigation/clear")
+async def clear_navigation():
+    agent.clear_navigation_waypoints()
+    return agent.get_navigation_status()
 
 
 @app.post("/api/ai/voice")
@@ -347,13 +419,34 @@ async def websocket_wake(websocket: WebSocket):
         await websocket.close(code=1011, reason="Porcupine not installed")
         return
 
-    keyword_paths = _parse_csv(settings.PORCUPINE_KEYWORD_PATHS)
-    keywords = _parse_csv(settings.PORCUPINE_KEYWORDS)
+    keyword_paths_raw = _parse_csv(settings.PORCUPINE_KEYWORD_PATHS)
+    keywords_raw = _parse_csv(settings.PORCUPINE_KEYWORDS)
+    keyword_paths, keywords, path_errors = _split_keywords_and_paths(
+        keyword_paths_raw,
+        keywords_raw,
+    )
+    if path_errors:
+        logging.error("; ".join(path_errors))
+        await websocket.close(code=1008, reason=path_errors[0])
+        return
     if not keyword_paths and not keywords:
         await websocket.close(code=1008, reason="Porcupine keywords not configured")
         return
 
     sensitivities_raw = _parse_csv(settings.PORCUPINE_SENSITIVITIES)
+    if keyword_paths and keywords:
+        try:
+            for keyword in keywords:
+                if keyword in pvporcupine.KEYWORD_PATHS:
+                    keyword_paths.append(pvporcupine.KEYWORD_PATHS[keyword])
+                else:
+                    raise ValueError(f"Unknown Porcupine keyword: {keyword}")
+            keywords = []
+        except Exception as e:
+            logging.error(f"Porcupine keyword error: {e}")
+            await websocket.close(code=1008, reason="Porcupine keyword error")
+            return
+
     if keyword_paths:
         keyword_count = len(keyword_paths)
     else:

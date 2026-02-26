@@ -17,6 +17,7 @@ from sensors.lidar import LidarSensor
 from navigation.planner import Pathfinder
 from navigation.controller import MotionController
 from behaviors.explore import ExploreBehavior
+from behaviors.navigate import NavigateBehavior
 from behaviors.find_exit import ExitFinder
 from evaluator.llm import LLMClient
 
@@ -32,6 +33,13 @@ SCAN_DURATION = 1.5
 MAX_SPEED_MM_S = 200.0
 MAX_ROT_RAD_S  = 1.0
 
+# Obstacle avoidance (local)
+AVOID_DURATION_S = 0.8
+AVOID_FWD_MM_S = 50.0
+AVOID_BACK_MM_S = 60.0
+AVOID_STRAFE_MM_S = 120.0
+AVOID_ROT_RAD_S = 0.4
+
 
 class Agent:
     def __init__(self):
@@ -45,7 +53,8 @@ class Agent:
         self.explore_behavior = ExploreBehavior(
             self.planner, self.controller, self.lidar
         )
-        self.exit_behavior = ExitFinder(self.client, self.lidar)
+        self.exit_behavior = ExitFinder(self.planner, self.controller, self.lidar)
+        self.navigate_behavior = NavigateBehavior(self.planner, self.controller, self.lidar)
 
         # State
         self.current_task: Optional[str] = None  # "explore" | "find_exit" | None
@@ -53,6 +62,10 @@ class Agent:
         self.status_message = "Idle"
         self.last_error: Optional[str] = None
         self.walk_velocity = (0.0, 0.0, 0.0)
+
+        # Avoidance state (for walk/move)
+        self._avoid_until: float = 0.0
+        self._avoid_velocity = (0.0, 0.0, 0.0)
 
         # Internal counters
         self._tick = 0
@@ -94,14 +107,58 @@ class Agent:
         if self.current_task == "explore":
             await self._tick_explore()
         elif self.current_task == "find_exit":
-            self.status_message = "Searching for exit..."
-            # TODO: exit finder implementation
+            result = self.exit_behavior.step()
+            if result == "RUNNING":
+                self.status_message = "Finding exit..."
+            elif result == "SCAN":
+                self.status_message = "Exit: scanning for route..."
+            elif result == "NO_MAP":
+                self.status_message = "Exit: no map"
+            elif result == "NO_POSE":
+                self.status_message = "Exit: no pose"
+            elif result == "REPLANNING":
+                self.status_message = "Exit: replanning..."
+            elif result == "BLOCKED":
+                self.status_message = "Exit: obstacle, escaping..."
+            elif result == "FINISHED":
+                self.status_message = "Exit: route complete."
+                self.client.stop()
+                self.current_task = None
         elif self.current_task == "walk":
+            now = time.monotonic()
+
+            if self._avoid_until > now:
+                self.client.move(*self._avoid_velocity)
+                return
+
             blocked, reason = self._movement_blocked(*self.walk_velocity)
+            if blocked and self.walk_velocity[0] > 0 and reason == "front":
+                avoidance = self._compute_avoidance_velocity()
+                if avoidance:
+                    self._avoid_velocity = avoidance
+                    self._avoid_until = now + AVOID_DURATION_S
+                    self.client.move(*avoidance)
+                    self.status_message = "Avoiding obstacle..."
+                    return
+
             if blocked:
                 self.client.stop()
                 self.current_task = None
                 self.status_message = f"Stopped: obstacle {reason}"
+            else:
+                self.client.move(*self.walk_velocity)
+        elif self.current_task == "navigate":
+            result = self.navigate_behavior.step()
+            if result == "RUNNING":
+                self.status_message = "Navigating..."
+            elif result == "REACHED":
+                self.status_message = "Waypoint reached."
+            elif result in ("REPLANNING", "NO_MAP", "NO_POSE"):
+                self.status_message = f"Navigate: {result}"
+            elif result == "FINISHED":
+                self.status_message = "Navigation complete."
+                self.client.stop()
+                self.current_task = None
         else:
             # Idle – do nothing
             pass
@@ -169,7 +226,17 @@ class Agent:
         rot    = rot    * speed * MAX_ROT_RAD_S
 
         blocked, reason = self._movement_blocked(fwd, strafe, rot)
-        if blocked:
+        if blocked and fwd > 0 and reason == "front":
+            avoidance = self._compute_avoidance_velocity()
+            if avoidance:
+                logging.info("Move blocked: avoiding obstacle")
+                self.client.move(*avoidance)
+                await asyncio.sleep(AVOID_DURATION_S)
+            else:
+                self.client.stop()
+                logging.info(f"Move blocked: obstacle {reason}")
+                return
+        elif blocked:
             self.client.stop()
             logging.info(f"Move blocked: obstacle {reason}")
             return
@@ -180,6 +247,14 @@ class Agent:
         start = time.monotonic()
         while time.monotonic() - start < duration:
             blocked, reason = self._movement_blocked(fwd, strafe, rot)
+            if blocked and fwd > 0 and reason == "front":
+                avoidance = self._compute_avoidance_velocity()
+                if avoidance:
+                    logging.info("Move stopped early: avoiding obstacle")
+                    self.client.move(*avoidance)
+                    await asyncio.sleep(AVOID_DURATION_S)
+                    continue
+
             if blocked:
                 self.client.stop()
                 logging.info(f"Move stopped early: obstacle {reason}")
@@ -229,6 +304,7 @@ class Agent:
                 reply += "\nStopped."
 
             elif name == "find_exit":
+                self.exit_behavior.reset()
                 self.current_task = "find_exit"
                 reply += "\nSearching for exit."
 
@@ -247,7 +323,20 @@ class Agent:
                 elif direction == "turn_left": rot    = -speed * MAX_ROT_RAD_S
                 elif direction == "turn_right":rot    =  speed * MAX_ROT_RAD_S
                 blocked, reason = self._movement_blocked(fwd, strafe, rot)
-                if blocked:
+                if blocked and fwd > 0 and reason == "front":
+                    avoidance = self._compute_avoidance_velocity()
+                    if avoidance:
+                        self.current_task = "walk"
+                        self.walk_velocity = (fwd, strafe, rot)
+                        self._avoid_velocity = avoidance
+                        self._avoid_until = time.monotonic() + AVOID_DURATION_S
+                        self.client.move(*avoidance)
+                        logging.info("Walk forward: avoiding obstacle")
+                        reply += "\nObstacle ahead — avoiding while continuing forward."
+                    else:
+                        self.client.stop()
+                        reply += f"\nBlocked by obstacle {reason}."
+                elif blocked:
                     self.client.stop()
                     reply += f"\nBlocked by obstacle {reason}."
                 else:
@@ -285,6 +374,10 @@ class Agent:
         # Stop / halt — must be a standalone word, not part of "stopped"/"unstoppable" etc
         if any(has_word(w) for w in ("stop", "halt", "cease", "freeze", "pause")):
             return {"actions": [{"function": "stop", "arguments": {}}], "reply": "Stopping."}
+
+        # Exit / leave room
+        if any(has_word(w) for w in ("exit", "leave", "outside", "out")):
+            return {"actions": [{"function": "find_exit", "arguments": {}}], "reply": "Finding the exit."}
 
         # Explore
         if has_word("explore") or has_word("exploration"):
@@ -335,6 +428,31 @@ class Agent:
             "model":   settings.OPENAI_MODEL,
         }
 
+    def set_navigation_waypoints(self, waypoints, mode: str = "replace"):
+        self.navigate_behavior.set_waypoints(waypoints, mode=mode)
+        if self.navigate_behavior.waypoints:
+            self.current_task = "navigate"
+            self.status_message = "Navigating..."
+        else:
+            if self.current_task == "navigate":
+                self.current_task = None
+            self.status_message = "Navigation cleared."
+
+    def clear_navigation_waypoints(self):
+        self.navigate_behavior.clear_waypoints()
+        if self.current_task == "navigate":
+            self.current_task = None
+        self.status_message = "Navigation cleared."
+
+    def get_navigation_status(self):
+        return {
+            "task": self.current_task,
+            "waypoints": [
+                {"x": wp[0], "y": wp[1]}
+                for wp in self.navigate_behavior.waypoints
+            ],
+        }
+
     def _movement_blocked(self, fwd: float, strafe: float, rot: float) -> tuple[bool, str]:
         """Return (blocked, reason) based on LIDAR scan."""
         scan = self.lidar.get_scan()
@@ -359,6 +477,9 @@ class Agent:
                 elif a >= 150 or a <= -150:
                     blocked_back = True
 
+        if settings.INVERT_LIDAR_LEFT_RIGHT:
+            blocked_left, blocked_right = blocked_right, blocked_left
+
         if fwd > 0 and blocked_front:
             return True, "front"
         if fwd < 0 and blocked_back:
@@ -369,3 +490,44 @@ class Agent:
             return True, "left"
 
         return False, ""
+
+    def _compute_avoidance_velocity(self) -> Optional[tuple[float, float, float]]:
+        """Return an avoidance velocity (fwd, strafe, rot) based on LIDAR scan."""
+        scan = self.lidar.get_scan()
+        if not scan:
+            return None
+
+        front_min = settings.LIDAR_MAX_RANGE
+        left_min = settings.LIDAR_MAX_RANGE
+        right_min = settings.LIDAR_MAX_RANGE
+
+        for p in scan.get("points", []):
+            d = p.get("distance_mm", settings.LIDAR_MAX_RANGE)
+            a = p.get("angle_deg", 0)
+            if -30 < a < 30:
+                front_min = min(front_min, d)
+            elif 30 <= a < 120:
+                left_min = min(left_min, d)
+            elif -120 < a <= -30:
+                right_min = min(right_min, d)
+
+        if settings.INVERT_LIDAR_LEFT_RIGHT:
+            left_min, right_min = right_min, left_min
+
+        # Choose the clearer side
+        if left_min >= right_min:
+            side = "left"
+            side_dir = -1.0
+        else:
+            side = "right"
+            side_dir = 1.0
+
+        if max(left_min, right_min) < settings.SAFETY_DISTANCE:
+            logging.info("Avoidance: sides tight, backing up")
+            return (-AVOID_BACK_MM_S, 0.0, side_dir * AVOID_ROT_RAD_S)
+
+        logging.info(f"Avoidance: steering {side} (L={left_min:.0f}mm R={right_min:.0f}mm)")
+        fwd = min(AVOID_FWD_MM_S, MAX_SPEED_MM_S * 0.3)
+        strafe = side_dir * min(AVOID_STRAFE_MM_S, MAX_SPEED_MM_S * 0.7)
+        rot = side_dir * AVOID_ROT_RAD_S
+        return (fwd, strafe, rot)

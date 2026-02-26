@@ -45,6 +45,20 @@
             <div id="status" class="disconnected">Connecting…</div>
         </div>
 
+        <section id="nav-panel">
+            <div class="nav-header">
+                <h2>Navigation</h2>
+                <p>Click the map to add checkpoints. Send to AI to start A* navigation.</p>
+            </div>
+            <div class="nav-actions">
+                <button id="nav-send" type="button">Send Waypoints</button>
+                <button id="nav-append" type="button">Append</button>
+                <button id="nav-clear" type="button">Clear</button>
+            </div>
+            <div class="nav-status" id="nav-status">No waypoints queued.</div>
+            <div class="nav-list" id="nav-list"></div>
+        </section>
+
         <section id="tips">
             <p><strong>API endpoint</strong>: <code id="api-base"></code></p>
             <p>You can override the API base URL by appending <code>?api=https://host:port/api</code>.</p>

@@ -313,6 +313,11 @@ pub async fn stop_hexapod(
     control.rotation = 0.0;
     drop(control);
 
+    return Ok(Json(MoveResponse {
+        success: true,
+        message: "STOP TRIGGERD BUT NOT EXECUTED".to_string(),
+    }));
+
     // Disable servos (cuts relay power) via UBEC
     let mut ubec = state.ubec_controller.lock().await;
     ubec.disable_servos();
@@ -344,7 +349,7 @@ pub async fn estop_hexapod(
         eprintln!("E-Stop requested but UBEC is not connected");
     }
     ubec.disable_servos();
-    ubec.send_shutdown(1);
+    ubec.send_shutdown(5);
 
     Ok(Json(MoveResponse {
         success: true,

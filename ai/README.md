@@ -43,6 +43,12 @@ The AI Controller exposes an HTTP API on port `3001` (by default).
 -   **Health**: `GET /api/ai/health`
     -   Response: `{"status": "running", "task": "explore", ...}`
 
+-   **Navigation**: `POST /api/ai/navigation`
+    -   Body: `{ "waypoints": [{"x": 1.2, "y": -0.4}], "mode": "replace" }`
+    -   Response: `{ "task": "navigate", "waypoints": [...] }`
+
+-   **Clear Navigation**: `POST /api/ai/navigation/clear`
+
 ## Extending
 
 -   **Add a new Tool**:

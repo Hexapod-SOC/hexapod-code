@@ -17,19 +17,21 @@ class MotionController:
     """
 
     # Maximum speeds – Rust API accepts forward/strafe in [-100, 100] mm/s
-    MAX_LINEAR_MM_S = 90.0
-    MAX_ANGULAR_RAD_S = 1.0
+    MAX_LINEAR_MM_S = 160.0
+    MAX_ANGULAR_RAD_S = 0.7
 
     # P-gains (output is in mm/s for linear, rad/s for angular)
-    KP_LINEAR = 500.0   # dist in meters -> mm/s.  e.g. 0.18m * 500 = 90mm/s (capped)
-    KP_ANGULAR = 1.2    # angle in radians -> rad/s
+    KP_LINEAR = 800.0   # dist in meters -> mm/s.  e.g. 0.2m * 800 = 160mm/s (capped)
+    KP_ANGULAR = 0.8    # angle in radians -> rad/s
+
+    MIN_FORWARD_MM_S = 30.0
 
     # Tolerances
     XY_TOL_M = 0.08     # 8cm – considered "at goal"
     YAW_TOL_RAD = 0.15  # ~9 degrees
 
     # Safety
-    SAFETY_DIST_MM = 300  # 30cm
+    SAFETY_DIST_MM = 200  # 20cm
 
     def __init__(self, client: HexapodClient, lidar: LidarSensor):
         self.client = client
@@ -64,6 +66,9 @@ class MotionController:
                 elif -120 < a <= -30:
                     blocked_right = True
 
+        if settings.INVERT_LIDAR_LEFT_RIGHT:
+            blocked_left, blocked_right = blocked_right, blocked_left
+
         return blocked_front, blocked_left, blocked_right
 
     def step_to_goal(self, current_pose: dict, goal_world: Tuple[float, float]) -> str:
@@ -93,6 +98,8 @@ class MotionController:
 
         target_heading = math.atan2(dy, dx)
         heading_error = self._wrap_angle(target_heading - ctheta)
+        if settings.INVERT_HEADING_ERROR:
+            heading_error = -heading_error
 
         bf, bl, br = self._check_obstacles()
 
@@ -100,10 +107,8 @@ class MotionController:
         v_ang = 0.0
 
         if bf:
-            # Turn away from obstacle
-            v_ang = self.MAX_ANGULAR_RAD_S * (1.0 if not br else -1.0)
-            logging.warning("Controller: BLOCKED front, turning")
-            self.client.move(0.0, 0.0, v_ang)
+            logging.warning("Controller: BLOCKED front, stopping for replan")
+            self.client.move(0.0, 0.0, 0.0)
             return "BLOCKED"
 
         if abs(heading_error) > self.YAW_TOL_RAD:
@@ -112,8 +117,9 @@ class MotionController:
             v_ang = max(-self.MAX_ANGULAR_RAD_S, min(self.MAX_ANGULAR_RAD_S, v_ang))
 
             # Move forward too if we're roughly aligned
-            if abs(heading_error) < 0.5:
-                v_lin_mm = min(self.MAX_LINEAR_MM_S * 0.5, self.KP_LINEAR * dist)
+            if abs(heading_error) < 1.0:
+                v_lin_mm = min(self.MAX_LINEAR_MM_S * 0.6, self.KP_LINEAR * dist)
+                v_lin_mm = max(self.MIN_FORWARD_MM_S, v_lin_mm)
         else:
             # Aligned – move forward, small steering correction
             v_lin_mm = self.KP_LINEAR * dist
