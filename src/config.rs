@@ -17,6 +17,8 @@ pub const LIDAR_IDLE_SLEEP_MS: u64 = 5;
 pub const LIDAR_IMU_FUSION_ENABLE: bool = true;
 pub const LIDAR_IMU_POLL_MS: u64 = 20;
 pub const LIDAR_IMU_MAX_DTHETA_RAD: f32 = 0.5;
+/// Ignore LiDAR points closer than this distance (millimeters).
+pub const LIDAR_MIN_DISTANCE_MM: u16 = 200;
 
 pub const GPS_ENABLE: bool = true;
 pub const GPS_SERIAL_PORT: &str = "/dev/ttyACM5";
@@ -124,5 +126,6 @@ pub fn lidar_slam_config() -> LidarSlamConfig {
         read_buffer_len: 8192,
         idle_sleep: Duration::from_millis(LIDAR_IDLE_SLEEP_MS),
         slam_params: params,
+        min_distance_m: (LIDAR_MIN_DISTANCE_MM as f32) / 1000.0,
     }
 }

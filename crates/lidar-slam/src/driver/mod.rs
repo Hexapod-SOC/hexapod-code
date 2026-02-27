@@ -33,6 +33,7 @@ pub struct Ld19Parser {
     last_angle: f32,
     last_rpm: f32,
     last_timestamp: u16,
+    min_distance_m: f32,
 }
 
 impl Default for Ld19Parser {
@@ -49,6 +50,14 @@ impl Ld19Parser {
             last_angle: 0.0,
             last_rpm: 0.0,
             last_timestamp: 0,
+            min_distance_m: 0.0,
+        }
+    }
+
+    pub fn with_min_distance(min_distance_m: f32) -> Self {
+        Self {
+            min_distance_m: min_distance_m.max(0.0),
+            ..Self::new()
         }
     }
 
@@ -180,9 +189,13 @@ impl Ld19Parser {
             if angle >= 360.0 {
                 angle -= 360.0;
             }
+            let distance_m = distance_mm as f32 / 1000.0;
+            if distance_m < self.min_distance_m {
+                continue;
+            }
             points.push(LidarPoint {
                 angle_deg: angle,
-                distance_m: distance_mm as f32 / 1000.0,
+                distance_m,
                 intensity,
             });
         }

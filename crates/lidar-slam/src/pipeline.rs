@@ -16,6 +16,13 @@ impl LidarSlam {
         }
     }
 
+    pub fn new_with_min_distance(params: SlamParams, min_distance_m: f32) -> Self {
+        Self {
+            parser: Ld19Parser::with_min_distance(min_distance_m),
+            slam: BreezySLAM::new(params),
+        }
+    }
+
     /// Feed raw bytes from the LD19 and optional odometry; returns poses for
     /// any completed scans integrated into the map.
     pub fn ingest(

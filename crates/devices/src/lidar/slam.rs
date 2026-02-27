@@ -13,6 +13,7 @@ pub struct LidarSlamConfig {
     pub read_buffer_len: usize,
     pub idle_sleep: Duration,
     pub slam_params: SlamParams,
+    pub min_distance_m: f32,
 }
 
 impl Default for LidarSlamConfig {
@@ -22,6 +23,7 @@ impl Default for LidarSlamConfig {
             read_buffer_len: 4096,
             idle_sleep: Duration::from_millis(5),
             slam_params: SlamParams::default(),
+            min_distance_m: 0.0,
         }
     }
 }
@@ -69,10 +71,11 @@ impl LidarSlamHandle {
         let idle_sleep = config.idle_sleep;
         let params = config.slam_params.clone();
 
+        let min_distance_m = config.min_distance_m.max(0.0);
         let join_handle = thread::Builder::new()
             .name("lidar-slam".into())
             .spawn(move || {
-                let mut slam = SlamPipeline::new(params);
+            let mut slam = SlamPipeline::new_with_min_distance(params, min_distance_m);
                 let mut buffer = vec![0u8; buffer_len];
                 let mut frame_counter = 0u64;
 
