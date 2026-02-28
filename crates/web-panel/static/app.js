@@ -67,6 +67,7 @@ async function syncCurrentGaitFromServer() {
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
     initJoysticks();
+    initKeyboardControls();
     initGaitSelector();
     initPoseControls();
     initEmergencyStop();
@@ -97,6 +98,117 @@ function initJoysticks() {
         // x = rotation
         sendMoveCommand({ forward: 0.0, strafe: 0.0, rotation: -x });
     });
+}
+
+// Keyboard (WASD) Control
+const KEYBOARD_MOVE_SPEED = 100;
+const KEYBOARD_ROTATE_SPEED = 1.0;
+const KEYBOARD_POLL_MS = 50;
+const keyboardState = {
+    w: false,
+    a: false,
+    s: false,
+    d: false,
+    q: false,
+    e: false
+};
+let keyboardInterval = null;
+let lastKeyboardCommand = { forward: 0.0, strafe: 0.0, rotation: 0.0 };
+
+function initKeyboardControls() {
+    window.addEventListener('keydown', (e) => {
+        if (isEditableTarget(e.target)) return;
+        const key = e.key.toLowerCase();
+        if (!(key in keyboardState)) return;
+        if (!keyboardState[key]) {
+            keyboardState[key] = true;
+            startKeyboardLoop();
+        }
+        e.preventDefault();
+    });
+
+    window.addEventListener('keyup', (e) => {
+        const key = e.key.toLowerCase();
+        if (!(key in keyboardState)) return;
+        keyboardState[key] = false;
+        if (!isAnyKeyboardKeyActive()) {
+            stopKeyboardLoop();
+            sendKeyboardCommand({ forward: 0.0, strafe: 0.0, rotation: 0.0 });
+        }
+    });
+
+    window.addEventListener('blur', () => {
+        if (isAnyKeyboardKeyActive()) {
+            resetKeyboardState();
+            stopKeyboardLoop();
+            sendKeyboardCommand({ forward: 0.0, strafe: 0.0, rotation: 0.0 });
+        }
+    });
+}
+
+function isEditableTarget(target) {
+    if (!target) return false;
+    const tag = target.tagName ? target.tagName.toLowerCase() : '';
+    return tag === 'input' || tag === 'textarea' || tag === 'select' || target.isContentEditable;
+}
+
+function isAnyKeyboardKeyActive() {
+    return (
+        keyboardState.w ||
+        keyboardState.a ||
+        keyboardState.s ||
+        keyboardState.d ||
+        keyboardState.q ||
+        keyboardState.e
+    );
+}
+
+function resetKeyboardState() {
+    keyboardState.w = false;
+    keyboardState.a = false;
+    keyboardState.s = false;
+    keyboardState.d = false;
+    keyboardState.q = false;
+    keyboardState.e = false;
+}
+
+function startKeyboardLoop() {
+    if (keyboardInterval) return;
+    keyboardInterval = setInterval(() => {
+        const command = buildKeyboardCommand();
+        sendKeyboardCommand(command);
+    }, KEYBOARD_POLL_MS);
+}
+
+function stopKeyboardLoop() {
+    if (keyboardInterval) {
+        clearInterval(keyboardInterval);
+        keyboardInterval = null;
+    }
+}
+
+function buildKeyboardCommand() {
+    const forward = (keyboardState.w ? 1 : 0) + (keyboardState.s ? -1 : 0);
+    const strafe = (keyboardState.d ? 1 : 0) + (keyboardState.a ? -1 : 0);
+    const rotation = (keyboardState.e ? 1 : 0) + (keyboardState.q ? -1 : 0);
+
+    return {
+        forward: forward * KEYBOARD_MOVE_SPEED,
+        strafe: strafe * KEYBOARD_MOVE_SPEED,
+        rotation: rotation * KEYBOARD_ROTATE_SPEED
+    };
+}
+
+function sendKeyboardCommand(command) {
+    if (
+        command.forward === lastKeyboardCommand.forward &&
+        command.strafe === lastKeyboardCommand.strafe &&
+        command.rotation === lastKeyboardCommand.rotation
+    ) {
+        return;
+    }
+    lastKeyboardCommand = command;
+    sendMoveCommand(command);
 }
 
 function setupJoystick(joystick, callback) {
