@@ -197,7 +197,7 @@ Real-time visualizer that wires the LD19 LiDAR into the integrated SLAM pipeline
 
 ### Features
 
-- Threads raw LD19 packets into the `lidar-slam` crate for BreezySLAM-style mapping
+- Threads raw LD19 packets into the `lidar-slam` crate for deterministic scan-matching mapping
 - Streams pose + scan updates over WebSockets and exposes the occupancy grid as JSON
 - Front-end overlays the occupancy map, robot pose arrow, and live laser hits
 

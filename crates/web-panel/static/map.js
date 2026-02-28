@@ -25,6 +25,8 @@ const ctx = canvas.getContext('2d');
 const statusBadge = document.getElementById('status');
 let lastFrameTs = performance.now();
 let mapData = null;
+let lastFrame = null;
+let lidarStatus = null;
 const mapCanvas = document.createElement('canvas');
 const mapCtx = mapCanvas.getContext('2d');
 const navStatus = document.getElementById('nav-status');
@@ -32,12 +34,44 @@ const navList = document.getElementById('nav-list');
 const navSendBtn = document.getElementById('nav-send');
 const navAppendBtn = document.getElementById('nav-append');
 const navClearBtn = document.getElementById('nav-clear');
+const mapEmpty = document.getElementById('map-empty');
+const lidarStatusEl = document.getElementById('lidar-status');
+const lidarPortEl = document.getElementById('lidar-port');
+const lidarAvailabilityEl = document.getElementById('lidar-availability');
+const mapFrameEl = document.getElementById('map-frame');
+const mapReadyEl = document.getElementById('map-ready');
 
 let waypoints = [];
 
 function setStatus(text, connected) {
     statusBadge.textContent = text;
     statusBadge.className = connected ? 'connected' : 'disconnected';
+}
+
+function setEmptyState(visible, title, subtitle) {
+    if (!mapEmpty) return;
+    mapEmpty.classList.toggle('visible', visible);
+    if (title) mapEmpty.querySelector('.empty-title').textContent = title;
+    if (subtitle) mapEmpty.querySelector('.empty-subtitle').textContent = subtitle;
+}
+
+async function fetchLidarStatus() {
+    try {
+        const res = await fetch(`${API_BASE}/lidar/status`);
+        if (!res.ok) return;
+        lidarStatus = await res.json();
+        if (lidarStatusEl) {
+            lidarStatusEl.textContent = lidarStatus.message || 'LiDAR status unavailable';
+        }
+        if (lidarPortEl) lidarPortEl.textContent = lidarStatus.port || '--';
+        if (lidarAvailabilityEl) {
+            lidarAvailabilityEl.textContent = lidarStatus.available ? 'Online' : 'Offline';
+        }
+        if (mapFrameEl) mapFrameEl.textContent = lidarStatus.frame ?? 0;
+        if (mapReadyEl) mapReadyEl.textContent = lidarStatus.has_map ? 'Yes' : 'No';
+    } catch (err) {
+        console.warn('Status fetch failed', err);
+    }
 }
 
 async function fetchFrame() {
@@ -50,6 +84,7 @@ async function fetchFrame() {
             return;
         }
         const data = await res.json();
+        lastFrame = data;
         updateStats(data);
         drawScene(data);
         setStatus('Live', true);
@@ -105,10 +140,56 @@ function drawScene(frame) {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     if (mapCanvas.width && mapCanvas.height) {
         ctx.drawImage(mapCanvas, 0, 0, canvas.width, canvas.height);
+        setEmptyState(false);
+    } else if (frame) {
+        drawFallback(frame);
+    } else {
+        setEmptyState(true, 'Waiting for LiDAR data', 'Start the LiDAR or check the serial port.');
     }
-    drawPose(frame.pose);
-    drawScan(frame.pose, frame.points);
-    drawWaypoints();
+    if (frame) {
+        drawPose(frame.pose);
+        drawScan(frame.pose, frame.points);
+        drawWaypoints();
+    }
+}
+
+function drawFallback(frame) {
+    const points = frame.points || [];
+    if (points.length === 0) {
+        setEmptyState(true, 'No scan points yet', 'LiDAR is online but has no points.');
+        return;
+    }
+    setEmptyState(false);
+    const maxRange = Math.max(...points.map((p) => p.distance_mm || 0), 1000);
+    const centerX = canvas.width * 0.5;
+    const centerY = canvas.height * 0.5;
+    const scale = (canvas.width * 0.45) / (maxRange / 1000);
+
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = 'rgba(148, 163, 184, 0.2)';
+    ctx.lineWidth = 1;
+    for (let r = 0.5; r <= 2.0; r += 0.5) {
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, r * scale, 0, Math.PI * 2);
+        ctx.stroke();
+    }
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
+    ctx.beginPath();
+    ctx.moveTo(centerX, centerY);
+    ctx.lineTo(centerX + scale * 0.6, centerY);
+    ctx.stroke();
+
+    ctx.fillStyle = 'rgba(248, 113, 113, 0.85)';
+    for (const point of points) {
+        const rangeM = (point.distance_mm || 0) / 1000;
+        const angle = (point.angle_deg * Math.PI) / 180 + frame.pose.theta;
+        const x = centerX + Math.cos(angle) * rangeM * scale;
+        const y = centerY + Math.sin(angle) * rangeM * scale;
+        ctx.beginPath();
+        ctx.arc(x, y, 2, 0, Math.PI * 2);
+        ctx.fill();
+    }
 }
 
 function drawWaypoints() {
@@ -263,7 +344,9 @@ if (navClearBtn) {
 
 setInterval(fetchFrame, 200);
 setInterval(fetchMap, 2500);
+setInterval(fetchLidarStatus, 2000);
 fetchFrame();
 fetchMap();
+fetchLidarStatus();
 setStatus('Connecting…', false);
 renderWaypointList();

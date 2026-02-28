@@ -17,6 +17,7 @@ pub struct AppState {
     pub ubec_controller: Arc<Mutex<PicoUbecController>>,
     pub servo_angle_tweaks: Arc<Mutex<ServoAngleTweaks>>,
     pub lidar: Option<Arc<LidarSlamHandle>>,
+    pub lidar_error: Option<String>,
     pub imu: Option<Arc<Mutex<Box<dyn Imu>>>>,
 }
 
@@ -27,6 +28,7 @@ impl AppState {
         ubec_controller: Arc<Mutex<PicoUbecController>>,
         servo_angle_tweaks: Arc<Mutex<ServoAngleTweaks>>,
         lidar: Option<Arc<LidarSlamHandle>>,
+        lidar_error: Option<String>,
         imu: Option<Arc<Mutex<Box<dyn Imu>>>>,
     ) -> Self {
         Self {
@@ -35,6 +37,7 @@ impl AppState {
             ubec_controller,
             servo_angle_tweaks,
             lidar,
+            lidar_error,
             imu,
         }
     }

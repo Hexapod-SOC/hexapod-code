@@ -1,7 +1,5 @@
 use crate::map::OccupancyGrid;
 use crate::types::{LaserScan, Pose2D, PoseDelta};
-use rand::rngs::SmallRng;
-use rand::{Rng, SeedableRng};
 
 #[derive(Clone, Debug)]
 pub struct SlamParams {
@@ -13,16 +11,15 @@ pub struct SlamParams {
     pub miss_log_odds: i8,
     pub min_log_odds: i8,
     pub max_log_odds: i8,
-    pub search_iters: usize,
-    pub sigma_xy: f32,
-    pub sigma_theta_rad: f32,
     pub min_score: i32,
-    pub update_score_ratio: f32,
     pub sample_step: usize,
+    pub search_window_xy_m: f32,
+    pub search_window_theta_rad: f32,
+    pub search_step_xy_m: f32,
+    pub search_step_theta_rad: f32,
     pub heading_prior_weight: f32,
     pub heading_blend: f32,
     pub heading_max_error_rad: f32,
-    pub max_rejects_before_reset: u32,
 }
 
 impl Default for SlamParams {
@@ -36,28 +33,24 @@ impl Default for SlamParams {
             miss_log_odds: -2,
             min_log_odds: -90,
             max_log_odds: 90,
-            search_iters: 400,
-            sigma_xy: 0.05,
-            sigma_theta_rad: 0.05,
             min_score: 0,
-            update_score_ratio: 0.5,
             sample_step: 2,
+            search_window_xy_m: 0.25,
+            search_window_theta_rad: 0.5,
+            search_step_xy_m: 0.02,
+            search_step_theta_rad: 0.05,
             heading_prior_weight: 0.6,
             heading_blend: 0.2,
             heading_max_error_rad: 0.6,
-            max_rejects_before_reset: 8,
         }
     }
 }
 
-/// BreezySLAM-inspired 2D SLAM engine; math will mirror the C reference.
+/// Deterministic scan-matching + occupancy mapping engine.
 pub struct BreezySLAM {
     pose: Pose2D,
     params: SlamParams,
     map: OccupancyGrid,
-    rng: SmallRng,
-    last_score: i32,
-    reject_count: u32,
 }
 
 impl BreezySLAM {
@@ -78,9 +71,6 @@ impl BreezySLAM {
             pose: Pose2D::default(),
             params,
             map,
-            rng: SmallRng::from_entropy(),
-            last_score: 0,
-            reject_count: 0,
         }
     }
 
@@ -96,18 +86,28 @@ impl BreezySLAM {
         odom: Option<PoseDelta>,
         heading_rad: Option<f32>,
     ) -> Pose2D {
-        let mut start = self.pose;
+        let mut predicted = self.pose;
+        let mut odom_mag = 0.0f32;
+        let mut odom_theta = 0.0f32;
         if let Some(delta) = odom {
-            self.apply_odometry_in_place(&mut start, delta);
+            self.apply_odometry_in_place(&mut predicted, delta);
+            odom_mag = (delta.forward * delta.forward + delta.sideways * delta.sideways).sqrt();
+            odom_theta = delta.dtheta.abs();
         }
         if let Some(heading) = heading_rad {
-            let diff = angle_diff(heading, start.theta)
+            let diff = angle_diff(heading, predicted.theta)
                 .clamp(-self.params.heading_max_error_rad, self.params.heading_max_error_rad);
-            start.theta = wrap_angle(start.theta + diff * self.params.heading_prior_weight);
+            predicted.theta = wrap_angle(predicted.theta + diff * self.params.heading_prior_weight);
         }
 
-        let (best_pose, best_score) = self.search_pose(start, scan);
-        let mut pose = best_pose;
+        let window_xy = (self.params.search_window_xy_m + odom_mag * 0.5).max(0.0);
+        let window_theta = (self.params.search_window_theta_rad + odom_theta * 0.5).max(0.0);
+        let (best_pose, best_score) = self.search_pose_with_window(predicted, scan, window_xy, window_theta);
+        let mut pose = if best_score >= self.params.min_score {
+            best_pose
+        } else {
+            predicted
+        };
         if let Some(heading) = heading_rad {
             let diff = angle_diff(heading, pose.theta)
                 .clamp(-self.params.heading_max_error_rad, self.params.heading_max_error_rad);
@@ -115,24 +115,7 @@ impl BreezySLAM {
         }
 
         self.pose = pose;
-        let accept = best_score >= self.params.min_score
-            && (self.last_score == 0
-                || best_score as f32 >= self.params.update_score_ratio * self.last_score as f32);
-        if accept {
-            self.integrate_scan_at(scan, pose);
-            self.last_score = best_score;
-            self.reject_count = 0;
-            return self.pose;
-        }
-
-        self.reject_count = self.reject_count.saturating_add(1);
-        if self.reject_count >= self.params.max_rejects_before_reset {
-            self.reset_map(heading_rad);
-            self.integrate_scan_at(scan, self.pose);
-            self.last_score = best_score;
-            self.reject_count = 0;
-        }
-
+        self.integrate_scan_at(scan, pose);
         self.pose
     }
 
@@ -188,27 +171,78 @@ impl BreezySLAM {
         }
     }
 
-    fn search_pose(&mut self, start: Pose2D, scan: &LaserScan) -> (Pose2D, i32) {
+    fn search_pose_with_window(
+        &self,
+        start: Pose2D,
+        scan: &LaserScan,
+        window_xy: f32,
+        window_theta: f32,
+    ) -> (Pose2D, i32) {
         let mut best = start;
         let mut best_score = self.score_scan(&best, scan);
 
-        for _ in 0..self.params.search_iters {
-            let mut candidate = best;
-            candidate.x += self
-                .rng
-                .gen_range(-self.params.sigma_xy..self.params.sigma_xy);
-            candidate.y += self
-                .rng
-                .gen_range(-self.params.sigma_xy..self.params.sigma_xy);
-            candidate.theta += self
-                .rng
-                .gen_range(-self.params.sigma_theta_rad..self.params.sigma_theta_rad);
-            let score = self.score_scan(&candidate, scan);
-            if score > best_score {
-                best = candidate;
-                best_score = score;
-            }
+        let window_xy = window_xy.max(0.0);
+        let window_theta = window_theta.max(0.0);
+        let step_xy = self.params.search_step_xy_m.max(0.001);
+        let step_theta = self.params.search_step_theta_rad.max(0.001);
+
+        if window_xy == 0.0 && window_theta == 0.0 {
+            return (best, best_score);
         }
+
+        let (coarse_best, coarse_score) = self.grid_search(start, scan, window_xy, window_theta, step_xy, step_theta);
+        best = coarse_best;
+        best_score = coarse_score;
+
+        let refine_window_xy = (step_xy * 2.0).max(0.01);
+        let refine_window_theta = (step_theta * 2.0).max(0.01);
+        let refine_step_xy = (step_xy * 0.5).max(0.005);
+        let refine_step_theta = (step_theta * 0.5).max(0.005);
+
+        let (refined, refined_score) = self.grid_search(best, scan, refine_window_xy, refine_window_theta, refine_step_xy, refine_step_theta);
+        if refined_score > best_score {
+            best = refined;
+            best_score = refined_score;
+        }
+
+        (best, best_score)
+    }
+
+    fn grid_search(
+        &self,
+        start: Pose2D,
+        scan: &LaserScan,
+        window_xy: f32,
+        window_theta: f32,
+        step_xy: f32,
+        step_theta: f32,
+    ) -> (Pose2D, i32) {
+        let mut best = start;
+        let mut best_score = self.score_scan(&best, scan);
+
+        let mut dx = -window_xy;
+        while dx <= window_xy {
+            let mut dy = -window_xy;
+            while dy <= window_xy {
+                let mut dtheta = -window_theta;
+                while dtheta <= window_theta {
+                    let candidate = Pose2D {
+                        x: start.x + dx,
+                        y: start.y + dy,
+                        theta: wrap_angle(start.theta + dtheta),
+                    };
+                    let score = self.score_scan(&candidate, scan);
+                    if score > best_score {
+                        best = candidate;
+                        best_score = score;
+                    }
+                    dtheta += step_theta;
+                }
+                dy += step_xy;
+            }
+            dx += step_xy;
+        }
+
         (best, best_score)
     }
 
@@ -286,25 +320,6 @@ impl BreezySLAM {
         }
     }
 
-    fn reset_map(&mut self, heading_rad: Option<f32>) {
-        let half_extent = self.params.map_size_pixels as f32 * self.params.map_resolution * 0.5;
-        let origin = Pose2D {
-            x: -half_extent,
-            y: -half_extent,
-            theta: 0.0,
-        };
-        self.map = OccupancyGrid::new(
-            self.params.map_size_pixels,
-            self.params.map_size_pixels,
-            self.params.map_resolution,
-            origin,
-        );
-        self.pose = Pose2D::default();
-        if let Some(heading) = heading_rad {
-            self.pose.theta = wrap_angle(heading);
-        }
-        self.last_score = 0;
-    }
 }
 
 fn wrap_angle(theta: f32) -> f32 {

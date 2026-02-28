@@ -45,8 +45,8 @@ class Settings(BaseModel):
     
     # Navigation
     LIDAR_MAX_RANGE: int = 12000 # mm
-    MAP_SIZE_PIXELS: int = 1000  # Assuming 10cm or similar resolution from SLAM
-    MAP_RESOLUTION: float = 0.05 # Meters per pixel, synced with SLAM config
+    MAP_SIZE_PIXELS: int = 1024  # Synced with SLAM map size
+    MAP_RESOLUTION: float = 0.04 # Meters per pixel, synced with SLAM config
     INVERT_LIDAR_LEFT_RIGHT: bool = os.getenv("INVERT_LIDAR_LEFT_RIGHT", "false").lower() == "true"
     INVERT_HEADING_ERROR: bool = os.getenv("INVERT_HEADING_ERROR", "true").lower() == "true"
     

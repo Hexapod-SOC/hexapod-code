@@ -1,5 +1,5 @@
-//! Pure-Rust LD19 driver and BreezySLAM-compatible primitives for the hexapod.
-//! The crate is split into `driver` (LD19 protocol), `slam` (core SLAM math),
+//! Pure-Rust LD19 driver and deterministic scan-matching primitives for the hexapod.
+//! The crate is split into `driver` (LD19 protocol), `slam` (core mapping math),
 //! `types` (shared data types), and `map` (occupancy grid utilities).
 
 pub mod driver;

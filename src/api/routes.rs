@@ -3,6 +3,7 @@ use crate::config::{
 };
 use axum::{Json, extract::{Query, State}, http::StatusCode};
 use devices::lidar::SlamSnapshot;
+use crate::config;
 use glam::Vec3;
 use hexmath::hexapod::LegId;
 use hexmath::{get_leg_phase_offsets, GaitConfig, GaitType, WalkState};
@@ -867,6 +868,16 @@ pub struct LidarMapResponse {
     pub cells: Vec<i8>,
 }
 
+#[derive(Serialize)]
+pub struct LidarStatusResponse {
+    pub enabled: bool,
+    pub available: bool,
+    pub message: String,
+    pub port: String,
+    pub frame: u64,
+    pub has_map: bool,
+}
+
 /// GET /api/leg_stance
 pub async fn get_leg_stance(
     State(state): State<Arc<AppState>>,
@@ -1295,7 +1306,7 @@ pub async fn get_lidar_frame(
     let handle = state
         .lidar
         .as_ref()
-        .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
+        .ok_or(StatusCode::NO_CONTENT)?;
     let snapshot = handle.latest();
     if snapshot.frame == 0 {
         return Err(StatusCode::NO_CONTENT);
@@ -1332,7 +1343,7 @@ pub async fn get_lidar_map(
     let handle = state
         .lidar
         .as_ref()
-        .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
+        .ok_or(StatusCode::NO_CONTENT)?;
     let snapshot = handle.latest();
     let map = snapshot.map.as_ref().ok_or(StatusCode::NO_CONTENT)?;
 
@@ -1348,6 +1359,45 @@ pub async fn get_lidar_map(
             theta: map.origin().theta,
         },
         cells: map.cells().to_vec(),
+    }))
+}
+
+/// GET /api/lidar/status
+pub async fn get_lidar_status(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<LidarStatusResponse>, StatusCode> {
+    let enabled = config::LIDAR_SLAM_ENABLE;
+    let port = config::LIDAR_SERIAL_PORT.to_string();
+    if let Some(handle) = &state.lidar {
+        let snapshot = handle.latest();
+        let has_map = snapshot.map.is_some();
+        let message = if snapshot.frame == 0 {
+            "LiDAR online, waiting for scans".to_string()
+        } else {
+            "LiDAR online".to_string()
+        };
+        return Ok(Json(LidarStatusResponse {
+            enabled,
+            available: true,
+            message,
+            port,
+            frame: snapshot.frame,
+            has_map,
+        }));
+    }
+
+    let message = state
+        .lidar_error
+        .clone()
+        .unwrap_or_else(|| "LiDAR SLAM unavailable".to_string());
+
+    Ok(Json(LidarStatusResponse {
+        enabled,
+        available: false,
+        message,
+        port,
+        frame: 0,
+        has_map: false,
     }))
 }
 // ============= Health Check =============

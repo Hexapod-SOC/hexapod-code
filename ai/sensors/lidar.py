@@ -10,6 +10,7 @@ class LidarSensor:
         self.last_map: Optional[np.ndarray] = None
         self.last_pose: Optional[Dict[str, float]] = None
         self.last_scan: Optional[Dict] = None
+        self.map_frame: int = 0
         self.origin: Tuple[float, float, float] = (0.0, 0.0, 0.0)
         self.resolution: float = settings.MAP_RESOLUTION
         self.width: int = 0
@@ -24,6 +25,7 @@ class LidarSensor:
         self.width = data.get("width", 0)
         self.height = data.get("height", 0)
         self.resolution = data.get("resolution", 0.05)
+        self.map_frame = data.get("frame", 0)
 
         origin_data = data.get("origin", {})
         self.origin = (

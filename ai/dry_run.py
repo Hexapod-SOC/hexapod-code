@@ -18,8 +18,10 @@ from .clients.hexapod import HexapodClient
 # Mock Hexapod Client methods
 HexapodClient.get_status = MagicMock(return_value={"status": "ok"})
 HexapodClient.get_lidar_map = MagicMock(return_value={
-    "width": 10, "height": 10, "resolution": 0.1, 
-    "origin": {"x":0,"y":0,"theta":0},
+    "frame": 1,
+    "width": 10, "height": 10, "resolution": 0.1,
+    "origin": {"x": 0, "y": 0, "theta": 0},
+    "pose": {"x": 0, "y": 0, "theta": 0},
     "cells": [0]*100
 })
 HexapodClient.get_lidar_frame = MagicMock(return_value={

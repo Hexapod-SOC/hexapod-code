@@ -8,7 +8,6 @@ edition.workspace = true
 [dependencies]
 nalgebra = { version = "0.32", default-features = true }
 thiserror = "1.0"
-rand = { version = "0.8", features = ["small_rng"] }
 
 [features]
 dummy = []

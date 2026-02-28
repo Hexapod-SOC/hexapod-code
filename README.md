@@ -130,6 +130,7 @@ GET /api/lidar/frame  # latest pose, RPM, and point cloud
 GET /api/lidar/map    # occupancy grid (log-odds) + pose + metadata
 ```
 
+The mapping pipeline uses deterministic scan-matching and does not auto-reset the map.
 The web page consumes those endpoints to render the live occupancy grid and scan overlays.
 
 ### Basic Movement Control

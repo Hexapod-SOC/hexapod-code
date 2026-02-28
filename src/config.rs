@@ -116,10 +116,13 @@ pub fn lidar_slam_config() -> LidarSlamConfig {
     params.map_resolution = 0.04;
     params.max_range_m = 12.0;
     params.sample_step = 2;
+    params.search_window_xy_m = 0.20;
+    params.search_window_theta_rad = 0.45;
+    params.search_step_xy_m = 0.02;
+    params.search_step_theta_rad = 0.05;
     params.heading_prior_weight = 0.7;
     params.heading_blend = 0.25;
     params.heading_max_error_rad = 0.7;
-    params.max_rejects_before_reset = 6;
 
     LidarSlamConfig {
         port: LIDAR_SERIAL_PORT.into(),

@@ -48,6 +48,7 @@ async fn main() {
         saved_stance, // Use saved stance if present
     );
 
+    let mut lidar_error: Option<String> = None;
     let lidar_handle = if config::LIDAR_SLAM_ENABLE {
         match devices::lidar::LidarSlamHandle::new(config::lidar_slam_config()) {
             Ok(handle) => {
@@ -55,11 +56,14 @@ async fn main() {
                 Some(Arc::new(handle))
             }
             Err(err) => {
-                eprintln!("Failed to start LiDAR SLAM: {err:?}");
+                let message = format!("Failed to start LiDAR SLAM: {err:?}");
+                eprintln!("{message}");
+                lidar_error = Some(message);
                 None
             }
         }
     } else {
+        lidar_error = Some("LiDAR SLAM disabled by config".to_string());
         None
     };
 
@@ -208,6 +212,7 @@ async fn main() {
             hexapod.get_ubec_controller(),
             hexapod.get_servo_angle_tweaks(),
             lidar_handle.clone(),
+            lidar_error.clone(),
             hexapod.get_imu(),
         );
 

@@ -1,47 +1,66 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hexapod LiDAR Map</title>
-    <link rel="stylesheet" href="/map.css">
-</head>
-<body>
-    <header>
-        <h1>Hexapod • LiDAR SLAM Map</h1>
-        <p>Live pose + occupancy grid streamed from the onboard LD19</p>
-    </header>
+    <div class="app">
+        <header class="header">
+            <div>
+                <h1>Hexapod • LiDAR Map</h1>
+                <p>Deterministic scan-matching with live occupancy overlay</p>
+            </div>
+            <div class="header-meta">
+                <div class="status">
+                    <span id="status" class="disconnected">Connecting…</span>
+                    <small>API: <span id="api-base"></span></small>
+                </div>
+                <div class="stats">
+                    <div><strong>Frame</strong> <span id="frame">0</span></div>
+                    <div><strong>RPM</strong> <span id="rpm">0</span></div>
+                    <div><strong>Points</strong> <span id="points">0</span></div>
+                    <div><strong>Pose</strong> <span id="pose-xy">0 / 0</span></div>
+                    <div><strong>θ</strong> <span id="pose-theta">0°</span></div>
+                    <div><strong>FPS</strong> <span id="fps">0</span></div>
+                </div>
+            </div>
+        </header>
 
-    <main>
-        <section id="stats">
-            <div class="stat">
-                <span class="label">Frame</span>
-                <span class="value" id="frame">0</span>
-            </div>
-            <div class="stat">
-                <span class="label">RPM</span>
-                <span class="value" id="rpm">0.0</span>
-            </div>
-            <div class="stat">
-                <span class="label">Points</span>
-                <span class="value" id="points">0</span>
-            </div>
-            <div class="stat">
-                <span class="label">Pose (m)</span>
-                <span class="value" id="pose-xy">0.00 / 0.00</span>
-            </div>
-            <div class="stat">
-                <span class="label">Heading</span>
-                <span class="value" id="pose-theta">0°</span>
-            </div>
-            <div class="stat">
-                <span class="label">FPS</span>
-                <span class="value" id="fps">0.0</span>
-            </div>
-        </section>
-
-        <div id="canvas-wrapper">
-            <canvas id="map-canvas" width="900" height="900"></canvas>
+        <main class="grid">
+            <section class="map-panel">
+                <div class="map-toolbar">
+                    <div class="map-title">Map View</div>
+                    <div class="map-status" id="lidar-status">Checking LiDAR status…</div>
+                </div>
+                <div class="map-wrapper">
+                    <canvas id="map-canvas" width="900" height="900"></canvas>
+                    <div class="map-empty" id="map-empty">
+                        <div class="empty-title">Waiting for LiDAR data</div>
+                        <div class="empty-subtitle">Start the LiDAR or check the serial port.</div>
+                    </div>
+                </div>
+            </section>
+            <aside class="side-panel">
+                <div class="card">
+                    <h3>Navigation</h3>
+                    <p>Click the map to add checkpoints. Send to AI to start A* navigation.</p>
+                    <div class="nav-actions">
+                        <button id="nav-send">Send Waypoints</button>
+                        <button id="nav-append">Append</button>
+                        <button id="nav-clear" class="secondary">Clear</button>
+                    </div>
+                    <div class="nav-status" id="nav-status">No waypoints queued.</div>
+                    <div class="nav-list" id="nav-list"></div>
+                </div>
+                <div class="card" style="margin-top: 16px;">
+                    <h3>LiDAR Info</h3>
+                    <div class="info-grid">
+                        <div><strong>Port</strong> <span id="lidar-port">--</span></div>
+                        <div><strong>Status</strong> <span id="lidar-availability">--</span></div>
+                        <div><strong>Map Frame</strong> <span id="map-frame">0</span></div>
+                        <div><strong>Map Ready</strong> <span id="map-ready">No</span></div>
+                    </div>
+                </div>
+            </aside>
+        </main>
+    </div>
             <div id="status" class="disconnected">Connecting…</div>
         </div>
 
