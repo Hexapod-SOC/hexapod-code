@@ -41,29 +41,47 @@
             </div>
         </div>
 
-        <!-- IMU Display -->
+        <!-- IMU + GPS Display -->
         <div class="control-section">
-            <h2 class="section-title">🧭 IMU (BNO055)</h2>
-            <div class="imu-grid">
-                <div class="imu-card">
-                    <div class="imu-label">Roll</div>
-                    <div class="imu-value" id="imu-roll">--</div>
+            <h2 class="section-title">🧭 IMU & GPS</h2>
+            <div class="sensor-grid">
+                <div class="sensor-block">
+                    <h3 class="sensor-title">IMU (BNO055)</h3>
+                    <div class="imu-grid">
+                        <div class="imu-card">
+                            <div class="imu-label">Roll</div>
+                            <div class="imu-value" id="imu-roll">--</div>
+                        </div>
+                        <div class="imu-card">
+                            <div class="imu-label">Pitch</div>
+                            <div class="imu-value" id="imu-pitch">--</div>
+                        </div>
+                        <div class="imu-card">
+                            <div class="imu-label">Yaw</div>
+                            <div class="imu-value" id="imu-yaw">--</div>
+                        </div>
+                        <div class="imu-card">
+                            <div class="imu-label">Calibration</div>
+                            <div class="imu-value" id="imu-calibration">--</div>
+                        </div>
+                        <div class="imu-card imu-card-wide">
+                            <div class="imu-label">Quaternion (x, y, z, w)</div>
+                            <div class="imu-value" id="imu-quat">--</div>
+                        </div>
+                    </div>
                 </div>
-                <div class="imu-card">
-                    <div class="imu-label">Pitch</div>
-                    <div class="imu-value" id="imu-pitch">--</div>
-                </div>
-                <div class="imu-card">
-                    <div class="imu-label">Yaw</div>
-                    <div class="imu-value" id="imu-yaw">--</div>
-                </div>
-                <div class="imu-card">
-                    <div class="imu-label">Calibration</div>
-                    <div class="imu-value" id="imu-calibration">--</div>
-                </div>
-                <div class="imu-card imu-card-wide">
-                    <div class="imu-label">Quaternion (x, y, z, w)</div>
-                    <div class="imu-value" id="imu-quat">--</div>
+                <div class="sensor-block">
+                    <h3 class="sensor-title">GPS</h3>
+                    <div class="gps-panel">
+                        <div class="gps-row">
+                            <div class="gps-label">Lock</div>
+                            <div class="gps-value" id="gps-lock">--</div>
+                        </div>
+                        <div class="gps-row">
+                            <div class="gps-label">Location</div>
+                            <div class="gps-value" id="gps-location">--</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

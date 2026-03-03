@@ -708,14 +708,16 @@ async function loadGaitConfig(gaitName) {
 
 async function updateStatus() {
     try {
-        const [statusRes, batteryRes] = await Promise.all([
+        const [statusRes, batteryRes, gpsRes] = await Promise.all([
             fetch(`${API_BASE}/status`),
-            fetch(`${API_BASE}/battery`)
+            fetch(`${API_BASE}/battery`),
+            fetch(`${API_BASE}/gps`)
         ]);
 
         if (statusRes.ok && batteryRes.ok) {
             const status = await statusRes.json();
             const battery = await batteryRes.json();
+            const gps = gpsRes.ok ? await gpsRes.json() : null;
 
             // Update status display
             const gaitStatus = document.getElementById('gait-status');
@@ -754,15 +756,55 @@ async function updateStatus() {
                 }
             }));
 
+            updateGpsUI(gps);
+
             updateConnectionStatus(true);
         } else {
+            if (gpsRes && gpsRes.ok) {
+                const gps = await gpsRes.json();
+                updateGpsUI(gps);
+            } else {
+                updateGpsUI(null);
+            }
             updateConnectionStatus(false);
         }
         await updateImu();
     } catch (error) {
         console.error('Error fetching status:', error);
         updateConnectionStatus(false);
+        updateGpsUI(null);
         await updateImu();
+    }
+}
+
+function updateGpsUI(gps) {
+    const gpsLock = document.getElementById('gps-lock');
+    const gpsLocation = document.getElementById('gps-location');
+    if (!gpsLock || !gpsLocation) {
+        return;
+    }
+
+    if (!gps || gps.available === false) {
+        gpsLock.textContent = 'Disabled';
+        gpsLocation.textContent = '--';
+        return;
+    }
+
+    if (!gps.connected) {
+        gpsLock.textContent = 'Disconnected';
+        gpsLocation.textContent = '--';
+        return;
+    }
+
+    if (gps.has_fix) {
+        gpsLock.textContent = 'Locked';
+        const lat = typeof gps.latitude === 'number' ? gps.latitude.toFixed(6) : '--';
+        const lon = typeof gps.longitude === 'number' ? gps.longitude.toFixed(6) : '--';
+        gpsLocation.textContent = `${lat}, ${lon}`;
+    } else {
+        gpsLock.textContent = 'No Fix';
+        const sats = typeof gps.satellites === 'number' ? gps.satellites : '--';
+        gpsLocation.textContent = `Sats: ${sats}`;
     }
 }
 

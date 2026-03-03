@@ -117,11 +117,69 @@ h1 {
     font-weight: bold;
 }
 
+.status-subvalue {
+    margin-top: 6px;
+    font-size: 0.95em;
+    opacity: 0.9;
+    word-break: break-word;
+}
+
 .imu-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
     gap: 12px;
     margin-bottom: 10px;
+}
+
+.sensor-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+    gap: 16px;
+}
+
+.sensor-block {
+    background: #f9f9ff;
+    border: 1px solid #e2e2f5;
+    border-radius: 14px;
+    padding: 14px;
+}
+
+.sensor-title {
+    font-size: 1.05em;
+    color: #4a55c2;
+    margin-bottom: 10px;
+}
+
+.gps-panel {
+    display: grid;
+    gap: 10px;
+}
+
+.gps-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: #ffffff;
+    border: 1px solid #e5e5f3;
+}
+
+.gps-label {
+    font-size: 0.9em;
+    color: #555;
+}
+
+.gps-value {
+    font-size: 1.1em;
+    font-weight: 700;
+    color: #4a55c2;
+}
+
+@media (max-width: 900px) {
+    .sensor-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 .imu-card {

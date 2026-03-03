@@ -32,6 +32,7 @@ class MotionController:
 
     # Safety
     SAFETY_DIST_MM = 200  # 20cm
+    SLOWDOWN_DIST_MM = 650
 
     def __init__(self, client: HexapodClient, lidar: LidarSensor):
         self.client = client
@@ -46,10 +47,13 @@ class MotionController:
         return a
 
     def _check_obstacles(self):
-        """Returns (blocked_front, blocked_left, blocked_right)."""
+        """Returns (blocked_front, blocked_left, blocked_right, min_front, min_left, min_right)."""
         blocked_front = False
         blocked_left = False
         blocked_right = False
+        min_front = float("inf")
+        min_left = float("inf")
+        min_right = float("inf")
 
         scan = self.lidar.get_scan()
         if not scan:
@@ -66,10 +70,18 @@ class MotionController:
                 elif -120 < a <= -30:
                     blocked_right = True
 
+            if -30 < a < 30:
+                min_front = min(min_front, d)
+            elif 30 <= a < 120:
+                min_left = min(min_left, d)
+            elif -120 < a <= -30:
+                min_right = min(min_right, d)
+
         if settings.INVERT_LIDAR_LEFT_RIGHT:
             blocked_left, blocked_right = blocked_right, blocked_left
+            min_left, min_right = min_right, min_left
 
-        return blocked_front, blocked_left, blocked_right
+        return blocked_front, blocked_left, blocked_right, min_front, min_left, min_right
 
     def step_to_goal(self, current_pose: dict, goal_world: Tuple[float, float]) -> str:
         """
@@ -101,14 +113,15 @@ class MotionController:
         if settings.INVERT_HEADING_ERROR:
             heading_error = -heading_error
 
-        bf, bl, br = self._check_obstacles()
+        bf, bl, br, min_front, min_left, min_right = self._check_obstacles()
 
         v_lin_mm = 0.0
         v_ang = 0.0
 
         if bf:
-            logging.warning("Controller: BLOCKED front, stopping for replan")
-            self.client.move(0.0, 0.0, 0.0)
+            logging.warning("Controller: BLOCKED front, turning for replan")
+            turn_dir = 1.0 if min_left > min_right else -1.0
+            self.client.move(0.0, 0.0, turn_dir * self.MAX_ANGULAR_RAD_S * 0.8)
             return "BLOCKED"
 
         if abs(heading_error) > self.YAW_TOL_RAD:
@@ -127,6 +140,13 @@ class MotionController:
             v_ang = self.KP_ANGULAR * heading_error
             v_ang = max(-0.5, min(0.5, v_ang))
 
-        logging.info(f"Controller: MOVING fwd={v_lin_mm:.1f}mm/s ang={v_ang:.2f}rad/s head_err={math.degrees(heading_error):.1f}deg dist={dist:.3f}m")
+        if min_front < self.SLOWDOWN_DIST_MM:
+            scale = max(0.15, min_front / max(self.SLOWDOWN_DIST_MM, 1.0))
+            v_lin_mm *= scale
+
+        logging.info(
+            f"Controller: MOVING fwd={v_lin_mm:.1f}mm/s ang={v_ang:.2f}rad/s "
+            f"head_err={math.degrees(heading_error):.1f}deg dist={dist:.3f}m"
+        )
         self.client.move(v_lin_mm, 0.0, v_ang)
         return "MOVING"

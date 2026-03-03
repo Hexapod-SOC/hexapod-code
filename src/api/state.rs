@@ -3,6 +3,7 @@ use crate::hexapod::ServoAngleTweaks;
 use devices::lidar::LidarSlamHandle;
 use devices::picoubec::PicoUbecController;
 use devices::imu::Imu;
+use devices::gps::GpsController;
 use crate::hexapod::GaitController;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -19,6 +20,7 @@ pub struct AppState {
     pub lidar: Option<Arc<LidarSlamHandle>>,
     pub lidar_error: Option<String>,
     pub imu: Option<Arc<Mutex<Box<dyn Imu>>>>,
+    pub gps: Option<Arc<Mutex<GpsController>>>,
 }
 
 impl AppState {
@@ -30,6 +32,7 @@ impl AppState {
         lidar: Option<Arc<LidarSlamHandle>>,
         lidar_error: Option<String>,
         imu: Option<Arc<Mutex<Box<dyn Imu>>>>,
+        gps: Option<Arc<Mutex<GpsController>>>,
     ) -> Self {
         Self {
             control,
@@ -39,6 +42,7 @@ impl AppState {
             lidar,
             lidar_error,
             imu,
+            gps,
         }
     }
 }

@@ -8,6 +8,7 @@ from typing import List, Optional, Tuple
 import logging
 import math
 import numpy as np
+from config import settings
 
 
 class NavigateBehavior:
@@ -21,6 +22,7 @@ class NavigateBehavior:
         self.current_path: Optional[List[Tuple[int, int]]] = None
         self.path_index: int = 0
         self._map_signature: Optional[Tuple[int, int, float, Tuple[float, float, float]]] = None
+        self._map_frame: Optional[int] = None
         self._fail_count: int = 0
 
     def reset(self):
@@ -29,6 +31,7 @@ class NavigateBehavior:
         self.current_path = None
         self.path_index = 0
         self._map_signature = None
+        self._map_frame = None
         self._fail_count = 0
 
     def set_waypoints(self, waypoints: List[Tuple[float, float]], mode: str = "replace"):
@@ -73,6 +76,13 @@ class NavigateBehavior:
             self.current_path = None
             self.path_index = 0
 
+        if self._map_frame is None:
+            self._map_frame = self.lidar.map_frame
+        elif self._map_frame != self.lidar.map_frame:
+            self._map_frame = self.lidar.map_frame
+            self.current_path = None
+            self.path_index = 0
+
         if self.current_goal is None:
             self.current_goal = self.waypoints[0]
             self.current_path = None
@@ -93,7 +103,16 @@ class NavigateBehavior:
         goal_px = self._world_to_grid({"x": self.current_goal[0], "y": self.current_goal[1]})
 
         if self.current_path is None or self.path_index >= len(self.current_path):
-            path = self.planner.a_star(grid, pose_px, goal_px)
+            inflation_px = self._inflation_radius_px()
+            path = self.planner.a_star(
+                grid,
+                pose_px,
+                goal_px,
+                allow_unknown=False,
+                unknown_penalty=3.0,
+                inflation_radius_px=inflation_px,
+                smooth=True,
+            )
             if path is None or len(path) < 2:
                 self._fail_count += 1
                 logging.warning(f"Navigate: A* failed to {goal_px} (fails={self._fail_count})")
@@ -115,7 +134,8 @@ class NavigateBehavior:
             self.current_path = None
             return "REPLANNING"
 
-        next_px = self.current_path[self.path_index]
+        target_index = self._lookahead_index(pose_px)
+        next_px = self.current_path[target_index]
         next_world = self._grid_to_world(next_px)
 
         result = self.controller.step_to_goal(pose, next_world)
@@ -151,11 +171,35 @@ class NavigateBehavior:
     def _advance_path_index(self, pose_px: Tuple[int, int]):
         if self.current_path is None:
             return
+        advance_px = max(3, int(0.15 / max(self.lidar.resolution, 1e-6)))
+        advance_sq = advance_px * advance_px
         while self.path_index < len(self.current_path) - 1:
             node = self.current_path[self.path_index]
             dr = pose_px[0] - node[0]
             dc = pose_px[1] - node[1]
-            if (dr * dr + dc * dc) < 9:
+            if (dr * dr + dc * dc) < advance_sq:
                 self.path_index += 1
             else:
                 break
+
+    def _lookahead_index(self, pose_px: Tuple[int, int]) -> int:
+        if self.current_path is None:
+            return self.path_index
+        lookahead_px = max(4, int(0.35 / max(self.lidar.resolution, 1e-6)))
+        lookahead_sq = lookahead_px * lookahead_px
+        idx = self.path_index
+        while idx < len(self.current_path) - 1:
+            node = self.current_path[idx]
+            dr = pose_px[0] - node[0]
+            dc = pose_px[1] - node[1]
+            if (dr * dr + dc * dc) < lookahead_sq:
+                idx += 1
+            else:
+                break
+        return idx
+
+    def _inflation_radius_px(self) -> int:
+        inflation_m = (settings.ROBOT_RADIUS + settings.SAFETY_DISTANCE) / 1000.0
+        if self.lidar.resolution <= 0:
+            return 0
+        return max(1, int(math.ceil(inflation_m / self.lidar.resolution)))

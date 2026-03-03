@@ -26,6 +26,7 @@ The SLAM map uses log-odds i8 values:
 from typing import List, Optional, Tuple
 import logging
 import numpy as np
+from config import settings
 
 # Log-odds thresholds (must match planner.py)
 FREE_THRESH    = -10
@@ -45,6 +46,7 @@ class ExploreBehavior:
         self.current_path: Optional[List[Tuple[int, int]]] = None
         self.path_index: int = 0
         self._no_frontier_count: int = 0
+        self._map_frame: Optional[int] = None
 
     # ------------------------------------------------------------------
     # Public API
@@ -57,6 +59,7 @@ class ExploreBehavior:
         self.current_path = None
         self.path_index   = 0
         self._no_frontier_count = 0
+        self._map_frame = None
 
     def step(self) -> str:
         """
@@ -79,6 +82,14 @@ class ExploreBehavior:
         if not pose:
             logging.warning("Explore: no pose available")
             return "NO_POSE"
+
+        if self._map_frame is None:
+            self._map_frame = self.lidar.map_frame
+        elif self._map_frame != self.lidar.map_frame:
+            self._map_frame = self.lidar.map_frame
+            self.current_goal = None
+            self.current_path = None
+            self.path_index = 0
 
         pose_px = self._world_to_grid(pose)
         logging.debug(f"Explore: pose_world=({pose['x']:.3f},{pose['y']:.3f}) pose_px={pose_px}")
@@ -154,7 +165,15 @@ class ExploreBehavior:
             self.frontier_blacklist.clear()  # Reset to allow re-exploration
             return "SCAN"
 
-        path = self.planner.a_star(grid, pose_px, goal)
+        path = self.planner.a_star(
+            grid,
+            pose_px,
+            goal,
+            allow_unknown=True,
+            unknown_penalty=2.0,
+            inflation_radius_px=self._inflation_radius_px(),
+            smooth=True,
+        )
         if path is None or len(path) < 2:
             logging.warning(f"Explore: A* failed to {goal}, blacklisting")
             self.frontier_blacklist.add(goal)
@@ -171,14 +190,22 @@ class ExploreBehavior:
         if self.current_path is None:
             return
         # Find the furthest path node within 3px of our current position
+        advance_px = max(3, int(0.15 / max(self.lidar.resolution, 1e-6)))
+        advance_sq = advance_px * advance_px
         while self.path_index < len(self.current_path) - 1:
             node = self.current_path[self.path_index]
             dr = pose_px[0] - node[0]
             dc = pose_px[1] - node[1]
-            if (dr * dr + dc * dc) < 9:  # within 3px
+            if (dr * dr + dc * dc) < advance_sq:
                 self.path_index += 1
             else:
                 break
+
+    def _inflation_radius_px(self) -> int:
+        inflation_m = (settings.ROBOT_RADIUS + settings.SAFETY_DISTANCE) / 1000.0
+        if self.lidar.resolution <= 0:
+            return 0
+        return max(1, int(np.ceil(inflation_m / self.lidar.resolution)))
 
     def _world_to_grid(self, pose: dict) -> Tuple[int, int]:
         origin_x = self.lidar.origin[0]

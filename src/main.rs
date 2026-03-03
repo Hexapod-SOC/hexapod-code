@@ -123,34 +123,47 @@ async fn main() {
         }
     }
 
-    if config::GPS_ENABLE {
+    let gps_controller = if config::GPS_ENABLE {
         let gps_port =
             std::env::var("GPS_PORT").unwrap_or_else(|_| config::GPS_SERIAL_PORT.to_string());
-        let mut gps = devices::gps::GpsController::new(&gps_port);
+        let gps = devices::gps::GpsController::new(&gps_port);
         if gps.is_connected() {
             println!("GPS connected on {}", gps_port);
         } else {
             eprintln!("GPS not connected on {}", gps_port);
         }
 
+        let gps_controller = Arc::new(tokio::sync::Mutex::new(gps));
+        let gps_task = gps_controller.clone();
+
         tokio::spawn(async move {
             let mut last_log = tokio::time::Instant::now()
                 .checked_sub(tokio::time::Duration::from_secs(2))
                 .unwrap_or_else(tokio::time::Instant::now);
             loop {
-                if gps.update() {
+                let (updated, position, fix) = {
+                    let mut gps = gps_task.lock().await;
+                    let updated = gps.update();
+                    if updated {
+                        (updated, Some(gps.get_position()), gps.has_fix())
+                    } else {
+                        (false, None, false)
+                    }
+                };
+
+                if updated {
                     if last_log.elapsed() >= tokio::time::Duration::from_secs(2) {
-                        let position = gps.get_position();
-                        let fix = gps.has_fix();
-                        println!(
-                            "GPS: {:.6}, {:.6} | Alt: {:.1}m | Spd: {:.2}km/h | Sats: {} | Fix: {}",
-                            position.latitude,
-                            position.longitude,
-                            position.altitude,
-                            position.speed_kmh,
-                            position.satellites,
-                            fix
-                        );
+                        if let Some(position) = position {
+                            println!(
+                                "GPS: {:.6}, {:.6} | Alt: {:.1}m | Spd: {:.2}km/h | Sats: {} | Fix: {}",
+                                position.latitude,
+                                position.longitude,
+                                position.altitude,
+                                position.speed_kmh,
+                                position.satellites,
+                                fix
+                            );
+                        }
                         last_log = tokio::time::Instant::now();
                     }
                 }
@@ -158,7 +171,11 @@ async fn main() {
                 tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
             }
         });
-    }
+
+        Some(gps_controller)
+    } else {
+        None
+    };
 
     // Load saved per-servo angle tweaks if enabled
     if LOAD_SAVED_SERVO_TWEAKS {
@@ -214,6 +231,7 @@ async fn main() {
             lidar_handle.clone(),
             lidar_error.clone(),
             hexapod.get_imu(),
+            gps_controller.clone(),
         );
 
         // Spawn API server in background task

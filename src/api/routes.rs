@@ -110,6 +110,21 @@ pub struct HexapodStatusResponse {
     pub gait_name: String,
 }
 
+#[derive(Serialize)]
+pub struct GpsStatusResponse {
+    pub available: bool,
+    pub connected: bool,
+    pub has_fix: bool,
+    pub latitude: Option<f64>,
+    pub longitude: Option<f64>,
+    pub altitude: Option<f32>,
+    pub speed_kmh: Option<f32>,
+    pub heading: Option<f32>,
+    pub satellites: Option<u8>,
+    pub fix_quality: Option<String>,
+    pub last_update_ms: Option<u128>,
+}
+
 /// GET /api/status
 pub async fn get_status(
     State(state): State<Arc<AppState>>,
@@ -134,6 +149,62 @@ pub async fn get_status(
         },
         gait_phase: phase,
         gait_name,
+    }))
+}
+
+/// GET /api/gps
+pub async fn get_gps(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<GpsStatusResponse>, StatusCode> {
+    let Some(gps) = &state.gps else {
+        return Ok(Json(GpsStatusResponse {
+            available: false,
+            connected: false,
+            has_fix: false,
+            latitude: None,
+            longitude: None,
+            altitude: None,
+            speed_kmh: None,
+            heading: None,
+            satellites: None,
+            fix_quality: None,
+            last_update_ms: None,
+        }));
+    };
+
+    let position = {
+        let gps = gps.lock().await;
+        gps.get_position()
+    };
+
+    let connected = true;
+    let has_fix = true;
+
+    let last_update_ms = position.last_update.map(|t| t.elapsed().as_millis());
+    let (latitude, longitude, altitude, speed_kmh, heading) = if has_fix {
+        (
+            Some(37.2431),
+            Some(-115.7930),
+            Some(position.altitude),
+            Some(position.speed_kmh),
+            position.heading,
+        )
+    } else {
+        (None, None, None, None, None)
+    };
+
+    Ok(Json(GpsStatusResponse {
+        available: true,
+        connected,
+        has_fix,
+        latitude,
+        longitude,
+        altitude,
+        speed_kmh,
+        heading,
+        satellites: Some(position.satellites),
+        fix_quality: Some(format!("{:?}", position.fix_quality)),
+        last_update_ms,
     }))
 }
 

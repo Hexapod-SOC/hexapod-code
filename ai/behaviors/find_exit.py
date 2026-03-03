@@ -1,6 +1,8 @@
 from typing import List, Tuple, Optional
 import logging
+import math
 import numpy as np
+from config import settings
 
 # Log-odds thresholds (must match planner.py)
 FREE_THRESH = -10
@@ -17,6 +19,14 @@ class ExitFinder:
         self.path_index: int = 0
         self.blacklist: set = set()
         self._roam_goal: Optional[Tuple[int, int]] = None
+        self._map_frame: Optional[int] = None
+
+        self._edge_bias_px = 30
+        self._edge_weight = 18.0
+        self._dist_weight = 1.0
+        self._max_goal_tries = 8
+        self._roam_radius_m = 2.5
+        self._roam_min_radius_m = 0.6
 
     def reset(self):
         self.goal = None
@@ -24,6 +34,7 @@ class ExitFinder:
         self.path_index = 0
         self.blacklist.clear()
         self._roam_goal = None
+        self._map_frame = None
 
     def step(self) -> str:
         grid = self.lidar.update_map()
@@ -35,6 +46,14 @@ class ExitFinder:
         if not pose:
             logging.warning("Exit: no pose available")
             return "NO_POSE"
+
+        if self._map_frame is None:
+            self._map_frame = self.lidar.map_frame
+        elif self._map_frame != self.lidar.map_frame:
+            self._map_frame = self.lidar.map_frame
+            self.goal = None
+            self.path = None
+            self.path_index = 0
 
         pose_px = self._world_to_grid(pose)
 
@@ -78,31 +97,53 @@ class ExitFinder:
             logging.info("Exit: no frontiers; roaming")
             return self._plan_roam(grid, pose_px)
 
-        goal = self._select_exit_frontier(grid, pose_px, frontiers)
-        if goal is None:
+        candidates = self._rank_exit_frontiers(grid, pose_px, frontiers)
+        if not candidates:
             self.blacklist.clear()
             return "SCAN"
 
-        path = self.planner.a_star(grid, pose_px, goal)
-        if path is None or len(path) < 2:
-            logging.warning(f"Exit: A* failed to {goal}, blacklisting")
-            self.blacklist.add(goal)
-            return "REPLANNING"
+        inflation_px = self._inflation_radius_px()
+        for goal in candidates[: self._max_goal_tries]:
+            path = self.planner.a_star(
+                grid,
+                pose_px,
+                goal,
+                allow_unknown=True,
+                unknown_penalty=2.0,
+                inflation_radius_px=inflation_px,
+                smooth=True,
+            )
+            if path is None or len(path) < 2:
+                logging.warning(f"Exit: A* failed to {goal}, blacklisting")
+                self.blacklist.add(goal)
+                continue
 
-        self.goal = goal
-        self.path = path
-        self.path_index = 1
-        logging.info(f"Exit: new plan to {goal}, path length={len(path)}")
-        return "OK"
+            self.goal = goal
+            self.path = path
+            self.path_index = 1
+            logging.info(f"Exit: new plan to {goal}, path length={len(path)}")
+            return "OK"
+
+        return self._plan_roam(grid, pose_px)
 
     def _plan_roam(self, grid: np.ndarray, pose_px: Tuple[int, int]) -> str:
-        roam_goal = self._pick_random_free_cell(grid, pose_px)
+        roam_goal = self._pick_roam_goal(grid, pose_px)
         if roam_goal is None:
-            return "SCAN"
+            return "REPLANNING"
 
-        path = self.planner.a_star(grid, pose_px, roam_goal)
+        path = self.planner.a_star(
+            grid,
+            pose_px,
+            roam_goal,
+            allow_unknown=True,
+            unknown_penalty=2.0,
+            inflation_radius_px=self._inflation_radius_px(),
+            smooth=True,
+        )
         if path is None or len(path) < 2:
-            return "SCAN"
+            if roam_goal:
+                self.blacklist.add(roam_goal)
+            return "REPLANNING"
 
         self.goal = roam_goal
         self._roam_goal = roam_goal
@@ -117,9 +158,17 @@ class ExitFinder:
             return "SCAN"
 
         pose_px = self._world_to_grid(pose)
-        path = self.planner.a_star(grid, pose_px, escape_goal)
+        path = self.planner.a_star(
+            grid,
+            pose_px,
+            escape_goal,
+            allow_unknown=True,
+            unknown_penalty=2.0,
+            inflation_radius_px=self._inflation_radius_px(),
+            smooth=True,
+        )
         if path is None or len(path) < 2:
-            return "SCAN"
+            return "REPLANNING"
 
         self.goal = escape_goal
         self.path = path
@@ -152,26 +201,30 @@ class ExitFinder:
                             break
         return frontiers
 
-    def _select_exit_frontier(
+    def _rank_exit_frontiers(
         self,
         grid: np.ndarray,
         pose_px: Tuple[int, int],
         frontiers: List[Tuple[int, int]],
-    ) -> Optional[Tuple[int, int]]:
+    ) -> List[Tuple[int, int]]:
         rows, cols = grid.shape
-        best = None
-        best_score = float("-inf")
+        scored = []
         for f in frontiers:
             if f in self.blacklist:
                 continue
-            dist = (f[0] - pose_px[0]) ** 2 + (f[1] - pose_px[1]) ** 2
+            dist = math.sqrt((f[0] - pose_px[0]) ** 2 + (f[1] - pose_px[1]) ** 2)
             edge_dist = min(f[0], f[1], rows - 1 - f[0], cols - 1 - f[1])
-            edge_score = max(0, 20 - edge_dist)  # prefer near map boundary
-            score = dist + (edge_score * 200)
-            if score > best_score:
-                best_score = score
-                best = f
-        return best
+            edge_score = max(0, self._edge_bias_px - edge_dist)
+            score = (edge_score * self._edge_weight) - (dist * self._dist_weight)
+            scored.append((score, f))
+        scored.sort(reverse=True, key=lambda x: x[0])
+        return [f for _, f in scored]
+
+    def _inflation_radius_px(self) -> int:
+        inflation_m = (settings.ROBOT_RADIUS + settings.SAFETY_DISTANCE) / 1000.0
+        if self.lidar.resolution <= 0:
+            return 0
+        return max(1, int(math.ceil(inflation_m / self.lidar.resolution)))
 
     def _pick_random_free_cell(
         self,
@@ -191,6 +244,47 @@ class ExitFinder:
                 if grid[rr, cc] < FREE_THRESH:
                     return (rr, cc)
         return None
+
+    def _pick_roam_goal(self, grid: np.ndarray, pose_px: Tuple[int, int]) -> Optional[Tuple[int, int]]:
+        rows, cols = grid.shape
+        inflation_px = self._inflation_radius_px()
+        blocked = self.planner.get_blocked_map(grid, inflation_px)
+
+        res = max(self.lidar.resolution, 1e-6)
+        radius_px = max(30, int(self._roam_radius_m / res))
+        min_radius_px = max(10, int(self._roam_min_radius_m / res))
+
+        r0, c0 = pose_px
+        best = None
+        best_score = float("-inf")
+        max_tries = 120
+
+        for _ in range(max_tries):
+            angle = np.random.uniform(0.0, 2 * math.pi)
+            radius = np.random.uniform(min_radius_px, radius_px)
+            rr = r0 + int(math.sin(angle) * radius)
+            cc = c0 + int(math.cos(angle) * radius)
+            if rr <= 1 or cc <= 1 or rr >= rows - 2 or cc >= cols - 2:
+                continue
+            if blocked[rr, cc]:
+                continue
+            if (rr, cc) in self.blacklist:
+                continue
+
+            cell = grid[rr, cc]
+            free_bonus = 6.0 if cell < FREE_THRESH else 0.0
+            dist = math.sqrt((rr - r0) ** 2 + (cc - c0) ** 2)
+            edge_dist = min(rr, cc, rows - 1 - rr, cols - 1 - cc)
+            edge_score = max(0, self._edge_bias_px - edge_dist)
+            score = (edge_score * self._edge_weight) + (dist * 0.5) + free_bonus
+            if score > best_score:
+                best_score = score
+                best = (rr, cc)
+
+        if best is not None:
+            return best
+
+        return self._pick_random_free_cell(grid, pose_px)
 
     def _pick_escape_cell(self, grid: np.ndarray, pose: dict) -> Optional[Tuple[int, int]]:
         # Try short moves: back, left, right, then forward
