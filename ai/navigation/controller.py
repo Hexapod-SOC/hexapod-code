@@ -31,8 +31,9 @@ class MotionController:
     YAW_TOL_RAD = 0.15  # ~9 degrees
 
     # Safety
-    SAFETY_DIST_MM = 200  # 20cm
-    SLOWDOWN_DIST_MM = 650
+    SAFETY_DIST_MM = settings.SAFETY_DISTANCE
+    CRITICAL_DIST_MM = settings.CRITICAL_DISTANCE
+    SLOWDOWN_DIST_MM = max(650, settings.SAFETY_DISTANCE * 3)
 
     def __init__(self, client: HexapodClient, lidar: LidarSensor):
         self.client = client
@@ -57,7 +58,7 @@ class MotionController:
 
         scan = self.lidar.get_scan()
         if not scan:
-            return blocked_front, blocked_left, blocked_right
+            return blocked_front, blocked_left, blocked_right, min_front, min_left, min_right
 
         for p in scan.get("points", []):
             d = p.get("distance_mm", 99999)
@@ -112,17 +113,24 @@ class MotionController:
         heading_error = self._wrap_angle(target_heading - ctheta)
         if settings.INVERT_HEADING_ERROR:
             heading_error = -heading_error
+        heading_deg = math.degrees(heading_error)
 
         bf, bl, br, min_front, min_left, min_right = self._check_obstacles()
 
         v_lin_mm = 0.0
         v_ang = 0.0
 
-        if bf:
-            logging.warning("Controller: BLOCKED front, turning for replan")
-            turn_dir = 1.0 if min_left > min_right else -1.0
-            self.client.move(0.0, 0.0, turn_dir * self.MAX_ANGULAR_RAD_S * 0.8)
-            return "BLOCKED"
+        if not settings.NAV_DISABLE_OBSTACLES:
+            if min_front < self.CRITICAL_DIST_MM:
+                logging.warning("Controller: CRITICAL front, stopping")
+                self.client.move(0.0, 0.0, 0.0)
+                return "BLOCKED"
+
+            if bf:
+                logging.warning("Controller: BLOCKED front, turning for replan")
+                turn_dir = 1.0 if min_left > min_right else -1.0
+                self.client.move(0.0, 0.0, turn_dir * self.MAX_ANGULAR_RAD_S * 0.8)
+                return "BLOCKED"
 
         if abs(heading_error) > self.YAW_TOL_RAD:
             # Turn toward goal
@@ -140,13 +148,19 @@ class MotionController:
             v_ang = self.KP_ANGULAR * heading_error
             v_ang = max(-0.5, min(0.5, v_ang))
 
-        if min_front < self.SLOWDOWN_DIST_MM:
-            scale = max(0.15, min_front / max(self.SLOWDOWN_DIST_MM, 1.0))
-            v_lin_mm *= scale
+        if not settings.NAV_DISABLE_OBSTACLES:
+            if min_front < self.SLOWDOWN_DIST_MM:
+                scale = max(0.15, min_front / max(self.SLOWDOWN_DIST_MM, 1.0))
+                v_lin_mm *= scale
+
+            if min_left < self.SAFETY_DIST_MM * 1.1 or min_right < self.SAFETY_DIST_MM * 1.1:
+                side_bias = 0.4 if min_left > min_right else -0.4
+                v_ang += side_bias
+                v_ang = max(-self.MAX_ANGULAR_RAD_S, min(self.MAX_ANGULAR_RAD_S, v_ang))
 
         logging.info(
             f"Controller: MOVING fwd={v_lin_mm:.1f}mm/s ang={v_ang:.2f}rad/s "
-            f"head_err={math.degrees(heading_error):.1f}deg dist={dist:.3f}m"
+            f"head_err={heading_deg:.1f}deg dist={dist:.3f}m"
         )
         self.client.move(v_lin_mm, 0.0, v_ang)
         return "MOVING"

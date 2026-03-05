@@ -11,6 +11,7 @@ class Settings(BaseModel):
     # OpenAI
     OPENAI_API_KEY: str = ""
     OPENAI_MODEL: str = "gpt-5-mini"
+    OPENAI_VISION_MODEL: str = os.getenv("OPENAI_VISION_MODEL", "gpt-4o-mini")
     OPENAI_WHISPER_MODEL: str = os.getenv("OPENAI_WHISPER_MODEL", "gpt-4o-transcribe")
     OPENAI_TRANSCRIBE_LANGUAGE: str = os.getenv("OPENAI_TRANSCRIBE_LANGUAGE", "en")
     OPENAI_TRANSCRIBE_PROMPT: str = os.getenv("OPENAI_TRANSCRIBE_PROMPT", "hexapod ninja")
@@ -37,6 +38,15 @@ class Settings(BaseModel):
     # Microphone input source ("web" for browser mic, "onboard" for future hardware mic)
     MIC_SOURCE: str = os.getenv("AI_MIC_SOURCE", "web")
     MIC_SAMPLE_RATE: int = int(os.getenv("AI_MIC_SAMPLE_RATE", "24000"))
+
+    # Camera
+    CAMERA_DEVICE_ID: int = int(os.getenv("AI_CAMERA_DEVICE_ID", "0"))
+    CAMERA_WIDTH: int = int(os.getenv("AI_CAMERA_WIDTH", "1280"))
+    CAMERA_HEIGHT: int = int(os.getenv("AI_CAMERA_HEIGHT", "720"))
+    CAMERA_FPS: int = int(os.getenv("AI_CAMERA_FPS", "15"))
+    CAMERA_STREAM_FPS: int = int(os.getenv("AI_CAMERA_STREAM_FPS", "10"))
+    CAMERA_JPEG_QUALITY: int = int(os.getenv("AI_CAMERA_JPEG_QUALITY", "85"))
+    CAMERA_CAPTURE_TIMEOUT_S: float = float(os.getenv("AI_CAMERA_CAPTURE_TIMEOUT_S", "1.5"))
     
     # Robot Physical Constraints (mm)
     ROBOT_RADIUS: int = 250  # mm (approximate standing radius)
@@ -52,6 +62,31 @@ class Settings(BaseModel):
     
     # Behavior
     MAX_SPIN_RETRIES: int = 3
+
+    # Vision-assisted exit finding
+    EXIT_USE_VISION: bool = os.getenv("EXIT_USE_VISION", "true").lower() == "true"
+    EXIT_VISION_REFRESH_S: float = float(os.getenv("EXIT_VISION_REFRESH_S", "8.0"))
+    EXIT_VISION_MIN_INTERVAL_S: float = float(os.getenv("EXIT_VISION_MIN_INTERVAL_S", "10.0"))
+    EXIT_VISION_BONUS: float = float(os.getenv("EXIT_VISION_BONUS", "40.0"))
+    EXIT_UNKNOWN_BONUS: float = float(os.getenv("EXIT_UNKNOWN_BONUS", "35.0"))
+    EXIT_EDGE_BIAS_PX: int = int(os.getenv("EXIT_EDGE_BIAS_PX", "18"))
+    EXIT_EDGE_WEIGHT: float = float(os.getenv("EXIT_EDGE_WEIGHT", "6.0"))
+    EXIT_ROAM_EDGE_MARGIN_PX: int = int(os.getenv("EXIT_ROAM_EDGE_MARGIN_PX", "10"))
+    EXIT_BIAS_MAX_DIST_M: float = float(os.getenv("EXIT_BIAS_MAX_DIST_M", "1.5"))
+    EXIT_BIAS_WEIGHT: float = float(os.getenv("EXIT_BIAS_WEIGHT", "25.0"))
+    EXIT_VISION_PROMPT: str = os.getenv(
+        "EXIT_VISION_PROMPT",
+        "Which direction looks most open or like an exit? Reply with one word: forward, left, right, back, or unknown.",
+    )
+    EXIT_REPLAN_INTERVAL_S: float = float(os.getenv("EXIT_REPLAN_INTERVAL_S", "6.0"))
+    EXIT_SCAN_INTERVAL_S: float = float(os.getenv("EXIT_SCAN_INTERVAL_S", "8.0"))
+    EXIT_ALLOW_UNKNOWN: bool = os.getenv("EXIT_ALLOW_UNKNOWN", "false").lower() == "true"
+
+    # Navigation safety
+    NAV_DISABLE_OBSTACLES: bool = os.getenv("NAV_DISABLE_OBSTACLES", "false").lower() == "true"
+
+    # LiDAR map fetch timeout (seconds)
+    LIDAR_MAP_TIMEOUT_S: float = float(os.getenv("LIDAR_MAP_TIMEOUT_S", "1.5"))
     
     class Config:
         env_file = ".env"

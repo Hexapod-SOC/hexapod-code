@@ -102,8 +102,15 @@ class NavigateBehavior:
         pose_px = self._world_to_grid(pose)
         goal_px = self._world_to_grid({"x": self.current_goal[0], "y": self.current_goal[1]})
 
+        inflation_px = self._safe_inflation_px(grid, pose_px)
+        blocked = self.planner.get_blocked_map(grid, inflation_px)
+        if blocked is not None and blocked[pose_px]:
+            nudged = self._nearest_free_cell(blocked, pose_px, radius_px=max(3, inflation_px))
+            if nudged is not None:
+                logging.warning("Navigate: start blocked, nudging pose from %s to %s", pose_px, nudged)
+                pose_px = nudged
+
         if self.current_path is None or self.path_index >= len(self.current_path):
-            inflation_px = self._inflation_radius_px()
             path = self.planner.a_star(
                 grid,
                 pose_px,
@@ -145,6 +152,32 @@ class NavigateBehavior:
             self.current_path = None
 
         return "RUNNING"
+
+    def _safe_inflation_px(self, grid: np.ndarray, pose_px: Tuple[int, int]) -> int:
+        inflation_px = self._inflation_radius_px()
+        if inflation_px <= 0:
+            return 0
+        while inflation_px > 0:
+            blocked = self.planner.get_blocked_map(grid, inflation_px)
+            if not blocked[pose_px]:
+                return inflation_px
+            logging.warning("Navigate: start in obstacle with inflation=%d, reducing", inflation_px)
+            inflation_px -= 1
+        return 0
+
+    def _nearest_free_cell(self, blocked: np.ndarray, origin: Tuple[int, int], radius_px: int = 3) -> Optional[Tuple[int, int]]:
+        r0, c0 = origin
+        rows, cols = blocked.shape
+        for radius in range(1, radius_px + 1):
+            for dr in range(-radius, radius + 1):
+                for dc in range(-radius, radius + 1):
+                    rr = r0 + dr
+                    cc = c0 + dc
+                    if rr < 1 or cc < 1 or rr >= rows - 1 or cc >= cols - 1:
+                        continue
+                    if not blocked[rr, cc]:
+                        return (rr, cc)
+        return None
 
     def _goal_reached(self, pose: dict, goal: Tuple[float, float]) -> bool:
         dx = goal[0] - pose.get("x", 0.0)

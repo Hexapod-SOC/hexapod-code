@@ -14,6 +14,7 @@ from typing import Optional
 from config import settings
 from clients.hexapod import HexapodClient
 from sensors.lidar import LidarSensor
+from sensors.camera import CameraSensor
 from navigation.planner import Pathfinder
 from navigation.controller import MotionController
 from behaviors.explore import ExploreBehavior
@@ -45,6 +46,12 @@ class Agent:
     def __init__(self):
         self.client   = HexapodClient()
         self.lidar    = LidarSensor(self.client)
+        self.camera   = CameraSensor(
+            device_id=settings.CAMERA_DEVICE_ID,
+            width=settings.CAMERA_WIDTH,
+            height=settings.CAMERA_HEIGHT,
+            fps=settings.CAMERA_FPS,
+        )
         self.planner  = Pathfinder()
         self.controller = MotionController(self.client, self.lidar)
         self.llm      = LLMClient()
@@ -53,7 +60,7 @@ class Agent:
         self.explore_behavior = ExploreBehavior(
             self.planner, self.controller, self.lidar
         )
-        self.exit_behavior = ExitFinder(self.planner, self.controller, self.lidar)
+        self.exit_behavior = ExitFinder(self.planner, self.controller, self.lidar, camera=self.camera, llm=self.llm)
         self.navigate_behavior = NavigateBehavior(self.planner, self.controller, self.lidar)
 
         # State
@@ -107,11 +114,17 @@ class Agent:
         if self.current_task == "explore":
             await self._tick_explore()
         elif self.current_task == "find_exit":
+            now = time.monotonic()
+            if now < self._scan_until:
+                return
             result = self.exit_behavior.step()
             if result == "RUNNING":
                 self.status_message = "Finding exit..."
             elif result == "SCAN":
                 self.status_message = "Exit: scanning for route..."
+                self.client.move(0.0, 0.0, MAX_ROT_RAD_S)
+                self._scan_until = now + SCAN_DURATION
+                logging.info("Exit: SCAN -> rotating for map update")
             elif result == "NO_MAP":
                 self.status_message = "Exit: no map"
             elif result == "NO_POSE":
@@ -305,8 +318,47 @@ class Agent:
 
             elif name == "find_exit":
                 self.exit_behavior.reset()
+                if isinstance(args, dict) and args.get("bias_points"):
+                    points = []
+                    for entry in args.get("bias_points", []):
+                        if isinstance(entry, (list, tuple)) and len(entry) == 2:
+                            try:
+                                points.append((float(entry[0]), float(entry[1])))
+                            except (TypeError, ValueError):
+                                continue
+                    if points:
+                        self.exit_behavior.set_bias_points(points)
                 self.current_task = "find_exit"
                 reply += "\nSearching for exit."
+
+            elif name == "navigate_waypoints":
+                points = []
+                if isinstance(args, dict):
+                    for entry in args.get("waypoints", []):
+                        if isinstance(entry, (list, tuple)) and len(entry) == 2:
+                            try:
+                                points.append((float(entry[0]), float(entry[1])))
+                            except (TypeError, ValueError):
+                                continue
+                if points:
+                    self.set_navigation_waypoints(points, mode="replace")
+                    reply += "\nNavigating along provided waypoints."
+                else:
+                    reply += "\nNo valid waypoints provided."
+
+            elif name == "goto_pose":
+                x = args.get("x") if isinstance(args, dict) else None
+                y = args.get("y") if isinstance(args, dict) else None
+                if x is None or y is None:
+                    reply += "\nMissing target coordinates."
+                    continue
+                try:
+                    target = (float(x), float(y))
+                except (TypeError, ValueError):
+                    reply += "\nInvalid target coordinates."
+                    continue
+                self.set_navigation_waypoints([target], mode="replace")
+                reply += f"\nNavigating to ({target[0]:.2f}, {target[1]:.2f})."
 
             elif name == "speak":
                 self.client.speak(args.get("text", ""))
@@ -353,6 +405,30 @@ class Agent:
                 asyncio.ensure_future(self.execute_move(direction, duration, speed))
                 reply += f"\nMoving {direction} for {duration}s."
 
+            elif name == "look":
+                if not self.camera or not self.camera.available:
+                    reply += "\nCamera not available."
+                    continue
+
+                prompt = args.get("prompt") if isinstance(args, dict) else None
+                image_bytes = await asyncio.to_thread(
+                    self.camera.get_jpeg_bytes,
+                    settings.CAMERA_JPEG_QUALITY,
+                )
+                if not image_bytes:
+                    reply += "\nFailed to capture camera frame."
+                    continue
+
+                loop = asyncio.get_event_loop()
+                description = await loop.run_in_executor(
+                    None,
+                    self.llm.describe_image,
+                    image_bytes,
+                    prompt,
+                )
+                if description:
+                    reply += f"\n{description}"
+
         return {"reply": reply, "actions": actions}
 
     # ------------------------------------------------------------------
@@ -368,6 +444,25 @@ class Agent:
         import re
         t = text.lower().strip()
 
+        coord_pairs = re.findall(r"(-?\d+(?:\.\d+)?)\s*[ ,]\s*(-?\d+(?:\.\d+)?)", t)
+        if coord_pairs:
+            coords = [(float(x), float(y)) for x, y in coord_pairs]
+            if any(word in t for word in ("exit", "leave", "outside", "out")):
+                return {
+                    "actions": [{"function": "find_exit", "arguments": {"bias_points": coords}}],
+                    "reply": "Biasing exit search toward provided coordinates.",
+                }
+            if len(coords) > 1:
+                return {
+                    "actions": [{"function": "navigate_waypoints", "arguments": {"waypoints": coords}}],
+                    "reply": "Navigating along provided waypoints.",
+                }
+            x, y = coords[0]
+            return {
+                "actions": [{"function": "goto_pose", "arguments": {"x": x, "y": y}}],
+                "reply": f"Navigating to ({x:.2f}, {y:.2f}).",
+            }
+
         def has_word(word):
             return bool(re.search(rf'\b{re.escape(word)}\b', t))
 
@@ -382,6 +477,13 @@ class Agent:
         # Explore
         if has_word("explore") or has_word("exploration"):
             return {"actions": [{"function": "explore", "arguments": {}}], "reply": "Starting exploration."}
+
+        # Look / see
+        if any(has_word(w) for w in ("look", "see", "vision", "camera")):
+            return {
+                "actions": [{"function": "look", "arguments": {}}],
+                "reply": "Looking through the camera."
+            }
 
         # Determine direction (order matters: check compounds before singles)
         direction = None
@@ -421,12 +523,28 @@ class Agent:
     # ------------------------------------------------------------------
 
     def get_health(self):
+        exit_goal = None
+        if self.current_task == "find_exit":
+            exit_goal = self.exit_behavior.get_goal_world()
         return {
             "status":  "running" if self.is_running else "stopped",
             "task":    self.current_task,
             "message": self.status_message,
             "model":   settings.OPENAI_MODEL,
+            "camera": {
+                "available": bool(self.camera.available),
+                "device_id": self.camera.device_id,
+                "width": self.camera.width,
+                "height": self.camera.height,
+                "fps": self.camera.fps,
+            },
+            "lidar": self.lidar.get_map_stats(),
+            "exit_goal": exit_goal,
         }
+
+    def shutdown(self):
+        if self.camera:
+            self.camera.release()
 
     def set_navigation_waypoints(self, waypoints, mode: str = "replace"):
         self.navigate_behavior.set_waypoints(waypoints, mode=mode)
@@ -445,12 +563,31 @@ class Agent:
         self.status_message = "Navigation cleared."
 
     def get_navigation_status(self):
+        exit_goal = None
+        if self.current_task == "find_exit":
+            exit_goal = self.exit_behavior.get_goal_world()
         return {
             "task": self.current_task,
+            "exit_goal": exit_goal,
             "waypoints": [
                 {"x": wp[0], "y": wp[1]}
                 for wp in self.navigate_behavior.waypoints
             ],
+        }
+
+    def get_debug_state(self) -> dict:
+        return {
+            "task": self.current_task,
+            "status_message": self.status_message,
+            "last_error": self.last_error,
+            "exit": self.exit_behavior.get_debug(),
+            "navigation": {
+                "waypoints": [
+                    {"x": wp[0], "y": wp[1]}
+                    for wp in self.navigate_behavior.waypoints
+                ],
+            },
+            "lidar": self.lidar.get_map_stats(),
         }
 
     def _movement_blocked(self, fwd: float, strafe: float, rot: float) -> tuple[bool, str]:

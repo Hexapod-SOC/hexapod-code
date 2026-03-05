@@ -27,6 +27,7 @@ let lastFrameTs = performance.now();
 let mapData = null;
 let lastFrame = null;
 let lidarStatus = null;
+let navStatusData = null;
 const mapCanvas = document.createElement('canvas');
 const mapCtx = mapCanvas.getContext('2d');
 const navStatus = document.getElementById('nav-status');
@@ -105,6 +106,20 @@ async function fetchMap() {
     }
 }
 
+async function fetchAiNavigation() {
+    try {
+        const res = await fetch(`${AI_API_BASE}/navigation`);
+        if (!res.ok) return;
+        navStatusData = await res.json();
+        if (navStatusData.exit_goal && navStatus) {
+            const goal = navStatusData.exit_goal;
+            navStatus.textContent = `Exit goal: ${goal.x.toFixed(2)}, ${goal.y.toFixed(2)} (${goal.kind || 'frontier'})`;
+        }
+    } catch (err) {
+        // ignore
+    }
+}
+
 function paintOccupancy() {
     if (!mapData) return;
     mapCanvas.width = mapData.width;
@@ -150,7 +165,53 @@ function drawScene(frame) {
         drawPose(frame.pose);
         drawScan(frame.pose, frame.points);
         drawWaypoints();
+        drawExitGoal();
     }
+}
+
+function drawExitGoal() {
+    if (!mapData || !navStatusData || !navStatusData.exit_goal) return;
+    const goal = navStatusData.exit_goal;
+    const coord = worldToCanvas(goal.x, goal.y);
+    if (!coord) return;
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(34, 197, 94, 0.95)';
+    ctx.strokeStyle = '#052e16';
+    ctx.lineWidth = 3;
+
+    if (lastFrame && lastFrame.pose) {
+        const poseCoord = worldToCanvas(lastFrame.pose.x, lastFrame.pose.y);
+        if (poseCoord) {
+            ctx.strokeStyle = 'rgba(34, 197, 94, 0.6)';
+            ctx.setLineDash([6, 6]);
+            ctx.beginPath();
+            ctx.moveTo(poseCoord.x, poseCoord.y);
+            ctx.lineTo(coord.x, coord.y);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.strokeStyle = '#052e16';
+        }
+    }
+
+    ctx.beginPath();
+    ctx.arc(coord.x, coord.y, 10, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.strokeStyle = '#f8fafc';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(coord.x - 14, coord.y);
+    ctx.lineTo(coord.x + 14, coord.y);
+    ctx.moveTo(coord.x, coord.y - 14);
+    ctx.lineTo(coord.x, coord.y + 14);
+    ctx.stroke();
+    ctx.fillStyle = '#f8fafc';
+    ctx.font = '13px Segoe UI';
+    const label = goal.kind ? `Exit (${goal.kind})` : 'Exit';
+    ctx.fillText(label, coord.x + 14, coord.y - 12);
+    ctx.restore();
 }
 
 function drawFallback(frame) {
@@ -345,8 +406,10 @@ if (navClearBtn) {
 setInterval(fetchFrame, 200);
 setInterval(fetchMap, 2500);
 setInterval(fetchLidarStatus, 2000);
+setInterval(fetchAiNavigation, 1200);
 fetchFrame();
 fetchMap();
 fetchLidarStatus();
+fetchAiNavigation();
 setStatus('Connecting…', false);
 renderWaypointList();

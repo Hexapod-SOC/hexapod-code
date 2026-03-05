@@ -1,4 +1,5 @@
 import openai
+import base64
 import json
 import logging
 import re
@@ -91,3 +92,34 @@ Context:
             if short:
                 return short[:max_chars].rstrip()
         return text[:max_chars].rstrip()
+
+    def describe_image(self, image_bytes: bytes, prompt: str | None = None) -> str:
+        if not self.client:
+            return "LLM not configured."
+
+        if not image_bytes:
+            return "No image captured."
+
+        if not prompt:
+            prompt = "Describe what you see from the robot camera."
+
+        b64 = base64.b64encode(image_bytes).decode("utf-8")
+        try:
+            completion = self.client.chat.completions.create(
+                model=settings.OPENAI_VISION_MODEL,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}},
+                        ],
+                    }
+                ],
+                timeout=15,
+            )
+            message = completion.choices[0].message
+            return (message.content or "").strip()
+        except Exception as e:
+            logging.error(f"Vision error: {e}")
+            return "Vision request failed."

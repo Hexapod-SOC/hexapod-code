@@ -260,6 +260,68 @@ h1 {
     text-align: center;
 }
 
+.camera-card {
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.camera-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.camera-title {
+    font-weight: 600;
+    color: #2d3748;
+}
+
+.camera-frame {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background: #0f111a;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid rgba(0, 0, 0, 0.2);
+}
+
+#camera-stream {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.camera-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #cbd5e0;
+    font-size: 0.95em;
+    background: rgba(15, 17, 26, 0.6);
+    text-align: center;
+    padding: 10px;
+}
+
+.camera-overlay.hidden {
+    display: none;
+}
+
+.camera-hint {
+    margin-top: 10px;
+    color: #666;
+    font-size: 0.9em;
+    text-align: center;
+}
+
 .control-section {
     margin-bottom: 30px;
 }

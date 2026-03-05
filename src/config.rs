@@ -5,6 +5,7 @@ use lidar_slam::SlamParams;
 use hexmath::ik;
 use std::path::PathBuf;
 use std::time::Duration;
+use std::env;
 
 pub const WEB_API_ENABLE: bool = true;
 pub const API_PORT: u16 = 3000;
@@ -112,8 +113,17 @@ pub fn calibration_gait_configs_path() -> PathBuf {
 /// Helper to build the configuration passed into the LiDAR SLAM thread.
 pub fn lidar_slam_config() -> LidarSlamConfig {
     let mut params = SlamParams::default();
-    params.map_size_pixels = 1024;
-    params.map_resolution = 0.04;
+    let map_size_pixels = env::var("LIDAR_MAP_SIZE_PIXELS")
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok())
+        .unwrap_or(1024);
+    let map_resolution = env::var("LIDAR_MAP_RESOLUTION")
+        .ok()
+        .and_then(|v| v.parse::<f32>().ok())
+        .unwrap_or(0.04);
+
+    params.map_size_pixels = map_size_pixels;
+    params.map_resolution = map_resolution;
     params.max_range_m = 12.0;
     params.sample_step = 2;
     params.search_window_xy_m = 0.20;

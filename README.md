@@ -123,6 +123,11 @@ cargo make pirunremote
 2. Start the main binary so the API (`config::API_PORT`, default `3000`) and web panel (`config::WEB_PANEL_PORT`, default `8080`) boot.
 3. Open the map page at `http://<host>:8080/map`. Append `?api=https://host:3000/api` to point at a custom API URL/port.
 
+If you expose the services publicly with separate tunnels, use subdomains:
+- `https://hexapod.<domain>` → web panel (8080)
+- `https://hexapi.<domain>` → API (3000)
+- `https://hexai.<domain>` → AI (3001)
+
 Exposed API endpoints:
 
 ```

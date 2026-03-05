@@ -79,6 +79,16 @@ http://192.168.1.100:8080
 http://hexapod.local:8080
 ```
 
+### Public Domain (Cloudflared)
+
+If you expose the services via separate tunnels, use subdomains:
+- `https://hexapod.<domain>` → Web panel (port 8080)
+- `https://hexapi.<domain>` → API (port 3000)
+- `https://hexai.<domain>` → AI (port 3001)
+
+The web panel auto-detects `hexapod.*` and targets `hexapi.*` / `hexai.*` for requests.
+When opened on `http://hexapod.local:8080`, it uses local ports `3000` (API) and `3001` (AI).
+
 ## Interface Guide
 
 ### Movement Controls

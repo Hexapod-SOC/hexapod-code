@@ -49,6 +49,18 @@ The AI Controller exposes an HTTP API on port `3001` (by default).
 
 -   **Clear Navigation**: `POST /api/ai/navigation/clear`
 
+-   **Camera Status**: `GET /api/ai/camera/status`
+    -   Response: `{ "available": true, "device_id": 0, "width": 1280, "height": 720, "fps": 15 }`
+
+-   **Camera Snapshot**: `GET /api/ai/camera/frame`
+    -   Response: `image/jpeg`
+
+-   **Camera Stream (MJPEG)**: `GET /api/ai/camera/stream`
+    -   Response: `multipart/x-mixed-replace` MJPEG stream
+
+-   **Camera Vision (Chat)**: `POST /api/ai/chat`
+    -   Body: `{"message": "look"}` or `{"message": "what do you see?"}`
+
 ## Extending
 
 -   **Add a new Tool**:
@@ -58,3 +70,30 @@ The AI Controller exposes an HTTP API on port `3001` (by default).
     1.  Create `behaviors/my_behavior.py`.
     2.  Implement a `step()` method.
     3.  Integrate into `Agent.run_loop`.
+
+## Camera Configuration
+
+Set these environment variables to match the Pi camera:
+
+- `AI_CAMERA_DEVICE_ID` (default `0`)
+- `AI_CAMERA_WIDTH` (default `1280`)
+- `AI_CAMERA_HEIGHT` (default `720`)
+- `AI_CAMERA_FPS` (default `15`)
+- `AI_CAMERA_STREAM_FPS` (default `10`)
+- `AI_CAMERA_JPEG_QUALITY` (default `85`)
+
+### Raspberry Pi (DietPi) setup notes
+
+- If you see `cv2` missing `VideoCapture`, use the Picamera2 backend:
+    - `sudo apt install -y python3-picamera2 python3-pil`
+- To use OpenCV directly:
+    - `sudo apt install -y python3-opencv`
+
+## Vision-Assisted Find Exit
+
+Enable camera help when choosing exit frontiers:
+
+- `EXIT_USE_VISION` (default `true`)
+- `EXIT_VISION_REFRESH_S` (default `8.0`)
+- `EXIT_VISION_BONUS` (default `40.0`)
+- `EXIT_VISION_PROMPT` (customize the direction query)

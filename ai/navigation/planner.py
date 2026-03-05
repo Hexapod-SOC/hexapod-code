@@ -78,8 +78,23 @@ class Pathfinder:
             blocked = grid >= OBSTACLE_THRESH
 
         if blocked[start]:
-            logging.warning("Planner: start is in obstacle after inflation")
-            return None
+            found_start = False
+            for r_search in range(1, 10):
+                for dr in range(-r_search, r_search + 1):
+                    for dc in range(-r_search, r_search + 1):
+                        nr, nc = start[0] + dr, start[1] + dc
+                        if 0 <= nr < rows and 0 <= nc < cols and not blocked[nr, nc]:
+                            start = (nr, nc)
+                            found_start = True
+                            break
+                    if found_start:
+                        break
+                if found_start:
+                    break
+            if not found_start:
+                logging.warning("Planner: start is in obstacle after inflation")
+                return None
+            logging.warning("Planner: nudged start to %s to escape inflation", start)
 
         # If goal is occupied, find nearest traversable cell
         if blocked[goal]:

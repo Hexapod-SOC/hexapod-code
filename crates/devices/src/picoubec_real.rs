@@ -37,10 +37,18 @@ pub struct PicoUbecController {
     battery_status: BatteryStatus,
     power_state: PowerState,
     connection_failed: bool,
+    raw_log: bool,
+    unknown_log: bool,
 }
 
 impl PicoUbecController {
     pub fn new(port_path: &str) -> Self {
+        let raw_log = std::env::var("UBEC_RAW_LOG")
+            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+            .unwrap_or(false);
+        let unknown_log = std::env::var("UBEC_UNKNOWN_LOG")
+            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+            .unwrap_or(false);
         // Try to open the serial port with raw file I/O
         let (reader, writer, failed) = match Self::open_serial_port(port_path) {
             Ok((r, w)) => {
@@ -66,6 +74,8 @@ impl PicoUbecController {
             battery_status: BatteryStatus::default(),
             power_state: PowerState::Normal,
             connection_failed: failed,
+            raw_log,
+            unknown_log,
         }
     }
 
@@ -162,7 +172,9 @@ impl PicoUbecController {
 
         let got_data = !lines.is_empty();
         for line in lines {
-            eprintln!("[UBEC RAW] {:?}", line.trim_end()); // TODO: remove after debugging
+            if self.raw_log {
+                eprintln!("[UBEC RAW] {:?}", line.trim_end());
+            }
             self.parse_message(&line);
         }
         got_data
@@ -288,7 +300,7 @@ impl PicoUbecController {
 
             // Unknown message
             _ => {
-                if !msg.is_empty() {
+                if self.unknown_log && !msg.is_empty() {
                     eprintln!("[UBEC] Unknown message: {}", msg);
                 }
             }

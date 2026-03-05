@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi.responses import Response, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import asyncio
@@ -167,12 +168,18 @@ async def lifespan(app: FastAPI):
         await loop_task
     except asyncio.CancelledError:
         pass
+    agent.shutdown()
 
 app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://hexapod.local",
+        "http://hexapod.local:8080",
+        "http://localhost:8080",
+        "http://127.0.0.1:8080",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -267,6 +274,58 @@ async def health_check():
     payload = agent.get_health()
     payload["mic_source"] = MIC_SOURCE
     return payload
+
+@app.get("/api/ai/debug")
+async def debug_state():
+    return agent.get_debug_state()
+
+@app.get("/api/ai/camera/status")
+async def camera_status():
+    cam = agent.camera
+    return {
+        "available": bool(cam.available),
+        "device_id": cam.device_id,
+        "width": cam.width,
+        "height": cam.height,
+        "fps": cam.fps,
+    }
+
+@app.get("/api/ai/camera/frame")
+async def camera_frame():
+    cam = agent.camera
+    if not cam.available:
+        raise HTTPException(status_code=503, detail="Camera not available")
+    jpeg = await asyncio.to_thread(cam.get_jpeg_bytes, settings.CAMERA_JPEG_QUALITY)
+    if not jpeg:
+        raise HTTPException(status_code=503, detail="Failed to capture camera frame")
+    return Response(content=jpeg, media_type="image/jpeg")
+
+@app.get("/api/ai/camera/stream")
+async def camera_stream():
+    cam = agent.camera
+    if not cam.available:
+        raise HTTPException(status_code=503, detail="Camera not available")
+
+    boundary = "frame"
+
+    async def frame_generator():
+        delay = 1.0 / max(1, settings.CAMERA_STREAM_FPS)
+        while True:
+            jpeg = await asyncio.to_thread(cam.get_jpeg_bytes, settings.CAMERA_JPEG_QUALITY)
+            if not jpeg:
+                await asyncio.sleep(delay)
+                continue
+            yield (
+                f"--{boundary}\r\n"
+                "Content-Type: image/jpeg\r\n"
+                f"Content-Length: {len(jpeg)}\r\n\r\n"
+            ).encode("utf-8") + jpeg + b"\r\n"
+            await asyncio.sleep(delay)
+
+    return StreamingResponse(
+        frame_generator(),
+        media_type=f"multipart/x-mixed-replace; boundary={boundary}",
+    )
 
 @app.post("/api/ai/chat")
 async def chat(request: ChatRequest):

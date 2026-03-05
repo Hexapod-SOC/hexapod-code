@@ -76,7 +76,40 @@ available_tools = [
             "description": "Search for an exit (door or corridor) and navigate through it.",
             "parameters": {
                 "type": "object",
-                "properties": {},
+                "properties": {
+                    "bias_points": {
+                        "type": "array",
+                        "description": "Optional list of world coordinates to bias exit search toward.",
+                        "items": {
+                            "type": "array",
+                            "items": [{"type": "number"}, {"type": "number"}],
+                            "minItems": 2,
+                            "maxItems": 2
+                        }
+                    }
+                },
+            },
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "navigate_waypoints",
+            "description": "Navigate through a list of waypoints in order.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "waypoints": {
+                        "type": "array",
+                        "items": {
+                            "type": "array",
+                            "items": [{"type": "number"}, {"type": "number"}],
+                            "minItems": 2,
+                            "maxItems": 2
+                        }
+                    }
+                },
+                "required": ["waypoints"]
             },
         }
     },
@@ -106,6 +139,19 @@ available_tools = [
                     "text": {"type": "string", "description": "Text to speak"},
                 },
                 "required": ["text"]
+            },
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "look",
+            "description": "Capture a camera frame and describe what it sees.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "prompt": {"type": "string", "description": "Optional prompt for what to look for"}
+                },
             },
         }
     }

@@ -1,6 +1,32 @@
 // API Configuration - Use current window location for API calls
-const API_BASE = `${window.location.protocol}//${window.location.hostname}:3000/api`;
-const AI_API_BASE = `${window.location.protocol}//${window.location.hostname}:3001/api/ai`;
+function resolveServiceBases() {
+    const protocol = window.location.protocol;
+    const hostname = window.location.hostname;
+    const lowerHost = hostname.toLowerCase();
+
+    if (lowerHost === 'hexapod.local') {
+        return {
+            apiBase: `${protocol}//${hostname}:3000/api`,
+            aiBase: `${protocol}//${hostname}:3001/api/ai`
+        };
+    }
+    const subdomainMatch = hostname.match(/^(hexapod|hexapi|hexai)\.(.+)$/i);
+
+    if (subdomainMatch) {
+        const baseDomain = subdomainMatch[2];
+        return {
+            apiBase: `${protocol}//hexapi.${baseDomain}/api`,
+            aiBase: `${protocol}//hexai.${baseDomain}/api/ai`
+        };
+    }
+
+    return {
+        apiBase: `${protocol}//${hostname}:3000/api`,
+        aiBase: `${protocol}//${hostname}:3001/api/ai`
+    };
+}
+
+const { apiBase: API_BASE, aiBase: AI_API_BASE } = resolveServiceBases();
 
 // State
 let currentGait = 'ripple';
@@ -24,6 +50,7 @@ let liveScriptProcessor = null;
 let liveWs = null;
 let liveReconnectTimer = null;
 let liveReconnectDelay = 500;
+let cameraRetryTimer = null;
 const LIVE_TARGET_SAMPLE_RATE = 16000;
 
 function normalizeGaitName(name) {
@@ -73,6 +100,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initEmergencyStop();
     initAIChat();
     initTTS();
+    initCameraPanel();
     initGamepad();
     initCustomGaitControls();
     initLegCalibration();
@@ -415,6 +443,50 @@ function initTTS() {
             }
         }
     });
+}
+
+function initCameraPanel() {
+    const streamImg = document.getElementById('camera-stream');
+    const overlay = document.getElementById('camera-overlay');
+    const reloadBtn = document.getElementById('camera-reload');
+
+    if (!streamImg || !overlay) {
+        return;
+    }
+
+    const showOverlay = (message) => {
+        overlay.textContent = message;
+        overlay.classList.remove('hidden');
+    };
+
+    const hideOverlay = () => {
+        overlay.classList.add('hidden');
+    };
+
+    const loadStream = () => {
+        if (cameraRetryTimer) {
+            clearTimeout(cameraRetryTimer);
+            cameraRetryTimer = null;
+        }
+        showOverlay('Connecting to camera…');
+        const cacheBust = Date.now();
+        streamImg.src = `${AI_API_BASE}/camera/stream?ts=${cacheBust}`;
+    };
+
+    streamImg.addEventListener('load', () => {
+        hideOverlay();
+    });
+
+    streamImg.addEventListener('error', () => {
+        showOverlay('Camera unavailable — retrying…');
+        cameraRetryTimer = setTimeout(loadStream, 2000);
+    });
+
+    if (reloadBtn) {
+        reloadBtn.addEventListener('click', loadStream);
+    }
+
+    loadStream();
 }
 
 async function speakText(text) {
